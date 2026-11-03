@@ -53,7 +53,7 @@ $action = $isEdit ? 'admin/properties/' . $property['id'] . '/edit' : 'admin/pro
     <div class="field"><label for="pfBaths">Bathrooms</label><input id="pfBaths" type="number" name="baths" min="0" max="60" value="<?= e($v('baths', '0')) ?>"></div>
     <div class="field"><label for="pfParking">Parking spaces</label><input id="pfParking" type="number" name="parking" min="0" max="200" value="<?= e($v('parking', '0')) ?>"></div>
     <div class="field"><label for="pfArea">Plot / floor area (sqm)</label><input id="pfArea" type="number" name="area_sqm" min="0" step="0.01" value="<?= e($v('area_sqm', '0')) ?>"></div>
-    <div class="field full"><label for="pfAmen">Amenities &amp; features <small>(one per line)</small></label><textarea id="pfAmen" name="amenities" rows="4" placeholder="En-suite bedrooms&#10;Fitted kitchen&#10;24-hour security&#10;Ample parking"><?= e($v('amenities')) ?></textarea></div>
+    <div class="field full"><label for="pfAmen">Amenities &amp; features <small>(one per line)</small></label><textarea id="pfAmen" name="amenities" rows="4" placeholder="En-suite bedrooms&#10;Fitted kitchen&#10;24-hour security&#10;Ample parking"><?= e(implode("\n", amenities_list((string)$v('amenities')))) ?></textarea></div>
   </div>
 </div>
 <div class="admin-card admin-form">

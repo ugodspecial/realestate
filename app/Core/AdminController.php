@@ -96,7 +96,7 @@ final class AdminController {
             'area_sqm' => max(0, (float)input('area_sqm')),
             'address' => mb_substr(input('address'), 0, 255),
             'description' => mb_substr(input('description'), 0, 20000),
-            'amenities' => implode("\n", array_slice(array_filter(array_map(fn($a) => mb_substr(trim((string)$a), 0, 80), explode("\n", str_replace(',', "\n", (string)input('amenities'))))), 0, 40)),
+            'amenities' => json_encode(array_slice(array_map(fn($a) => mb_substr($a, 0, 80), amenities_list((string)input('amenities'))), 0, 40)),
             'seo_title' => mb_substr(input('seo_title'), 0, 180), 'seo_description' => mb_substr(input('seo_description'), 0, 320),
         ];
     }

@@ -55,6 +55,12 @@ function deal_label(string $deal): string { return $deal === 'rent' ? 'For rent'
 function status_label(string $status): string { return ['available'=>'Available','sold'=>'Sold','rented'=>'Rented','pending'=>'Awaiting approval','draft'=>'Draft','published'=>'Published'][$status] ?? ucfirst($status); }
 function badge(string $status, ?string $label = null): string { return '<span class="badge badge-' . e($status) . '">' . e($label ?? status_label($status)) . '</span>'; }
 function excerpt(string $text, int $length = 145): string { return mb_strlen($text) > $length ? mb_substr($text, 0, $length - 1) . '…' : $text; }
+function amenities_list(string $raw): array {
+    $raw = trim($raw);
+    if ($raw === '') return [];
+    if (str_starts_with($raw, '[')) { $decoded = json_decode($raw, true); return is_array($decoded) ? array_values(array_filter(array_map(fn($a) => trim((string)$a), $decoded))) : []; }
+    return array_values(array_filter(array_map('trim', explode("\n", str_replace(',', "\n", $raw)))));
+}
 function icon(string $name, string $class = ''): string {
     $paths = [
         'arrow'=>'<path d="M4 12h15m-6-6 6 6-6 6"/>',
