@@ -19,8 +19,8 @@ function image_url(?string $path): string {
 }
 function redirect(string $path, int $status = 303): never { header('Location: ' . (preg_match('#^https?://#', $path) ? $path : url($path)), true, $status); exit; }
 function request_method(): string { return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'); }
-function input(string $key, mixed $default = ''): mixed { $value = $_POST[$key] ?? $default; return is_string($value) ? trim($value) : $value; }
-function query_value(string $key, string $default = ''): string { $v = $_GET[$key] ?? $default; return is_string($v) ? trim($v) : $default; }
+function input(string $key, mixed $default = ''): mixed { $value = $_POST[$key] ?? $default; if (is_array($value)) return $default; return is_string($value) ? trim($value) : $value; }
+function query_value(string $key, string $default = ''): string { $v = $_GET[$key] ?? $default; if (is_array($v)) return $default; return is_string($v) ? trim($v) : $v; }
 function csrf_token(): string { if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32)); return $_SESSION['csrf']; }
 function csrf_field(): string { return '<input type="hidden" name="_token" value="' . e(csrf_token()) . '">'; }
 function verify_csrf(): void {

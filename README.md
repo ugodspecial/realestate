@@ -35,7 +35,8 @@ page ready for a future agent marketplace (registration, subscriptions, Paystack
 
 ## Requirements
 
-- PHP 8.1+ with `pdo_mysql`, `mbstring`, `gd`, `fileinfo`
+- PHP 8.1+ with `pdo_mysql`, `mbstring`, `gd`, `fileinfo` (CI-verified on 8.1–8.5,
+  plus a non-blocking nightly watch job that flags future-version breakage early)
 - MySQL 5.7+ / MariaDB 10.3+ (SQLite is supported for local demos only)
 - Apache/LiteSpeed with `mod_rewrite`, or any server that can route to `public/index.php`
 

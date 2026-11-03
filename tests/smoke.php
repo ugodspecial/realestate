@@ -1,7 +1,17 @@
 <?php
 /** CLI smoke test: php tests/smoke.php (uses the configured database, read-only). */
 if (PHP_SAPI !== 'cli') exit('CLI only.' . PHP_EOL);
+
+// Forward-compatibility tripwire: any deprecation, warning, or notice fails the run.
+error_reporting(E_ALL);
+$phpIssues = [];
+set_error_handler(static function (int $errno, string $errstr, string $errfile, int $errline) use (&$phpIssues): bool {
+    $phpIssues[] = "$errstr in $errfile:$errline";
+    return true;
+});
+
 require dirname(__DIR__) . '/app/bootstrap.php';
+ini_set('display_errors', '1');
 
 $failures = 0;
 function check(string $label, bool $ok): void {
@@ -41,5 +51,11 @@ check('favicon exists', is_file(ROOT_PATH . '/public/assets/images/favicon.svg')
 foreach (['Rajdhani-Regular.ttf', 'Rajdhani-Medium.ttf', 'Rajdhani-SemiBold.ttf', 'Rajdhani-Bold.ttf', 'Roboto[wdth,wght].ttf'] as $font) {
     check('font ships: ' . $font, is_file(ROOT_PATH . '/public/assets/fonts/' . $font));
 }
+
+foreach ($phpIssues as $issue) {
+    $failures++;
+    echo 'FAIL  clean runtime: ' . $issue . PHP_EOL;
+}
+if (!$phpIssues) echo 'PASS  clean runtime (no deprecations, warnings, or notices)' . PHP_EOL;
 
 exit($failures ? 1 : 0);

@@ -21,7 +21,7 @@ final class Auth {
         if (!self::can($permission)) abort_page(403, 'Your role does not have permission to access this area. Please contact a Super Administrator.');
         return $user;
     }
-    public static function attempt(string $email, string $password, string $ip): bool {
+    public static function attempt(string $email, #[\SensitiveParameter] string $password, string $ip): bool {
         $key = hash('sha256', 'login|' . $ip . '|' . strtolower($email));
         if (RateLimiter::tooMany($key, 7, 900)) return false;
         RateLimiter::hit($key, 900);

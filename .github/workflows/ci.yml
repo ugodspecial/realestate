@@ -6,14 +6,20 @@ on:
 
 jobs:
   lint:
-    name: PHP syntax (8.1–8.3)
+    name: PHP syntax · ${{ matrix.php }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php }}
           coverage: none
+      # php -l compiles each file, so version-specific parse errors and
+      # compile-time deprecations surface here on every supported version.
       - run: find app bin database public tests -name '*.php' -print0 | xargs -0 -n1 php -l
 
   sqlite:
@@ -22,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.1', '8.2', '8.3']
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
     env:
       APP_ENV: local
       DB_DRIVER: sqlite
@@ -41,6 +47,8 @@ jobs:
           echo $! >/tmp/php-server.pid
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health && break; sleep 1; done
       - run: bash tests/http-smoke.sh http://127.0.0.1:8080
+      - name: Fail on PHP deprecations/warnings
+        run: '! grep -iE "deprecat|PHP (Warning|Fatal|Notice)|Uncaught" /tmp/php-server.log storage/logs/php-error.log'
       - if: failure()
         run: cat /tmp/php-server.log storage/logs/php-error.log 2>/dev/null || true
       - if: always()
@@ -52,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.2', '8.3']
+        php: ['8.2', '8.3', '8.4', '8.5']
     services:
       mariadb:
         image: mariadb:11
@@ -87,6 +95,41 @@ jobs:
           echo $! >/tmp/php-server.pid
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health && break; sleep 1; done
       - run: bash tests/http-smoke.sh http://127.0.0.1:8080
+      - name: Fail on PHP deprecations/warnings
+        run: '! grep -iE "deprecat|PHP (Warning|Fatal|Notice)|Uncaught" /tmp/php-server.log storage/logs/php-error.log'
+      - if: failure()
+        run: cat /tmp/php-server.log storage/logs/php-error.log 2>/dev/null || true
+      - if: always()
+        run: kill "$(cat /tmp/php-server.pid)" 2>/dev/null || true
+
+  # Forward-compatibility watch: tracks upcoming PHP on a best-effort basis.
+  # Non-blocking (continue-on-error) — it reports future breakage early without
+  # ever failing the build. When a new PHP version goes stable, promote it into
+  # the matrices above and keep this job on nightly.
+  future:
+    name: Forward-compat watch · nightly (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      APP_ENV: local
+      DB_DRIVER: sqlite
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: nightly
+          extensions: gd, mbstring, pdo_sqlite, fileinfo
+          coverage: none
+      - run: mkdir -p storage/sessions storage/logs public/uploads
+      - run: php bin/install.php --demo
+      - run: php tests/smoke.php
+      - run: |
+          php -S 127.0.0.1:8080 -t public public/router.php >/tmp/php-server.log 2>&1 &
+          echo $! >/tmp/php-server.pid
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health && break; sleep 1; done
+      - run: bash tests/http-smoke.sh http://127.0.0.1:8080
+      - name: Report PHP deprecations/warnings
+        run: '! grep -iE "deprecat|PHP (Warning|Fatal|Notice)|Uncaught" /tmp/php-server.log storage/logs/php-error.log'
       - if: failure()
         run: cat /tmp/php-server.log storage/logs/php-error.log 2>/dev/null || true
       - if: always()
