@@ -1,0 +1,18 @@
+Options -Indexes
+DirectoryIndex index.php
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteRule ^(?:uploads/.*\.php|.*\.sqlite.*)$ - [F,L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
+</IfModule>
+<IfModule mod_headers.c>
+Header always set X-Content-Type-Options "nosniff"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+<FilesMatch "\.(css|js|woff2?|ttf|webp|jpg|png|svg)$">
+<IfModule mod_headers.c>
+Header set Cache-Control "public, max-age=604800"
+</IfModule>
+</FilesMatch>

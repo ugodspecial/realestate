@@ -1,0 +1,12 @@
+/config.local.php
+/storage/*.sqlite*
+/storage/sessions/*
+/storage/logs/*
+/storage/demo-credentials.json
+/storage/backups/*
+/public/uploads/*
+!/public/uploads/.htaccess
+/node_modules/
+/.runtime/
+*.log
+.DS_Store

@@ -1,0 +1,9 @@
+<article class="property-card">
+<div class="property-image-wrap"><a href="<?= url('property/'.$p['slug']) ?>" class="property-image-link" tabindex="-1" aria-hidden="true"><img src="<?= e(image_url($p['image'])) ?>" alt="<?= e($p['title']) ?> in <?= e($p['location_name']) ?>" loading="lazy" width="640" height="440"></a>
+<div class="property-badges"><?= badge($p['deal'],deal_label($p['deal'])) ?><?php if($p['featured']): ?><?= badge('featured','Featured') ?><?php endif; ?><?php if($p['status']!=='available'): ?><?= badge($p['status']) ?><?php endif; ?></div>
+<button class="save-property" data-save="<?= e($p['listing_id']) ?>" data-title="<?= e($p['title']) ?>" aria-label="Save <?= e($p['title']) ?>" aria-pressed="false"><?= icon('heart') ?></button>
+<span class="property-photo-count"><?= icon('images') ?><?= count(Properties::images((int)$p['id'])) ?></span><span class="property-id"><?= e($p['listing_id']) ?></span></div>
+<div class="property-card-body"><div class="property-price"><?= e(price_label($p)) ?><span><?= e($p['category_name']) ?></span></div><h3><a href="<?= url('property/'.$p['slug']) ?>"><?= e($p['title']) ?></a></h3><p class="property-location"><?= icon('pin') ?><?= e($p['location_name']) ?>, <?= e($p['city']) ?></p>
+<div class="property-specs"><?php if($p['beds']): ?><span><?= icon('bed') ?><b><?= (int)$p['beds'] ?></b> Beds</span><span><?= icon('bath') ?><b><?= (int)$p['baths'] ?></b> Baths</span><?php else: ?><span><?= icon('building') ?><?= e($p['category_name']) ?></span><?php endif; ?><span><?= icon('area') ?><b><?= number_format((float)$p['area_sqm']) ?></b> m²</span></div>
+<div class="property-card-bottom"><span><?= badge($p['status']) ?></span><a href="<?= url('property/'.$p['slug']) ?>">View property <?= icon('arrow-up') ?></a></div></div>
+</article>
