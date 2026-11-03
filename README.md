@@ -1,5 +1,7 @@
 # Cedar Tranquility Real Estate
 
+[![CI](https://github.com/ugodspecial/realestate/actions/workflows/ci.yml/badge.svg)](https://github.com/ugodspecial/realestate/actions/workflows/ci.yml)
+
 A complete, production-ready premium real estate website — public property portal plus a
 secure no-code administration dashboard. Built with dependency-free PHP 8.1+ and
 MySQL/MariaDB for maximum compatibility with cPanel shared hosting, LiteSpeed, Apache,
