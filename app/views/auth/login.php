@@ -7,14 +7,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Staff Sign In — <?= e(setting('site_name', 'Cedar Tranquility Real Estate')) ?></title>
 <meta name="robots" content="noindex, nofollow">
-<link rel="icon" type="image/svg+xml" href="<?= asset('assets/images/favicon.svg') ?>">
-<link rel="stylesheet" href="<?= asset('assets/css/site.css') ?>">
+<link rel="icon" type="image/svg+xml" href="<?= asset('images/favicon.svg') ?>">
+<link rel="stylesheet" href="<?= asset('css/site.css') ?>">
 </head>
 <body class="login-page">
 <a class="skip-link" href="#loginForm">Skip to sign-in form</a>
 <div class="login-shell">
   <div class="login-visual">
-    <img src="<?= asset('assets/images/terrace.jpg') ?>" alt="" aria-hidden="true">
+    <img src="<?= asset('images/terrace.jpg') ?>" alt="" aria-hidden="true">
     <a class="brand brand-light" href="<?= url('/') ?>" aria-label="Cedar Tranquility Real Estate home">
       <span class="brand-symbol" aria-hidden="true"><?= brand_mark() ?></span>
       <span class="brand-type">CEDAR TRANQUILITY<small>REAL ESTATE</small></span>
@@ -60,6 +60,6 @@
     </div>
   </div>
 </div>
-<script src="<?= asset('assets/js/site.js') ?>" defer></script>
+<script src="<?= asset('js/site.js') ?>" defer></script>
 </body>
 </html>

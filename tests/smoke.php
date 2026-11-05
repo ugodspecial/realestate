@@ -45,6 +45,26 @@ check('content editors cannot manage properties', !in_array('properties.manage',
 check('only super admins manage settings', array_filter(Auth::PERMISSIONS, fn($p) => in_array('settings.manage', $p, true)) === ['super_admin' => Auth::PERMISSIONS['super_admin']]);
 
 check('login view renders', str_contains(view('auth/login', ['demo_hint' => '']), 'Staff sign in'));
+$loginHtml = view('auth/login', ['demo_hint' => '']);
+check('login assets resolve', str_contains($loginHtml, '/assets/css/site.css') && !str_contains($loginHtml, '/assets/assets'));
+$helperSrc = (string) file_get_contents(ROOT_PATH . '/app/Core/helpers.php');
+preg_match_all("/'([a-z_-]+)'\\s*=>\\s*'</", $helperSrc, $iconDef);
+$definedIcons = $iconDef[1] ?? [];
+$badAsset = false; $usedIcons = [];
+$viewFiles = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(ROOT_PATH . '/app/views'));
+foreach ($viewFiles as $viewFile) {
+    if (!$viewFile->isFile()) continue;
+    $viewSrc = (string) file_get_contents($viewFile->getPathname());
+    if (str_contains($viewSrc, "asset('assets/")) $badAsset = true;
+    preg_match_all("/icon\\('([a-z_-]+)'/", $viewSrc, $um);
+    preg_match_all("/'([a-z_]+)', 'admin\\//", $viewSrc, $nm);
+    $usedIcons = array_merge($usedIcons, $um[1], $nm[1]);
+}
+check('no doubled asset paths in views', !$badAsset);
+foreach (Database::all('SELECT DISTINCT icon FROM categories') as $row) $usedIcons[] = $row['icon'];
+foreach (['key','home','land','chart','shield','pin','handshake','leaf','globe'] as $hardcoded) $usedIcons[] = $hardcoded;
+$missingIcons = array_values(array_diff(array_unique(array_filter($usedIcons)), $definedIcons));
+check('all used icons exist', $missingIcons === []);
 check('admin layout renders', str_contains(view('admin/roadmap', []), 'agent portal'));
 
 check('CSS bundle exists', is_file(ROOT_PATH . '/public/assets/css/site.css'));
