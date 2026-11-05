@@ -84,7 +84,7 @@ final class Migrator {
                 $ms = (int) ((hrtime(true) - $start) / 1000000);
                 $stmt = $pdo->prepare('INSERT INTO ' . self::TABLE . ' (version, description, checksum, applied_at, duration_ms) VALUES (?, ?, ?, ?, ?)');
                 $stmt->execute([$m['version'], $m['description'], $m['checksum'], gmdate('Y-m-d H:i:s'), $ms]);
-                if (!$outer) $pdo->commit();
+                if (!$outer && $pdo->inTransaction()) $pdo->commit();
             } catch (Throwable $e) {
                 if (!$outer && $pdo->inTransaction()) $pdo->rollBack();
                 throw new RuntimeException("Migration {$m['version']} ({$m['description']}) failed: {$e->getMessage()}", 0, $e);

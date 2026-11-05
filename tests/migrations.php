@@ -99,6 +99,14 @@ $ranLegacy = Migrator::run($pdo4, $legacy);
 check('legacy database adopts migrations', $ranLegacy === ['001', '002', '010']);
 check('legacy data is preserved', (int) $pdo4->query('SELECT COUNT(*) FROM notes')->fetchColumn() === 3);
 
+// 6. MySQL commits DDL implicitly, closing the runner's transaction early —
+// the runner must tolerate that instead of throwing on commit.
+$implicit = $tmp . '/implicit';
+@mkdir($implicit, 0777, true);
+file_put_contents($implicit . '/001_early_commit.php', "<?php\nreturn ['description' => 'early commit', 'up' => static function (PDO \$pdo, string \$driver): void { \$pdo->exec('CREATE TABLE t (id INTEGER PRIMARY KEY)'); if (\$pdo->inTransaction()) \$pdo->commit(); }];\n");
+$pdo5 = $makeDb('e.sqlite');
+check('mid-migration commit does not break the runner', Migrator::run($pdo5, $implicit) === ['001'] && Migrator::versions($pdo5) === ['001']);
+
 foreach ($phpIssues as $issue) {
     $failures++;
     echo 'FAIL  clean runtime: ' . $issue . PHP_EOL;
