@@ -53,7 +53,7 @@ $newEnquiries = Auth::can('enquiries.manage') ? (int)Database::value("SELECT COU
     </nav>
     <div class="admin-user">
       <?= e($admin_user['name'] ?? '') ?>
-      <small><?= e(Auth::roleName($admin_user['role'] ?? '')) ?></small>
+      <small><?= e(Auth::roleName($admin_user['role'] ?? '')) ?> · v<?= e(APP_VERSION) ?></small>
       <div>
         <a href="<?= url('admin/account') ?>">My account</a>
         <a href="<?= url('/') ?>" target="_blank" rel="noopener">View site</a>

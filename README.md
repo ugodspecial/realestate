@@ -64,6 +64,14 @@ See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full guide: MySQL setup
 installer usage (`php bin/install.php --email …` with `CEDAR_ADMIN_PASSWORD`),
 document-root configuration, permissions, cron-free operation, and migration checklist.
 
+## Upgrading
+
+Existing test and production sites upgrade with `php bin/upgrade.php`, which
+backs up the database and applies pending versioned migrations. See
+**[docs/UPGRADING.md](docs/UPGRADING.md)** for the runbook, rollback steps,
+and how to author a migration. Every release notes its changes in
+[CHANGELOG.md](CHANGELOG.md).
+
 ## Project structure
 
 ```
@@ -74,12 +82,12 @@ app/
   Core/                Database, Auth (+RBAC), RateLimiter, Audit, Properties,
                        Enquiries, Uploads, Mailer, PublicController, AdminController
   views/               Public templates, reusable components, auth, admin dashboard
-bin/install.php        CLI installer (schema + seed + admin user)
-database/              Portable MySQL/SQLite schema and demo seed data
+bin/                   CLI installer (schema + seed + admin) and upgrader (backup + migrations)
+database/              Portable MySQL/SQLite schema, versioned migrations, demo seed
 public/                Web root: index.php, router.php, assets, uploads
-storage/               SQLite demo DB, sessions, logs (never web-accessible)
-docs/                  Deployment and operations guides
-tests/                 CLI smoke test
+storage/               SQLite demo DB, sessions, logs, backups (never web-accessible)
+docs/                  Deployment, upgrading, and operations guides
+tests/                 CLI smoke, HTTP, and migration self-tests
 ```
 
 ## Security notes

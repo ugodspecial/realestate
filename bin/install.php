@@ -5,9 +5,8 @@ $options=getopt('',['demo','name:','email:','password:','password-file:']);
 $demo=isset($options['demo']);
 if($demo && config('app_env')!=='local') exit('Demo installation is allowed only with APP_ENV=local.'.PHP_EOL);
 $pdo=Database::connection();
-[$tables,$indexes]=(require ROOT_PATH.'/database/schema.php')($pdo->getAttribute(PDO::ATTR_DRIVER_NAME));
-foreach($tables as $sql) $pdo->exec($sql);
-foreach($indexes as $sql) { try{$pdo->exec($sql);}catch(PDOException $e){if(!str_contains(strtolower($e->getMessage()),'duplicate') && !str_contains(strtolower($e->getMessage()),'already exists'))throw $e;} }
+$applied=Migrator::run($pdo,Migrator::dir());
+foreach($applied as $version) echo "Migration {$version} applied.\n";
 if((int)Database::value('SELECT COUNT(*) FROM users')>0) exit('Schema is ready. Existing content was preserved.'.PHP_EOL);
 if($demo) { (require ROOT_PATH.'/database/seed.php')(); echo "Demo installed. Account credentials: storage/demo-credentials.json\n"; }
 else {

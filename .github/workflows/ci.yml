@@ -102,6 +102,61 @@ jobs:
       - if: always()
         run: kill "$(cat /tmp/php-server.pid)" 2>/dev/null || true
 
+  upgrade:
+    name: Upgrade path · migrations + backup
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: cedar_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+    env:
+      APP_ENV: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: gd, mbstring, pdo_sqlite, pdo_mysql, fileinfo
+          coverage: none
+      - run: mkdir -p storage/sessions storage/logs public/uploads
+      # Runner logic on scratch databases (ordering, tracking, idempotency,
+      # tamper warnings, failure isolation, legacy adoption).
+      - run: php tests/migrations.php
+      # SQLite leg: install runs through the migrator, then the upgrade path
+      # is exercised with a real backup plus legacy-table simulation.
+      - run: |
+          php bin/install.php --demo
+          php bin/upgrade.php --dry-run
+          php bin/upgrade.php
+          test -n "$(ls storage/backups/db-*.sqlite 2>/dev/null)"
+          php -r 'require "app/bootstrap.php"; Database::connection()->exec("DROP TABLE migrations");'
+          php bin/upgrade.php
+          php tests/smoke.php
+        env:
+          DB_DRIVER: sqlite
+      # MySQL leg: same flow without a dump (no mysqldump on runners).
+      - run: |
+          php bin/install.php --demo
+          php bin/upgrade.php --dry-run
+          php bin/upgrade.php --no-backup
+          php -r 'require "app/bootstrap.php"; Database::connection()->exec("DROP TABLE migrations");'
+          php bin/upgrade.php --no-backup
+          php tests/smoke.php
+        env:
+          DB_DRIVER: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_NAME: cedar_test
+          DB_USER: root
+          DB_PASS: root
+
   # Forward-compatibility watch: tracks upcoming PHP on a best-effort basis.
   # Non-blocking (continue-on-error) — it reports future breakage early without
   # ever failing the build. When a new PHP version goes stable, promote it into

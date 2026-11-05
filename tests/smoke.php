@@ -25,6 +25,8 @@ check('settings load', setting('site_name', brand()) !== '');
 check('categories exist', (int)Database::value('SELECT COUNT(*) FROM categories') > 0);
 check('locations exist', (int)Database::value('SELECT COUNT(*) FROM locations') > 0);
 check('users exist', (int)Database::value('SELECT COUNT(*) FROM users') > 0);
+check('migrations baseline recorded', (int)Database::value("SELECT COUNT(*) FROM migrations WHERE version = '001'") === 1);
+check('app version defined', defined('APP_VERSION') && APP_VERSION !== '');
 
 $result = Properties::search([], 1, 5);
 check('property search runs', isset($result['items'], $result['total']));
