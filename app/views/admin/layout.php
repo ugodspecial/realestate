@@ -57,7 +57,7 @@ $newEnquiries = Auth::can('enquiries.manage') ? (int)Database::value("SELECT COU
       <div>
         <a href="<?= url('admin/account') ?>">My account</a>
         <a href="<?= url('/') ?>" target="_blank" rel="noopener">View site</a>
-        <a href="<?= url('login') ?>" onclick="event.preventDefault();document.getElementById('adminLogout').submit();">Sign out</a>
+        <button type="submit" form="adminLogout">Sign out</button>
       </div>
       <form id="adminLogout" method="post" action="<?= url('logout') ?>" hidden><?= csrf_field() ?></form>
     </div>
