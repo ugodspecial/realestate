@@ -48,9 +48,17 @@ check('admin layout renders', str_contains(view('admin/roadmap', []), 'agent por
 check('CSS bundle exists', is_file(ROOT_PATH . '/public/assets/css/site.css'));
 check('JS bundle exists', is_file(ROOT_PATH . '/public/assets/js/site.js'));
 check('favicon exists', is_file(ROOT_PATH . '/public/assets/images/favicon.svg'));
-foreach (['Rajdhani-Regular.ttf', 'Rajdhani-Medium.ttf', 'Rajdhani-SemiBold.ttf', 'Rajdhani-Bold.ttf', 'Roboto[wdth,wght].ttf'] as $font) {
+foreach (['Rajdhani-SemiBold.ttf', 'Rajdhani-Bold.ttf', 'Roboto[wdth,wght].ttf'] as $font) {
     check('font ships: ' . $font, is_file(ROOT_PATH . '/public/assets/fonts/' . $font));
 }
+foreach (['Rajdhani-Regular.ttf', 'Rajdhani-Medium.ttf'] as $font) {
+    check('unused font removed: ' . $font, !is_file(ROOT_PATH . '/public/assets/fonts/' . $font));
+}
+$css = (string) file_get_contents(ROOT_PATH . '/public/assets/css/site.css');
+check('headings use Roboto body stack', str_contains($css, 'h1,h2,h3,h4,h5,h6{font-family:var(--font-body)'));
+check('theme h1 size is Detroit-exact', str_contains($css, 'h1{font-size:34px;line-height:1.3em}'));
+check('display headings use Rajdhani 600', str_contains($css, 'login-card h2{font:600 47px/50px var(--font-display)'));
+check('no Rajdhani below 600 weight', !preg_match('/font:500 [^;{]*var\(--font-display\)/', $css));
 
 foreach ($phpIssues as $issue) {
     $failures++;
