@@ -2,9 +2,9 @@
 (function(){'use strict';var d=document;
 function on(el,ev,fn){if(el)el.addEventListener(ev,fn)}
 /* Mobile navigation */
-var toggle=d.querySelector('.mobile-toggle'),nav=d.getElementById('primaryNav'),overlay=d.querySelector('.nav-overlay');
+var toggle=d.querySelector('.mobile-toggle'),nav=toggle?d.getElementById(toggle.getAttribute('aria-controls')):null,overlay=d.querySelector('.nav-overlay');
 function closeNav(){if(!nav)return;nav.classList.remove('open');if(overlay)overlay.classList.remove('show');if(toggle)toggle.setAttribute('aria-expanded','false');d.body.classList.remove('dialog-open')}
-on(toggle,'click',function(){var open=nav.classList.toggle('open');if(overlay)overlay.classList.toggle('show',open);toggle.setAttribute('aria-expanded',open?'true':'false');d.body.classList.toggle('dialog-open',open)});
+on(toggle,'click',function(){if(!nav)return;var open=nav.classList.toggle('open');if(overlay)overlay.classList.toggle('show',open);toggle.setAttribute('aria-expanded',open?'true':'false');d.body.classList.toggle('dialog-open',open)});
 on(overlay,'click',closeNav);
 d.addEventListener('keydown',function(e){if(e.key==='Escape'){closeNav();closeGallery()}});
 /* Back to top */
