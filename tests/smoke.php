@@ -57,7 +57,8 @@ foreach (['Rajdhani-Regular.ttf', 'Rajdhani-Medium.ttf'] as $font) {
 $css = (string) file_get_contents(ROOT_PATH . '/public/assets/css/site.css');
 check('headings use Roboto body stack', str_contains($css, 'h1,h2,h3,h4,h5,h6{font-family:var(--font-body)'));
 check('theme h1 size is Detroit-exact', str_contains($css, 'h1{font-size:34px;line-height:1.3em}'));
-check('display headings use Rajdhani 600', str_contains($css, 'login-card h2{font:600 47px/50px var(--font-display)'));
+check('display headings use Rajdhani 600', str_contains($css, 'faq-section h2{font:600 47px/50px var(--font-display)'));
+check('login card title uses theme scale', !str_contains($css, 'login-card h2{font:'));
 check('no Rajdhani below 600 weight', !preg_match('/font:500 [^;{]*var\(--font-display\)/', $css));
 
 foreach ($phpIssues as $issue) {
