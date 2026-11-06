@@ -102,6 +102,32 @@ check('copyright line contains no brand block', !str_contains($footerBottom, 'br
 check('legal brand name is the full company name', brand_legal() === trim(brand()) && brand_legal() !== '');
 check('legal brand name is not the display wordmark', brand_legal() !== brand_lead() || !str_contains(brand_lead(), 'Real Estate'));
 
+// Mobile navigation and responsive layout invariants.
+$layoutSrc = (string) file_get_contents(ROOT_PATH . '/app/views/layout.php');
+check('mobile toggle has an accessible label', str_contains($layoutSrc, 'aria-label="Open navigation"'));
+check('mobile toggle controls the main nav', str_contains($layoutSrc, 'aria-controls="main-nav"'));
+check('mobile nav has a stable id', str_contains($layoutSrc, 'id="main-nav"'));
+check('nav overlay is present', str_contains($layoutSrc, 'class="nav-overlay"'));
+check('nav overlay sits inside the header', preg_match('#<header[^>]*>.*?nav-overlay.*?</header>#s', $layoutSrc) === 1);
+check('toggle shows a close icon when open', str_contains($layoutSrc, 'toggle-icon-close'));
+check('toggle shows a menu icon when closed', str_contains($layoutSrc, 'toggle-icon-open'));
+
+$css = (string) file_get_contents(ROOT_PATH . '/public/assets/css/site.css');
+check('horizontal overflow is clipped', str_contains($css, 'html{overflow-x:hidden}'));
+check('nav is anchored to the viewport edge', preg_match('/\.main-nav\{[^}]*right:0/', $css) === 1 || str_contains($css, 'right:0;bottom:0;left:auto'));
+check('nav has a hidden closed state', str_contains($css, '.main-nav:not(.open){visibility:hidden}'));
+check('toggle sits above the open nav', preg_match('/\.mobile-toggle\{[^}]*z-index:70/', $css) === 1);
+check('mobile toggle has a 44px tap target', preg_match('/\.mobile-toggle\{[^}]*min-height:44px/', $css) === 1);
+check('touch targets rule present', str_contains($css, 'pointer:coarse'));
+check('admin grid children may shrink', str_contains($css, '.admin-cols>*{min-width:0}'));
+
+$navJs = (string) file_get_contents(ROOT_PATH . '/public/assets/js/site.js');
+check('nav toggle syncs the accessible label', str_contains($navJs, "aria-label',open?'Close navigation':'Open navigation'"));
+check('nav closes on resize to desktop', str_contains($navJs, 'window.innerWidth>1024'));
+check('nav closes when a link is chosen', str_contains($navJs, "e.target.closest('a')"));
+check('nav preserves the reading position', str_contains($navJs, 'navScrollY') && str_contains($navJs, 'nav-scroll-locked'));
+check('scroll lock is released on close', str_contains($navJs, "d.body.classList.remove('nav-scroll-locked')"));
+
 $uploadSrc = (string) file_get_contents(ROOT_PATH . '/app/Core/Uploads.php');
 check('logo upload sanitizes svg', str_contains($uploadSrc, 'sanitizeSvg') && str_contains($uploadSrc, 'script'));
 check('logo upload enforces a size limit', str_contains($uploadSrc, '2 * 1024 * 1024'));

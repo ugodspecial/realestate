@@ -53,3 +53,327 @@
 .logo-preview-note{font-size:11px;color:#8b9880;line-height:1.6}
 .logo-remove{margin:0;font-size:11px}
 @media(max-width:640px){.brand-logo{max-height:42px;max-width:180px}.site-header .brand-logo{max-height:44px}.admin-brand .brand-logo{max-height:28px;max-width:140px}}
+
+/* ---------------------------------------------------------------------------
+   Mobile navigation and responsive corrections
+   --------------------------------------------------------------------------- */
+
+/* The off-canvas nav is translated 100% to the right, which pushed it past
+   the viewport edge and made the whole page scroll sideways. Clip the
+   horizontal overflow so the hidden panel cannot widen the document. */
+html{overflow-x:hidden}
+body{overflow-x:hidden;max-width:100%}
+
+/* Keep the nav anchored to the right edge of the viewport and out of the
+   document flow while closed. `inset` is replaced by explicit edges so the
+   panel width is measured against the viewport, never the padded body. */
+@media(max-width:1024px){
+  .main-nav{
+    top:0;right:0;bottom:0;left:auto;
+    width:min(340px,86vw);
+    max-width:86vw;
+    padding-top:96px;padding-bottom:40px;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    transform:translate3d(100%,0,0);
+    will-change:transform;
+  }
+  .main-nav.open{transform:translate3d(0,0,0)}
+  /* The nav must not be reachable by keyboard while it is off screen. */
+  .main-nav:not(.open){visibility:hidden}
+  .main-nav.open{visibility:visible}
+}
+
+/* The toggle is the primary mobile control: give it a proper tap target and
+   keep it clear of the logo on narrow screens. */
+@media(max-width:1024px){
+  .mobile-toggle{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-width:44px;min-height:44px;padding:0 6px;
+    margin-left:auto;flex-shrink:0;
+    background:none;border:0;cursor:pointer;
+  }
+  .mobile-toggle .icon{width:26px;height:26px}
+  .header-cta{display:none!important}
+}
+
+/* The brand may be long; let it shrink and wrap instead of forcing the
+   header wider than the screen. */
+@media(max-width:1024px){
+  .header-inner{gap:12px}
+  .brand{min-width:0;gap:9px}
+  .brand-type{font-size:19px;letter-spacing:1.1px;white-space:normal;overflow-wrap:anywhere}
+  .brand-type small{font-size:8px;letter-spacing:4px}
+  .brand-symbol{width:34px;height:42px;flex-shrink:0}
+  .brand-logo{max-height:40px;max-width:170px}
+}
+
+/* Utility bar: keep the email link from overflowing on small screens. */
+@media(max-width:1024px){
+  .utility-inner{gap:14px}
+  .utility-inner>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .utility-inner a span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .utility-inner>div{min-width:0}
+}
+
+/* Floating buttons must not create a sideways scroll on narrow screens. */
+@media(max-width:640px){
+  .whatsapp-float{right:14px;bottom:14px;width:50px;height:50px}
+  .whatsapp-float .icon{width:23px;height:23px}
+  .whatsapp-float>span{display:none}
+  .back-top{right:18px;bottom:74px;width:38px;height:38px}
+}
+
+/* Grid layouts collapse cleanly on tablet and phone widths. */
+@media(max-width:1024px){
+  .property-grid{grid-template-columns:repeat(2,1fr)}
+  .testimonial-grid{grid-template-columns:repeat(2,1fr)}
+  .category-grid{grid-template-columns:repeat(2,1fr)}
+  .values-grid{grid-template-columns:repeat(2,1fr)}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .location-grid{grid-template-columns:repeat(2,1fr)}
+  .services-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:640px){
+  .property-grid,.testimonial-grid,.category-grid,.values-grid,.stats-grid,
+  .location-grid,.services-grid{grid-template-columns:1fr}
+}
+
+/* Long words (emails, URLs, reference numbers) must not stretch a layout. */
+@media(max-width:1024px){
+  .footer-grid>div>a,.footer-grid>div>p,.contact-direct span,.utility-inner a span{
+    overflow-wrap:anywhere;word-break:break-word;
+  }
+  .detail-specs{grid-template-columns:repeat(2,1fr)}
+}
+
+/* Form controls keep a comfortable touch height on touch devices. */
+@media(pointer:coarse),(max-width:1024px){
+  .field input,.field select,.field textarea{min-height:46px;font-size:16px}
+  .search-field input,.search-field select{font-size:16px}
+  .admin-form .field input,.admin-form .field select,.admin-form .field textarea{font-size:16px}
+}
+
+/* Tablet: the two-column footer and contact split stay readable. */
+@media(min-width:641px) and (max-width:1024px){
+  .footer-grid{grid-template-columns:1fr 1fr;gap:32px}
+  .admin-shell{grid-template-columns:220px 1fr}
+  .admin-main{padding:26px 22px}
+}
+
+/* Small phones: the brand wordmark may need to shrink further. */
+@media(max-width:360px){
+  .brand-type{font-size:16px;letter-spacing:.8px}
+  .brand-type small{font-size:7px;letter-spacing:3px}
+  .brand-symbol{width:29px;height:36px}
+  .container{width:calc(100% - 28px)}
+  .section{padding:42px 0}
+  .hero h1{font-size:38px;line-height:40px}
+}
+
+/* ---------------------------------------------------------------------------
+   Touch targets — every interactive control should be comfortably tappable
+   on a phone or tablet. Visually hidden inputs keep their 1px size; their
+   labels provide the real target.
+   --------------------------------------------------------------------------- */
+@media(pointer:coarse),(max-width:1024px){
+  /* Search fields: the site search uses its own control classes. */
+  .search-field input,.search-field select{
+    min-height:44px;height:44px;padding:8px 0;
+  }
+  .search-field{border-bottom:1px solid var(--line)}
+  .search-field input:focus,.search-field select:focus{outline:2px solid var(--green);outline-offset:2px}
+
+  /* Uppercase text links are primary calls to action. */
+  .text-link{
+    min-height:44px;align-items:center;
+    padding:10px 0;
+  }
+  .text-link svg{width:15px;height:15px}
+
+  /* Popular search chips. */
+  .search-popular a{
+    display:inline-flex;align-items:center;min-height:40px;padding:6px 2px;
+  }
+
+  /* Property card actions and title links. */
+  .property-card-bottom a,.property-card-bottom button{min-height:40px}
+  .property-card h3 a{display:inline-block;padding:3px 0}
+
+  /* Footer and utility links. */
+  .footer-grid>div>a,.footer-whatsapp{min-height:40px;align-items:center}
+  .utility-inner a{min-height:36px}
+
+  /* Breadcrumbs and small inline actions. */
+  .breadcrumbs a{min-height:36px;display:inline-flex;align-items:center}
+
+  /* Checkboxes and radios are visually hidden; their label is the target. */
+  .checkbox-label{min-height:36px;align-items:center}
+}
+
+/* The hidden radio inputs stay hidden — the label carries the tap area. */
+.checkbox-label input[type="radio"],.checkbox-label input[type="checkbox"]{
+  position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;
+}
+
+/* ---------------------------------------------------------------------------
+   Remaining touch targets
+   --------------------------------------------------------------------------- */
+
+/* The honeypot is clipped to 1px; the input inside must not report a large
+   box to assistive technology or hit-testing. */
+.honeypot input{width:1px!important;height:1px!important;min-height:0!important;padding:0!important;border:0!important}
+
+/* Property titles: the heading line is the link. Give it a little vertical
+   padding without changing the visual rhythm of the card. */
+@media(pointer:coarse),(max-width:1024px){
+  .property-card h3 a{padding:6px 0;margin:-6px 0}
+  .listing-card h3 a,.listing-title a{padding:6px 0;margin:-6px 0}
+}
+
+/* Footer legal links and the contact panel's phone/email links. */
+@media(pointer:coarse),(max-width:1024px){
+  .footer-bottom a{display:inline-flex;align-items:center;min-height:40px}
+  .contact-direct a,.contact-direct>div{min-height:44px}
+  .contact-direct span,.contact-direct a span{min-height:0}
+}
+
+/* The listings sort dropdown. */
+@media(pointer:coarse),(max-width:1024px){
+  .sort-form select,.filter-bar select{min-height:44px;height:44px}
+}
+
+/* Listing title links on the listings page. */
+@media(pointer:coarse),(max-width:1024px){
+  .listing-card h3,.property-list-item h3{min-height:0}
+}
+
+/* Category headings are uppercase display type and can be wider than their
+   card. Scale them down slightly instead of letting the text clip. */
+@media(max-width:1280px){
+  .category-card h3{font-size:34px}
+}
+@media(max-width:1024px){
+  .category-card h3{font-size:30px;line-height:1.15}
+}
+@media(max-width:640px){
+  .category-card h3{font-size:30px}
+}
+/* Give long category names room without wrapping mid-word. */
+.category-card h3{overflow-wrap:normal;word-break:normal;hyphens:none}
+
+/* Inline links inside small text (contact details, consent labels) keep their
+   typography but gain a comfortable tap area via padding. */
+@media(pointer:coarse),(max-width:1024px){
+  .contact-direct small a,
+  .contact-direct a small,
+  .contact-information small a,
+  .contact-information a small{
+    display:inline-block;padding:9px 0;margin:-9px 0;min-height:34px;
+  }
+  .checkbox-label span a{display:inline-block;padding:9px 0;margin:-9px 0}
+  .checkbox-label{padding:6px 0}
+}
+
+/* ---------------------------------------------------------------------------
+   Navigation layering
+   The open off-canvas panel covers the right side of the header, including
+   the hamburger. The toggle must stay on top so the menu can be closed with
+   the same button that opened it.
+   --------------------------------------------------------------------------- */
+@media(max-width:1024px){
+  .mobile-toggle{
+    position:relative;
+    z-index:70;            /* above .main-nav (60) */
+  }
+  .main-nav{z-index:60}
+  .nav-overlay{z-index:55}
+  /* When the panel is open, the brand sits behind it. */
+  .site-header:has(.main-nav.open) .brand{position:relative;z-index:1}
+}
+
+/* Fallback for browsers without :has() — the toggle keeps a higher stacking
+   order regardless. */
+@supports not selector(:has(*)){
+  .mobile-toggle{position:relative;z-index:70}
+}
+
+/* ---------------------------------------------------------------------------
+   Admin panel on phones and tablets
+   --------------------------------------------------------------------------- */
+@media(max-width:1024px){
+  /* The page title and its actions share a row; let them stack on narrow
+     screens so no button is pushed out of view. */
+  .admin-top{flex-direction:column;align-items:flex-start;gap:14px}
+  .admin-top h1{font-size:28px}
+  .admin-actions{width:100%;flex-wrap:wrap;gap:9px}
+  .admin-actions .btn{flex:1 1 auto;min-width:0;justify-content:center}
+  .admin-main{padding:20px 16px}
+  .admin-card{padding:18px 16px}
+  .admin-card h2{font-size:20px}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:12px}
+  .stat-card{padding:16px;gap:11px}
+  .stat-card b{font-size:25px}
+  .filter-bar{gap:9px}
+  .filter-bar .field{min-width:0}
+  .admin-table-wrap{-webkit-overflow-scrolling:touch}
+  /* Row actions stay on one line but the table scrolls horizontally. */
+  .row-actions{flex-wrap:nowrap}
+  .permission-grid{grid-template-columns:1fr}
+  .dropzone{padding:24px}
+}
+@media(max-width:640px){
+  .admin-main{padding:16px 12px}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .admin-cols{grid-template-columns:1fr}
+  .form-actions{flex-wrap:wrap}
+  .form-actions .btn{width:100%;justify-content:center}
+  /* The admin sidebar becomes a stacked block above the content. */
+  .admin-sidebar{position:static;height:auto;max-height:none}
+  .admin-brand{padding:16px 14px}
+  .admin-nav{display:flex;flex-wrap:wrap;gap:4px;padding:10px}
+  .admin-nav>span{width:100%;padding:8px 4px 4px}
+  .admin-nav a{padding:9px 10px;font-size:11px}
+  .admin-user{padding:14px}
+}
+
+/* Two-column admin layouts (taxonomy, testimonials) with a wider first
+   column on desktop; they collapse to a single column on small screens. */
+.admin-cols-wide{grid-template-columns:1.2fr .8fr}
+@media(max-width:1024px){
+  .admin-cols-wide{grid-template-columns:1fr}
+}
+
+/* Grid and flex children default to min-width:auto, which lets a wide table
+   stretch its parent past the viewport. Allow them to shrink so the table
+   wrapper can scroll internally instead. */
+.admin-cols>*{min-width:0}
+.admin-table-wrap{max-width:100%;overflow-x:auto;overflow-y:hidden}
+.admin-table{min-width:520px}
+@media(max-width:1024px){
+  .admin-cols>*{min-width:0}
+}
+
+/* The toggle shows a menu icon when closed and a close icon when the panel
+   is open, so the control always communicates what it will do. */
+.toggle-icon-close{display:none}
+@media(max-width:1024px){
+  .mobile-toggle .toggle-icon-open,
+  .mobile-toggle .toggle-icon-close{display:inline-flex;align-items:center;justify-content:center}
+  .mobile-toggle .toggle-icon-close{display:none}
+  .main-nav.open~.mobile-toggle .toggle-icon-open,
+  .site-header:has(.main-nav.open) .mobile-toggle .toggle-icon-open{display:none}
+  .site-header:has(.main-nav.open) .mobile-toggle .toggle-icon-close{display:inline-flex}
+}
+/* Fallback when :has() is unsupported — the JS toggles a class on <html>. */
+html.nav-open .mobile-toggle .toggle-icon-open{display:none}
+html.nav-open .mobile-toggle .toggle-icon-close{display:inline-flex}
+
+/* ---------------------------------------------------------------------------
+   Scroll lock while the mobile menu is open.
+   Setting overflow:hidden on the body alone resets the scroll position to the
+   top, which is jarring when the menu is opened part-way down the page.
+   Freezing the body in place and restoring its offset on close keeps the
+   reading position.
+   --------------------------------------------------------------------------- */
+body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}

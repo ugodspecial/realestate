@@ -35,6 +35,17 @@ curl -s "$BASE/" | grep -qF "$(php -r 'require "app/bootstrap.php"; echo brand_l
 COPYRIGHT="$(curl -s "$BASE/" | grep -o '© [0-9]* [^<]*All rights reserved' | head -1)"
 [ -n "$COPYRIGHT" ] && echo "$COPYRIGHT" | grep -qF "$BRAND_NAME" && pass "copyright shows the company name" || fail "copyright shows the company name"
 curl -s "$BASE/" | grep -o '<div class="footer-bottom">.\{0,400\}' | grep -q 'brand-logo' && fail "copyright contains no logo" || pass "copyright contains no logo"
+
+# Mobile navigation markup.
+HOME_HTML="$(curl -s "$BASE/")"
+echo "$HOME_HTML" | grep -q 'class="mobile-toggle"' && pass "mobile toggle present" || fail "mobile toggle present"
+echo "$HOME_HTML" | grep -q 'aria-controls="main-nav"' && pass "toggle controls the nav" || fail "toggle controls the nav"
+echo "$HOME_HTML" | grep -q 'id="main-nav"' && pass "main nav has its id" || fail "main nav has its id"
+echo "$HOME_HTML" | grep -q 'class="nav-overlay"' && pass "nav overlay present" || fail "nav overlay present"
+echo "$HOME_HTML" | grep -q 'toggle-icon-close' && pass "toggle has a close icon" || fail "toggle has a close icon"
+# The stylesheet must clip horizontal overflow so the off-canvas panel cannot
+# make the page scroll sideways.
+curl -s "$BASE/assets/css/site.css" | grep -q 'html{overflow-x:hidden}' && pass "horizontal overflow is clipped" || fail "horizontal overflow is clipped"
 curl -s "$BASE/property/$SLUG" | grep -q "amenities-grid" && pass "amenities render" || fail "amenities render"
 
 # Authenticated staff flow (first demo account = super admin)

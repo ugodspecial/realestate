@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.0.2 — 2026-11-06
+
+Mobile navigation and responsive fixes.
+
+- Fixed the mobile menu not opening. The off-canvas panel was positioned
+  with `inset:0 0 0 auto` plus `translateX(100%)`, which pushed it past the
+  viewport edge; the links landed outside the visible area and the page
+  gained a horizontal scrollbar. The panel is now anchored to the viewport
+  edge and the document clips horizontal overflow.
+- Fixed the menu being unclosable. The open panel covered the hamburger, so
+  the same button that opened the menu could not close it. The toggle now
+  sits above the panel, shows a close icon while the menu is open, and
+  keeps its accessible label in sync.
+- Moved the nav overlay inside the header so it shares a stacking context
+  with the panel; previously it painted over the menu links.
+- Opening the menu no longer jumps the page to the top. The body is frozen
+  in place and its scroll offset is restored on close.
+- The menu closes when a destination is chosen and when the viewport grows
+  past the mobile breakpoint.
+- Responsive layout fixes across phone and tablet widths: no horizontal
+  overflow on any page, tap targets raised to a comfortable size, grids
+  collapsing to one column, admin tables scrolling inside their card
+  instead of stretching the page, and admin headers stacking so no action
+  button is pushed out of view.
+- Fixed inline `grid-template-columns` overrides on the Categories and
+  Testimonials admin pages that prevented them from collapsing.
+
 ## 1.0.1 — 2026-11-06
 
 Branding fixes.

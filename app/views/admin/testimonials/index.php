@@ -5,7 +5,7 @@
     <p>Approved stories appear on the homepage. Only publish words you have permission to share.</p>
   </div>
 </div>
-<div class="admin-cols" style="grid-template-columns:1.2fr .8fr">
+<div class="admin-cols admin-cols-wide">
   <div class="admin-card">
     <h2>All testimonials</h2>
     <p><?= count($items) ?> total.</p>

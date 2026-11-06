@@ -25,9 +25,8 @@
 <a class="mobile-nav-cta" href="<?= url('contact') ?>">Let’s talk <?= icon('arrow-up') ?></a>
 </nav>
 <a href="<?= url('contact') ?>" class="btn btn-primary header-cta">Let’s talk <?= icon('arrow-up') ?></a>
-<button class="mobile-toggle" aria-label="Open navigation" aria-controls="main-nav" aria-expanded="false"><?= icon('menu') ?></button>
-</div></header>
-<div class="nav-overlay" aria-hidden="true"></div>
+<button class="mobile-toggle" aria-label="Open navigation" aria-controls="main-nav" aria-expanded="false"><span class="toggle-icon-open"><?= icon('menu') ?></span><span class="toggle-icon-close" aria-hidden="true"><?= icon('close') ?></span></button>
+</div><div class="nav-overlay" aria-hidden="true"></div></header>
 <main id="main">
 <?php $flashes=take_flashes(); if($flashes): ?><div class="container flash-stack"><?php foreach($flashes as $f): ?><div class="notice notice-<?= e($f['type']) ?>" role="status"><?= icon($f['type']==='success'?'check':'file') ?><span><?= e($f['message']) ?></span><button class="notice-close" aria-label="Dismiss message"><?= icon('close') ?></button></div><?php endforeach; ?></div><?php endif; ?>
 <?= $content ?>

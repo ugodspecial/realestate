@@ -3,9 +3,40 @@
 function on(el,ev,fn){if(el)el.addEventListener(ev,fn)}
 /* Mobile navigation */
 var toggle=d.querySelector('.mobile-toggle'),nav=toggle?d.getElementById(toggle.getAttribute('aria-controls')):null,overlay=d.querySelector('.nav-overlay');
-function closeNav(){if(!nav)return;nav.classList.remove('open');if(overlay)overlay.classList.remove('show');if(toggle)toggle.setAttribute('aria-expanded','false');d.body.classList.remove('dialog-open')}
-on(toggle,'click',function(){if(!nav)return;var open=nav.classList.toggle('open');if(overlay)overlay.classList.toggle('show',open);toggle.setAttribute('aria-expanded',open?'true':'false');d.body.classList.toggle('dialog-open',open)});
+var navScrollY=0;
+function lockScroll(){
+  /* Capture the offset before the body is frozen: making it position:fixed
+     removes the document's scroll height, so window.scrollY reads 0 after. */
+  navScrollY=window.scrollY||d.documentElement.scrollTop||0;
+  d.body.style.top=(-navScrollY)+'px';
+  d.body.classList.add('nav-scroll-locked');
+}
+function unlockScroll(){
+  d.body.classList.remove('nav-scroll-locked');
+  d.body.style.top='';
+  var y=navScrollY;navScrollY=0;
+  if(y)window.scrollTo(0,y);
+}
+function setNavState(open){
+  if(!nav)return;
+  if(open)lockScroll();
+  nav.classList.toggle('open',open);
+  if(overlay)overlay.classList.toggle('show',open);
+  if(toggle){
+    toggle.setAttribute('aria-expanded',open?'true':'false');
+    toggle.setAttribute('aria-label',open?'Close navigation':'Open navigation');
+  }
+  d.documentElement.classList.toggle('nav-open',open);
+  d.body.classList.toggle('dialog-open',open);
+  if(!open)unlockScroll();
+}
+function closeNav(){setNavState(false)}
+on(toggle,'click',function(){if(!nav)return;setNavState(!nav.classList.contains('open'))});
 on(overlay,'click',closeNav);
+/* Close the menu when a destination is chosen. */
+if(nav)nav.addEventListener('click',function(e){if(e.target.closest('a'))closeNav()});
+/* Returning to a desktop width should not leave the page scroll-locked. */
+on(window,'resize',function(){if(window.innerWidth>1024)closeNav()});
 d.addEventListener('keydown',function(e){if(e.key==='Escape'){closeNav();closeGallery()}});
 /* Back to top */
 var topBtn=d.querySelector('.back-top');

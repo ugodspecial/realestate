@@ -5,7 +5,7 @@
     <p>These power the website’s search filters<?= $label === 'Location' ? ' and featured locations' : '' ?>. <?= count($items) ?> in use.</p>
   </div>
 </div>
-<div class="admin-cols" style="grid-template-columns:1.2fr .8fr">
+<div class="admin-cols admin-cols-wide">
   <div class="admin-card">
     <h2>All <?= strtolower($label) ?>s</h2>
     <p>Click a row’s edit button to change it below.</p>
