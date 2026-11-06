@@ -31,6 +31,10 @@ expect "property page" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/prop
 BRAND_NAME="$(php -r 'require "app/bootstrap.php"; echo setting("brand_name") ?: setting("site_name");')"
 curl -s "$BASE/" | grep -qF "$BRAND_NAME" && pass "brand present on home" || fail "brand present on home"
 curl -s "$BASE/" | grep -qF "$(php -r 'require "app/bootstrap.php"; echo brand_lead();')" && pass "brand wordmark present on home" || fail "brand wordmark present on home"
+# The copyright line must show the company name and never a logo image.
+COPYRIGHT="$(curl -s "$BASE/" | grep -o '© [0-9]* [^<]*All rights reserved' | head -1)"
+[ -n "$COPYRIGHT" ] && echo "$COPYRIGHT" | grep -qF "$BRAND_NAME" && pass "copyright shows the company name" || fail "copyright shows the company name"
+curl -s "$BASE/" | grep -o '<div class="footer-bottom">.\{0,400\}' | grep -q 'brand-logo' && fail "copyright contains no logo" || pass "copyright contains no logo"
 curl -s "$BASE/property/$SLUG" | grep -q "amenities-grid" && pass "amenities render" || fail "amenities render"
 
 # Authenticated staff flow (first demo account = super admin)

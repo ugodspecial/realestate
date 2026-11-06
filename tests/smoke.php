@@ -89,6 +89,19 @@ $logoPath = trim((string)setting('brand_logo'));
 check('logo path is constrained to the brand upload folder', $logoPath === '' || preg_match('#^uploads/brand/[a-zA-Z0-9._-]+$#', $logoPath) === 1);
 check('logo path cannot escape the public folder', !str_contains($logoPath, '..') && !str_starts_with($logoPath, '/'));
 check('brand logo is rendered when set', $logoPath === '' || (is_file(ROOT_PATH . '/public/' . $logoPath) && logo_url() !== ''));
+
+// The copyright line must always show the written company name, never the
+// uploaded logo image and never the shortened display wordmark.
+$footerSrc = (string) file_get_contents(ROOT_PATH . '/app/views/components/footer.php');
+preg_match('#<div class="footer-bottom">(.*?)</div>#s', $footerSrc, $footerBottomMatch);
+$footerBottom = $footerBottomMatch[1] ?? '';
+check('copyright line renders', str_contains($footerBottom, 'All rights reserved'));
+check('copyright line uses the legal brand name', str_contains($footerBottom, 'brand_legal()'));
+check('copyright line contains no logo markup', !str_contains($footerBottom, 'brand_logo') && !str_contains($footerBottom, '<img'));
+check('copyright line contains no brand block', !str_contains($footerBottom, 'brand_block()'));
+check('legal brand name is the full company name', brand_legal() === trim(brand()) && brand_legal() !== '');
+check('legal brand name is not the display wordmark', brand_legal() !== brand_lead() || !str_contains(brand_lead(), 'Real Estate'));
+
 $uploadSrc = (string) file_get_contents(ROOT_PATH . '/app/Core/Uploads.php');
 check('logo upload sanitizes svg', str_contains($uploadSrc, 'sanitizeSvg') && str_contains($uploadSrc, 'script'));
 check('logo upload enforces a size limit', str_contains($uploadSrc, '2 * 1024 * 1024'));

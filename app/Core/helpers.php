@@ -46,6 +46,12 @@ function setting(string $key, string $default = ''): string {
 function brand(): string { return setting('brand_name') ?: setting('site_name') ?: 'Cedar Tranquility Real Estate'; }
 function brand_tagline(): string { return setting('brand_tagline') ?: 'REAL ESTATE'; }
 /**
+ * The legal company name used for the copyright line and other formal
+ * references. This is always the written company name — never the uploaded
+ * logo image, and never the shortened display wordmark.
+ */
+function brand_legal(): string { return trim(brand()) !== '' ? brand() : 'Cedar Tranquility Real Estate'; }
+/**
  * The display wordmark: the brand name with a trailing generic descriptor
  * removed, e.g. "Cedar Tranquillity Real Estate" becomes "Cedar Tranquillity".
  */
