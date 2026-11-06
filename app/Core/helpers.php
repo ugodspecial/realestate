@@ -34,7 +34,7 @@ function remember_old(array $data): void { unset($data['_token'], $data['passwor
 function clear_old(): void { unset($_SESSION['old']); }
 function abort_page(int $status, string $message): never {
     http_response_code($status);
-    $title = ($status === 404 ? 'Page not found' : 'Request unavailable') . ' | Cedar Tranquility Real Estate';
+    $title = ($status === 404 ? 'Page not found' : 'Request unavailable') . ' | ' . brand();
     require ROOT_PATH . '/app/views/public/error.php';
     exit;
 }
@@ -43,7 +43,19 @@ function setting(string $key, string $default = ''): string {
     if ($settings === null) { try { $settings = array_column(Database::all('SELECT key_name, value FROM settings'), 'value', 'key_name'); } catch (Throwable $e) { $settings = []; } }
     return (string)($settings[$key] ?? $default);
 }
-function brand(): string { return setting('brand_name', 'Cedar Tranquility Real Estate'); }
+function brand(): string { return setting('brand_name') ?: setting('site_name') ?: 'Cedar Tranquility Real Estate'; }
+function brand_tagline(): string { return setting('brand_tagline') ?: 'REAL ESTATE'; }
+/**
+ * The display wordmark: the brand name with a trailing generic descriptor
+ * removed, e.g. "Cedar Tranquillity Real Estate" becomes "Cedar Tranquillity".
+ */
+function brand_lead(): string {
+    $name = trim(brand());
+    if ($name === '') return '';
+    $lead = preg_replace('/\s+(Real\s+Estate|Realty|Properties|Group|Holdings|Limited|Ltd)\.?$/i', '', $name);
+    $lead = trim((string)$lead);
+    return $lead !== '' ? $lead : $name;
+}
 function money(int|float|string $price, bool $compact = false): string {
     $n = (float)$price;
     if ($compact && $n >= 1000000000) return '₦' . rtrim(rtrim(number_format($n / 1000000000, 2), '0'), '.') . 'B';
@@ -111,10 +123,35 @@ function icon(string $name, string $class = ''): string {
     return '<svg class="icon ' . e($class) . '" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' . ($paths[$name] ?? $paths['home']) . '</svg>';
 }
 function brand_mark(): string { return '<svg viewBox="0 0 48 56" fill="none" aria-hidden="true"><path d="M24 3 7 25h9L4 39h16v13h8V39h16L32 25h9L24 3Z" stroke="currentColor" stroke-width="2"/><path d="M24 15v29M15 29l9 7 9-7" stroke="currentColor" stroke-width="1.5"/></svg>'; }
+/**
+ * URL of the uploaded brand logo, or an empty string when no logo is set.
+ * Only paths inside public/uploads/brand are accepted, so a settings value
+ * cannot be used to point the site at an arbitrary file.
+ */
+function logo_url(): string {
+    $path = trim(setting('brand_logo'));
+    if ($path === '') return '';
+    if (!preg_match('#^uploads/brand/[a-zA-Z0-9._-]+$#', $path)) return '';
+    if (!is_file(ROOT_PATH . '/public/' . $path)) return '';
+    return base_path() . '/' . $path;
+}
+/** The uploaded logo as an image tag, or an empty string when none is set. */
+function brand_logo(?string $class = ''): string {
+    $url = logo_url();
+    if ($url === '') return '';
+    return '<img class="brand-logo ' . e($class) . '" src="' . e($url) . '" alt="' . e(brand()) . '" width="180" height="52">';
+}
+/** The brand block: uploaded logo if present, otherwise the symbol + wordmark. */
+function brand_block(string $extraClass = '', bool $showTagline = true): string {
+    $logo = brand_logo();
+    if ($logo !== '') return '<span class="brand-logo-wrap ' . e($extraClass) . '">' . $logo . '</span>';
+    $tagline = $showTagline ? '<small>' . e(brand_tagline()) . '</small>' : '';
+    return '<span class="brand-symbol">' . brand_mark() . '</span><span class="brand-type">' . e(brand_lead()) . $tagline . '</span>';
+}
 function whatsapp_url(string $message = ''): string {
     $phone = preg_replace('/\D/', '', setting('whatsapp'));
     if (!$phone) return url('contact');
-    return 'https://wa.me/' . $phone . '?text=' . rawurlencode($message ?: 'Hello Cedar Tranquility Real Estate, I would like to speak with a property advisor.');
+    return 'https://wa.me/' . $phone . '?text=' . rawurlencode($message ?: ('Hello ' . brand() . ', I would like to speak with a property advisor.'));
 }
 function view(string $template, array $data = []): string {
     extract($data, EXTR_SKIP);

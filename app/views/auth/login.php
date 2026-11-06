@@ -5,7 +5,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Staff Sign In — <?= e(setting('site_name', 'Cedar Tranquility Real Estate')) ?></title>
+<title>Staff Sign In — <?= e(brand()) ?></title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="<?= asset('images/favicon.svg') ?>">
 <link rel="stylesheet" href="<?= asset('css/site.css') ?>">
@@ -15,10 +15,7 @@
 <div class="login-shell">
   <div class="login-visual">
     <img src="<?= asset('images/terrace.jpg') ?>" alt="" aria-hidden="true">
-    <a class="brand brand-light" href="<?= url('/') ?>" aria-label="Cedar Tranquility Real Estate home">
-      <span class="brand-symbol" aria-hidden="true"><?= brand_mark() ?></span>
-      <span class="brand-type">CEDAR TRANQUILITY<small>REAL ESTATE</small></span>
-    </a>
+    <a class="brand brand-light" href="<?= url('/') ?>" aria-label="<?= e(brand()) ?> home"><?= brand_block() ?></a>
     <div>
       <span class="hero-eyebrow"><span></span>STAFF PORTAL</span>
       <h1>Welcome back.</h1>

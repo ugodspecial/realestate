@@ -35,7 +35,12 @@ $newEnquiries = Auth::can('enquiries.manage') ? (int)Database::value("SELECT COU
 <div class="admin-shell">
   <aside class="admin-sidebar" aria-label="Admin navigation">
     <div class="admin-brand">
-      <div class="admin-brand-type">CEDAR TRANQUILITY<small>REAL ESTATE · ADMIN</small></div>
+      <?php $adminLogo = brand_logo(); ?>
+      <?php if ($adminLogo !== ''): ?>
+        <div class="admin-brand-logo"><?= $adminLogo ?></div>
+      <?php else: ?>
+        <div class="admin-brand-type"><?= e(brand_lead()) ?><small><?= e(brand_tagline()) ?> · ADMIN</small></div>
+      <?php endif; ?>
     </div>
     <nav class="admin-nav">
       <?php foreach ($nav as $group => $links): ?>

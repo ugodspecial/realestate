@@ -42,6 +42,7 @@ jobs:
       - run: mkdir -p storage/sessions storage/logs public/uploads
       - run: php bin/install.php --demo
       - run: php tests/smoke.php
+      - run: php tests/logo-sanitizer.php
       - run: |
           php -S 127.0.0.1:8080 -t public public/router.php >/tmp/php-server.log 2>&1 &
           echo $! >/tmp/php-server.pid

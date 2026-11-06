@@ -28,7 +28,9 @@ expect "health" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/health")"
 
 SLUG="$(php -r 'require "app/bootstrap.php"; echo Database::value("SELECT slug FROM properties WHERE publish_status=\"published\" LIMIT 1");')"
 expect "property page" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/property/$SLUG")"
-curl -s "$BASE/" | grep -q "Cedar Tranquility" && pass "brand present on home" || fail "brand present on home"
+BRAND_NAME="$(php -r 'require "app/bootstrap.php"; echo setting("brand_name") ?: setting("site_name");')"
+curl -s "$BASE/" | grep -qF "$BRAND_NAME" && pass "brand present on home" || fail "brand present on home"
+curl -s "$BASE/" | grep -qF "$(php -r 'require "app/bootstrap.php"; echo brand_lead();')" && pass "brand wordmark present on home" || fail "brand wordmark present on home"
 curl -s "$BASE/property/$SLUG" | grep -q "amenities-grid" && pass "amenities render" || fail "amenities render"
 
 # Authenticated staff flow (first demo account = super admin)

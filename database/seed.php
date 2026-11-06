@@ -2,7 +2,7 @@
 return static function (): void {
     $now=Database::now();
     $settings=[
-        'brand_name'=>'Cedar Tranquility Real Estate','hero_eyebrow'=>'REAL ESTATE. REAL PEACE OF MIND.',
+        'brand_name'=>'Cedar Tranquility Real Estate','brand_tagline'=>'REAL ESTATE','brand_logo'=>'','hero_eyebrow'=>'REAL ESTATE. REAL PEACE OF MIND.',
         'hero_title'=>"FIND YOUR SPACE.\nFEEL AT HOME.",
         'hero_subtitle'=>'Thoughtfully selected homes, land, and investment properties. Discover a more considered way to find your place in Nigeria.',
         'about_eyebrow'=>'ROOTED IN TRUST. BUILT AROUND YOU.',
@@ -17,7 +17,12 @@ return static function (): void {
         'footer_text'=>'Exceptional spaces. Thoughtful guidance. A more considered approach to real estate in Nigeria.',
         'privacy_contact'=>'Your enquiry is used only to respond to your request and arrange property services. Contact our team to request access, correction, or deletion of your information.',
     ];
-    foreach($settings as $key=>$value) Database::query('INSERT INTO settings (key_name,value) VALUES (?,?)',[$key,$value]);
+    // Upsert so seeding is idempotent against migrations that pre-seed rows.
+    $driver=Database::connection()->getAttribute(PDO::ATTR_DRIVER_NAME);
+    foreach($settings as $key=>$value) {
+        if($driver==='mysql') Database::query('INSERT INTO settings (key_name,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)',[$key,$value]);
+        else Database::query('INSERT INTO settings (key_name,value) VALUES (?,?) ON CONFLICT(key_name) DO UPDATE SET value=excluded.value',[$key,$value]);
+    }
     $credentials=[];
     foreach([['Amara Okonkwo','superadmin','super_admin'],['Tunde Adeyemi','admin','admin'],['Zainab Bello','manager','listing_manager'],['David Akpan','editor','content_editor']] as [$name,$alias,$role]) {
         $password=bin2hex(random_bytes(9)); $email=$alias.'@cedartranquility.example';

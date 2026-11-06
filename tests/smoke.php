@@ -67,6 +67,32 @@ $missingIcons = array_values(array_diff(array_unique(array_filter($usedIcons)), 
 check('all used icons exist', $missingIcons === []);
 check('admin layout renders', str_contains(view('admin/roadmap', []), 'agent portal'));
 
+// Brand settings: the website name and logo must be editable and must not be hardcoded.
+$brandName = trim((string)setting('brand_name'));
+check('brand name is set', $brandName !== '');
+check('brand name has no trailing whitespace', $brandName === trim($brandName));
+check('brand lead strips the generic descriptor', brand_lead() === preg_replace('/\s+(Real\s+Estate|Realty|Properties|Group|Holdings|Limited|Ltd)\.?$/i', '', $brandName));
+$brandBlock = brand_block();
+check('brand block renders a wordmark', str_contains($brandBlock, 'brand-type') || str_contains($brandBlock, 'brand-logo'));
+$viewSources = '';
+foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(ROOT_PATH . '/app/views')) as $viewFile) {
+    if ($viewFile->isFile()) $viewSources .= (string) file_get_contents($viewFile->getPathname());
+}
+check('no hardcoded brand name in views', !str_contains($viewSources, 'CEDAR TRANQUILITY'));
+check('views use the dynamic brand block', substr_count($viewSources, 'brand_block()') >= 4);
+check('settings form posts the brand name key', str_contains((string) file_get_contents(ROOT_PATH . '/app/views/admin/settings.php'), 'name="brand_name"'));
+check('settings form accepts a logo upload', str_contains((string) file_get_contents(ROOT_PATH . '/app/views/admin/settings.php'), 'name="brand_logo"'));
+check('settings form is multipart', str_contains((string) file_get_contents(ROOT_PATH . '/app/views/admin/settings.php'), 'enctype="multipart/form-data"'));
+check('admin controller saves brand_name', str_contains((string) file_get_contents(ROOT_PATH . '/app/Core/AdminController.php'), "'brand_name'"));
+check('admin controller saves the logo', str_contains((string) file_get_contents(ROOT_PATH . '/app/Core/AdminController.php'), "'brand_logo'"));
+$logoPath = trim((string)setting('brand_logo'));
+check('logo path is constrained to the brand upload folder', $logoPath === '' || preg_match('#^uploads/brand/[a-zA-Z0-9._-]+$#', $logoPath) === 1);
+check('logo path cannot escape the public folder', !str_contains($logoPath, '..') && !str_starts_with($logoPath, '/'));
+check('brand logo is rendered when set', $logoPath === '' || (is_file(ROOT_PATH . '/public/' . $logoPath) && logo_url() !== ''));
+$uploadSrc = (string) file_get_contents(ROOT_PATH . '/app/Core/Uploads.php');
+check('logo upload sanitizes svg', str_contains($uploadSrc, 'sanitizeSvg') && str_contains($uploadSrc, 'script'));
+check('logo upload enforces a size limit', str_contains($uploadSrc, '2 * 1024 * 1024'));
+
 check('CSS bundle exists', is_file(ROOT_PATH . '/public/assets/css/site.css'));
 check('JS bundle exists', is_file(ROOT_PATH . '/public/assets/js/site.js'));
 check('favicon exists', is_file(ROOT_PATH . '/public/assets/images/favicon.svg'));

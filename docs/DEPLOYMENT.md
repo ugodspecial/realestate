@@ -63,7 +63,8 @@ chmod 600 storage/demo-credentials.json  # local only; delete on production
 
 - [ ] Visit `/health` → `{"status":"ok"}`
 - [ ] Visit `/login`, sign in, change the admin password (`My account`)
-- [ ] `Admin → Settings`: phone, WhatsApp number, emails, address, social links
+- [ ] `Admin → Settings`: website name, brand tagline, logo upload, phone,
+      WhatsApp number, emails, address, social links
 - [ ] Replace demo contact details everywhere (footer, contact page, seed enquiries)
 - [ ] Add real properties and photographs; approve and publish them
 - [ ] Submit a test enquiry and confirm it appears under `Admin → Enquiries`

@@ -6,14 +6,14 @@ final class PublicController {
         render('public/home',['title'=>brand().' | Exceptional spaces. Thoughtful guidance.','description'=>setting('hero_subtitle'),'featured'=>Properties::featured(),'latest'=>Properties::latest(6),'categories'=>$categories,'locations'=>$locations,'testimonials'=>Database::all('SELECT * FROM testimonials WHERE approved=1 ORDER BY id DESC LIMIT 3'),'filters'=>[]]);
     }
     public static function about(): void { render('public/about',['title'=>'About Us | '.brand(),'description'=>setting('about_summary'),'page'=>'about']); }
-    public static function services(): void { render('public/services',['title'=>'Our Services | '.brand(),'description'=>'Property sales, residential lettings, land investment, and property advisory. Thoughtful real estate services from Cedar Tranquility Real Estate.','page'=>'services']); }
+    public static function services(): void { render('public/services',['title'=>'Our Services | '.brand(),'description'=>'Property sales, residential lettings, land investment, and property advisory. Thoughtful real estate services from brand() . '.'','page'=>'services']); }
     public static function listings(): void {
         $filters=Properties::filters(); $page=max(1,min(10000,(int)query_value('page','1')));
         $result=Properties::search($filters,$page,9);
         $title='Properties for sale and rent in Nigeria';
         if(!empty($filters['category'])) { $cat=Database::one('SELECT name FROM categories WHERE slug=?',[$filters['category']]); if($cat)$title=$cat['name'].' for sale and rent'; }
         if(!empty($filters['location'])) { $loc=Database::one('SELECT name FROM locations WHERE slug=?',[$filters['location']]); if($loc)$title='Properties in '.$loc['name']; }
-        render('public/listings',['title'=>$title.' | '.brand(),'description'=>'Explore thoughtfully selected homes, apartments, commercial spaces, and land. Search by location, budget, and property type with Cedar Tranquility Real Estate.','page'=>'properties','filters'=>$filters,'result'=>$result,'categories'=>Database::all('SELECT * FROM categories ORDER BY name'),'locations'=>Database::all('SELECT * FROM locations ORDER BY name')]);
+        render('public/listings',['title'=>$title.' | '.brand(),'description'=>'Explore thoughtfully selected homes, apartments, commercial spaces, and land. Search by location, budget, and property type with brand() . '.'','page'=>'properties','filters'=>$filters,'result'=>$result,'categories'=>Database::all('SELECT * FROM categories ORDER BY name'),'locations'=>Database::all('SELECT * FROM locations ORDER BY name')]);
     }
     public static function property(string $slug): void {
         $p=Properties::find($slug); if(!$p)abort_page(404,'This property may have moved or is no longer available. Explore our current listings to find your next place.');
@@ -22,7 +22,7 @@ final class PublicController {
         if($images)$schema['image']=array_map(fn($i)=>(is_https()?'https://':'http://').($_SERVER['HTTP_HOST'] ?? 'localhost').image_url($i['path']),array_slice($images,0,5));
         render('public/property',['title'=>($p['seo_title'] ?: $p['title']).' | '.brand(),'description'=>$p['seo_description'] ?: excerpt($p['description'],160),'p'=>$p,'images'=>$images,'related'=>Properties::related($p),'schema'=>$schema,'page'=>'properties']);
     }
-    public static function contact(): void { render('public/contact',['title'=>'Contact Us | '.brand(),'description'=>'Start a conversation with Cedar Tranquility Real Estate. Arrange a property inspection, request a valuation, or speak to a property advisor.','page'=>'contact']); }
+    public static function contact(): void { render('public/contact',['title'=>'Contact Us | '.brand(),'description'=>'Start a conversation with ' . brand() . '. Arrange a property inspection, request a valuation, or speak to a property advisor.','page'=>'contact']); }
     public static function enquiry(): void {
         verify_csrf(); $p=null;
         if(input('property_id')) { $p=Properties::byId((int)input('property_id')); if(!$p || $p['publish_status']!=='published')abort_page(404,'This property is not available for enquiries.'); }
@@ -51,5 +51,5 @@ final class PublicController {
         foreach($paths as $path)echo '<url><loc>'.e($base.url($path)).'</loc></url>';
         echo '</urlset>';
     }
-    public static function legal(string $type): void { render('public/legal',['title'=>($type==='privacy'?'Privacy Policy':'Website Terms').' | '.brand(),'description'=>'Information about using Cedar Tranquility Real Estate’s website and services.','type'=>$type,'page'=>'']); }
+    public static function legal(string $type): void { render('public/legal',['title'=>($type==='privacy'?'Privacy Policy':'Website Terms').' | '.brand(),'description'=>'Information about using ' . brand() . '’s website and services.','type'=>$type,'page'=>'']); }
 }

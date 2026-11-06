@@ -37,3 +37,19 @@
 @media(max-width:640px){.section{padding:50px 0}.container{width:calc(100% - 40px)}.utility-inner>div:last-child{display:none}.search-tabs span{padding:0 17px;min-width:0}.search-field{flex:1 1 100%;padding:0}.search-field:not(:first-child){border-top:1px solid #eef1e8;padding-top:12px}.search-popular{flex-wrap:wrap;row-gap:8px}.search-popular .icon,.search-popular small{display:none}.property-grid,.testimonial-grid,.category-grid,.values-grid,.stats-grid{grid-template-columns:1fr}.category-card{border-right:0!important;border-bottom:1px solid var(--line)!important}.category-card:last-child{border-bottom:0!important}.services-grid{grid-template-columns:1fr}.service-card{border-left:0!important;padding:0 0 5px!important}.location-grid{grid-template-columns:1fr;grid-template-rows:none}.location-card{height:220px}.location-card:first-child{grid-column:auto;grid-row:auto;height:280px}.property-track>.property-card{flex-basis:86%}.section-heading{flex-direction:column;align-items:flex-start}.form-grid{grid-template-columns:1fr}.contact-form-panel,.contact-copy{padding:32px 26px}.login-form-side{padding:40px 26px}.contact-page-grid .contact-form-panel{padding:30px 22px}.footer-grid{grid-template-columns:1fr}.footer-bottom{flex-direction:column;align-items:flex-start}.detail-specs{grid-template-columns:1fr 1fr}.property-gallery{grid-template-columns:1fr;height:auto}.gallery-main{height:270px}.gallery-side{grid-template-rows:200px auto}.property-detail-heading{flex-direction:column;align-items:flex-start}.detail-price{text-align:left}.detail-price>div{justify-content:flex-start}.admin-actions{flex-wrap:wrap}.filter-bar .btn{margin-top:0;width:100%}.advanced-fields{grid-template-columns:1fr}.whatsapp-float{right:16px;bottom:16px}.back-top{right:22px;bottom:82px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}html{scroll-behavior:auto}}
 @media(max-width:767px){.hero h1{font-size:45px;line-height:45px}.display-heading,.section-heading h2,.why-section h2,.page-banner h1,.about-copy h2,.contact-copy h2,.footer-top h2,.service-detail h2,.simple-cta h2,.contact-information h2,.faq-section h2,.location-card:first-child h3{font-size:35px;line-height:35px}.banner-word,.category-number,.error-number{font-size:100px}.search-field input,.search-field select{font-size:14px}}@media print{.site-header,.site-footer,.utility-bar,.whatsapp-float,.back-top,.property-search,.contact-split,.skip-link{display:none}body{font-size:12px}.container{width:100%}}
+
+/* Brand logo (uploaded) — falls back to the default symbol + wordmark */
+.brand-logo-wrap{display:inline-flex;align-items:center}
+.brand-logo{display:block;max-height:52px;width:auto;max-width:230px;object-fit:contain}
+.site-header .brand-logo{max-height:56px}
+.footer-brand-col .brand-logo{max-height:46px;max-width:200px}
+.login-side .brand-logo,.login-form-side .brand-logo{max-height:60px;max-width:250px}
+.admin-brand .brand-logo{max-height:34px;max-width:170px}
+.logo-preview{display:flex;flex-direction:column;gap:10px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:3px;background:var(--paper);margin-bottom:8px}
+.logo-preview img{max-height:56px;max-width:260px;width:auto;object-fit:contain}
+.logo-preview-empty{flex-direction:row;align-items:center;gap:14px}
+.logo-preview-mark{display:flex;align-items:center;justify-content:center;width:42px;height:51px;flex-shrink:0;color:var(--green)}
+.logo-preview-mark svg{width:100%;height:100%}
+.logo-preview-note{font-size:11px;color:#8b9880;line-height:1.6}
+.logo-remove{margin:0;font-size:11px}
+@media(max-width:640px){.brand-logo{max-height:42px;max-width:180px}.site-header .brand-logo{max-height:44px}.admin-brand .brand-logo{max-height:28px;max-width:140px}}

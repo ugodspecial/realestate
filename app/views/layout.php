@@ -19,7 +19,7 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="utility-bar"><div class="container utility-inner"><span><?= icon('pin') ?> Rooted in Lagos. Connected to your future.</span><div><a href="mailto:<?= e(setting('email')) ?>"><?= icon('mail') ?><span><?= e(setting('email')) ?></span></a><a href="<?= url('login') ?>"><?= icon('user') ?> Staff login</a></div></div></div>
 <header class="site-header"><div class="container header-inner">
-<a class="brand" href="<?= url() ?>" aria-label="<?= e(brand()) ?> home"><span class="brand-symbol"><?= brand_mark() ?></span><span class="brand-type">CEDAR TRANQUILITY<small>REAL ESTATE</small></span></a>
+<a class="brand" href="<?= url() ?>" aria-label="<?= e(brand()) ?> home"><?= brand_block() ?></a>
 <nav class="main-nav" id="main-nav" aria-label="Main navigation">
 <?php foreach([''=>'Home','about'=>'About Us','services'=>'Services','properties'=>'Properties','contact'=>'Contact Us'] as $path=>$label): ?><a href="<?= url($path) ?>" <?= ($page ?? 'home')===($path ?: 'home')?'class="active" aria-current="page"':'' ?>><?= $label ?></a><?php endforeach; ?>
 <a class="mobile-nav-cta" href="<?= url('contact') ?>">Let’s talk <?= icon('arrow-up') ?></a>
@@ -33,6 +33,6 @@
 <?= $content ?>
 </main>
 <?php require ROOT_PATH.'/app/views/components/footer.php'; ?>
-<a class="whatsapp-float" href="<?= e(whatsapp_url()) ?>" target="_blank" rel="noopener noreferrer" aria-label="Chat with Cedar Tranquility on WhatsApp"><?= icon('whatsapp') ?><span>Let’s chat</span></a>
+<a class="whatsapp-float" href="<?= e(whatsapp_url()) ?>" target="_blank" rel="noopener noreferrer" aria-label="Chat with <?= e(brand()) ?> on WhatsApp"><?= icon('whatsapp') ?><span>Let’s chat</span></a>
 <button class="back-top" aria-label="Back to top"><?= icon('arrow', 'arrow-upward') ?></button>
 </body></html>

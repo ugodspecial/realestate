@@ -373,16 +373,38 @@ final class AdminController {
     /* ---------------- Settings ---------------- */
     private static function settings(string $method, array $user): void {
         Auth::require('settings.manage');
-        $keys = ['site_name', 'tagline', 'phone', 'whatsapp', 'email', 'notify_email', 'address', 'map_embed', 'facebook', 'instagram', 'twitter', 'linkedin', 'listings_per_page'];
+        $keys = ['brand_name', 'brand_tagline', 'tagline', 'phone', 'whatsapp', 'email', 'notify_email', 'address', 'map_embed', 'facebook', 'instagram', 'twitter', 'linkedin', 'listings_per_page'];
         if ($method === 'POST') {
             verify_csrf();
             $driver = Database::connection()->getAttribute(PDO::ATTR_DRIVER_NAME);
+            $save = static function (string $key, string $value) use ($driver): void {
+                if ($driver === 'mysql') Database::query('INSERT INTO settings (key_name,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)', [$key, $value]);
+                else Database::query('INSERT INTO settings (key_name,value) VALUES (?,?) ON CONFLICT(key_name) DO UPDATE SET value=excluded.value', [$key, $value]);
+            };
             foreach ($keys as $key) {
                 $value = mb_substr((string)input($key), 0, $key === 'map_embed' ? 4000 : 500);
                 if ($key === 'listings_per_page') $value = (string)min(48, max(3, (int)$value ?: 9));
+                if ($key === 'brand_name' && trim($value) === '') { flash('error', 'The website name cannot be empty.'); redirect('admin/settings'); }
                 if (in_array($key, ['email', 'notify_email'], true) && $value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) { flash('error', 'Enter a valid email address.'); redirect('admin/settings'); }
-                if ($driver === 'mysql') Database::query('INSERT INTO settings (key_name,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)', [$key, $value]);
-                else Database::query('INSERT INTO settings (key_name,value) VALUES (?,?) ON CONFLICT(key_name) DO UPDATE SET value=excluded.value', [$key, $value]);
+                $save($key, $value);
+            }
+            // Legacy key kept in sync so older pages and templates stay consistent.
+            $save('site_name', mb_substr((string)input('brand_name'), 0, 500));
+
+            // Brand logo upload / removal.
+            if (isset($_FILES['brand_logo']) && is_array($_FILES['brand_logo'])) {
+                [$logoPath, $logoError] = Uploads::storeLogo($_FILES['brand_logo']);
+                if ($logoError !== null) { flash('error', $logoError); redirect('admin/settings'); }
+                if ($logoPath !== null) {
+                    Uploads::deleteLogo();
+                    $save('brand_logo', $logoPath);
+                    Audit::log('settings.logo', 'settings', null, 'Updated the brand logo');
+                }
+            }
+            if (input('remove_logo') === '1') {
+                Uploads::deleteLogo();
+                $save('brand_logo', '');
+                Audit::log('settings.logo', 'settings', null, 'Removed the brand logo');
             }
             Audit::log('settings.update', 'settings', null, 'Updated website settings');
             flash('success', 'Settings saved. Changes appear on the website immediately.');

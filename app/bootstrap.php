@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 define('ROOT_PATH', dirname(__DIR__));
-define('APP_VERSION', '1.0.0');
+define('APP_VERSION', '1.0.1');
 $config = require ROOT_PATH . '/app/config.php';
 date_default_timezone_set('Africa/Lagos');
 mb_internal_encoding('UTF-8');
@@ -17,7 +17,7 @@ set_exception_handler(static function (Throwable $e): void {
     error_log((string)$e);
     if (PHP_SAPI === 'cli') { fwrite(STDERR, $e->getMessage() . PHP_EOL); exit(1); }
     http_response_code(500);
-    $title = 'A little pause | Cedar Tranquility Real Estate';
+    $title = 'A little pause | ' . (function_exists('brand') ? brand() : 'Cedar Tranquility Real Estate');
     require ROOT_PATH . '/app/views/public/error.php';
 });
 if (PHP_SAPI !== 'cli') {
