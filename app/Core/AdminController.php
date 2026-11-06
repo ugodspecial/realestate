@@ -373,7 +373,7 @@ final class AdminController {
     /* ---------------- Settings ---------------- */
     private static function settings(string $method, array $user): void {
         Auth::require('settings.manage');
-        $keys = ['brand_name', 'brand_tagline', 'tagline', 'phone', 'whatsapp', 'email', 'notify_email', 'address', 'map_embed', 'facebook', 'instagram', 'twitter', 'linkedin', 'listings_per_page'];
+        $keys = ['brand_name', 'brand_tagline', 'tagline', 'phone', 'whatsapp', 'email', 'notify_email', 'address', 'office_hours', 'map_embed', 'facebook', 'instagram', 'twitter', 'linkedin', 'listings_per_page'];
         if ($method === 'POST') {
             verify_csrf();
             $driver = Database::connection()->getAttribute(PDO::ATTR_DRIVER_NAME);
@@ -383,6 +383,13 @@ final class AdminController {
             };
             foreach ($keys as $key) {
                 $value = mb_substr((string)input($key), 0, $key === 'map_embed' ? 4000 : 500);
+                if ($key === 'office_hours') {
+                    // The contact page reads each opening time from a pipe-separated
+                    // list, so store one entry per line as one pipe-separated entry.
+                    $lines = preg_split('/\R+/u', $value) ?: [];
+                    $lines = array_values(array_filter(array_map('trim', $lines), static fn($l) => $l !== ''));
+                    $value = implode('|', $lines);
+                }
                 if ($key === 'listings_per_page') $value = (string)min(48, max(3, (int)$value ?: 9));
                 if ($key === 'brand_name' && trim($value) === '') { flash('error', 'The website name cannot be empty.'); redirect('admin/settings'); }
                 if (in_array($key, ['email', 'notify_email'], true) && $value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) { flash('error', 'Enter a valid email address.'); redirect('admin/settings'); }

@@ -421,3 +421,6 @@ body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 @media(max-width:640px){
   .admin-main{padding:16px 12px}
 }
+
+/* Helper text under an admin form field. */
+.admin-form .field-hint{font-size:10px;color:#8b9880;margin-top:6px;line-height:1.55}

@@ -48,6 +48,21 @@ echo "$HOME_HTML" | grep -q 'toggle-icon-close' && pass "toggle has a close icon
 curl -s "$BASE/assets/css/site.css" | grep -q 'html{overflow-x:hidden}' && pass "horizontal overflow is clipped" || fail "horizontal overflow is clipped"
 curl -s "$BASE/property/$SLUG" | grep -q "amenities-grid" && pass "amenities render" || fail "amenities render"
 
+# The services page must show a single call-to-action; the footer keeps it.
+SERVICES_HTML="$(curl -s "$BASE/services")"
+CTA_COUNT="$(printf '%s' "$SERVICES_HTML" | grep -o 'Start a conversation' | wc -l | tr -d ' ')"
+expect "services page shows one call-to-action" 1 "$CTA_COUNT"
+printf '%s' "$SERVICES_HTML" | grep -q 'class="simple-cta"' && fail "services page has no duplicate closing CTA" || pass "services page has no duplicate closing CTA"
+
+# The contact page shows the opening hours, and admins can change them.
+# Each stored entry is checked separately, since the page renders them as
+# separate lines.
+while IFS= read -r HOURS_LINE; do
+  [ -z "$HOURS_LINE" ] && continue
+  curl -s "$BASE/contact" | grep -qF "$HOURS_LINE" && pass "contact page shows opening hours: $HOURS_LINE" || fail "contact page shows opening hours: $HOURS_LINE"
+done < <(php -r 'require "app/bootstrap.php"; foreach (explode("|", (string)setting("office_hours")) as $l) { $l = trim($l); if ($l !== "") echo $l, "\n"; }')
+curl -s "$BASE/contact" | grep -q 'When we’re here' && pass "contact page labels the opening hours" || fail "contact page labels the opening hours"
+
 # Authenticated staff flow (first demo account = super admin)
 JAR="$(mktemp)"
 TOKEN="$(curl -s -c "$JAR" "$BASE/login" | grep -o 'name="_token" value="[a-f0-9]*"' | grep -o '[a-f0-9]\{32,\}' | head -1)"
@@ -57,5 +72,48 @@ expect "staff login" 303 "$LOGIN_CODE"
 for p in /admin /admin/properties /admin/properties/new /admin/enquiries /admin/categories /admin/locations /admin/testimonials /admin/users /admin/settings /admin/audit /admin/roadmap /admin/account; do
   expect "admin $p" 200 "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE$p")"
 done
+
+# The settings form must offer office hours, and saving must reach the
+# contact page. The original value is restored afterwards.
+curl -s -b "$JAR" "$BASE/admin/settings" | grep -q 'name="office_hours"' && pass "settings form offers office hours" || fail "settings form offers office hours"
+ORIGINAL_HOURS="$(php -r 'require "app/bootstrap.php"; echo (string)setting("office_hours");')"
+SETTINGS_TOKEN="$(curl -s -b "$JAR" -c "$JAR" "$BASE/admin/settings" | grep -o 'name="_token" value="[a-f0-9]*"' | grep -o '[a-f0-9]\{32,\}' | head -1)"
+# Post the whole settings form so no other value is cleared.
+php -r '
+$jar = $argv[1]; $token = $argv[2]; $base = $argv[3]; $root = getcwd();
+$curl = function(string $url, array $post = null) use ($jar) {
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $jar, CURLOPT_COOKIEFILE => $jar]);
+  if ($post !== null) { curl_setopt($ch, CURLOPT_POST, true); curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post)); }
+  $body = curl_exec($ch); curl_close($ch); return (string)$body;
+};
+require "app/bootstrap.php";
+$settings = array_column(Database::all("SELECT key_name,value FROM settings"), "value", "key_name");
+$post = ["_token" => $token, "office_hours" => "Monday to Friday: 9:00am - 4:00pm\nSaturday: 11:00am - 2:00pm"];
+foreach (["brand_name","brand_tagline","tagline","phone","whatsapp","email","notify_email","address","map_embed","facebook","instagram","twitter","linkedin","listings_per_page"] as $k) {
+  $post[$k] = (string)($settings[$k] ?? "");
+}
+$curl("$base/admin/settings", $post);
+' "$JAR" "$SETTINGS_TOKEN" "$BASE"
+SAVED_HOURS="$(php -r 'require "app/bootstrap.php"; echo (string)setting("office_hours");')"
+[ "$SAVED_HOURS" = "Monday to Friday: 9:00am - 4:00pm|Saturday: 11:00am - 2:00pm" ] && pass "office hours save one entry per line" || fail "office hours save one entry per line (got: $SAVED_HOURS)"
+curl -s "$BASE/contact" | grep -qF "Monday to Friday: 9:00am - 4:00pm" && pass "saved office hours reach the contact page" || fail "saved office hours reach the contact page"
+# Restore the original value.
+RESTORE_TOKEN="$(curl -s -b "$JAR" -c "$JAR" "$BASE/admin/settings" | grep -o 'name="_token" value="[a-f0-9]*"' | grep -o '[a-f0-9]\{32,\}' | head -1)"
+php -r '
+$jar = $argv[1]; $token = $argv[2]; $base = $argv[3]; $hours = $argv[4];
+$ch = curl_init("$base/admin/settings");
+curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_COOKIEJAR => $jar, CURLOPT_COOKIEFILE => $jar]);
+require "app/bootstrap.php";
+$settings = array_column(Database::all("SELECT key_name,value FROM settings"), "value", "key_name");
+$post = ["_token" => $token, "office_hours" => $hours];
+foreach (["brand_name","brand_tagline","tagline","phone","whatsapp","email","notify_email","address","map_embed","facebook","instagram","twitter","linkedin","listings_per_page"] as $k) {
+  $post[$k] = (string)($settings[$k] ?? "");
+}
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post));
+curl_exec($ch); curl_close($ch);
+' "$JAR" "$RESTORE_TOKEN" "$BASE" "$(printf '%s' "$ORIGINAL_HOURS" | tr '|' '\n')"
+RESTORED_HOURS="$(php -r 'require "app/bootstrap.php"; echo (string)setting("office_hours");')"
+[ "$RESTORED_HOURS" = "$ORIGINAL_HOURS" ] && pass "office hours restore to the original value" || fail "office hours restore to the original value (got: $RESTORED_HOURS)"
 rm -f "$JAR"
 exit $FAIL

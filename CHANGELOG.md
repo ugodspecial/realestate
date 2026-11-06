@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.4 — 2026-11-06
+
+Services page call-to-action and editable opening hours.
+
+- Removed the closing call-to-action from the services page. It duplicated
+  the one already shown in the footer, so the page now carries a single
+  "Start a conversation" button, in the footer.
+- Opening hours can now be edited from Website settings in the admin, next
+  to the office address. Each line is saved as a separate entry and is
+  shown as "When we're here" on the contact page. Leaving the field empty
+  hides the opening hours.
+
 ## 1.0.3 — 2026-11-06
 
 Mobile menu icons and admin navigation drawer.

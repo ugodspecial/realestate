@@ -39,6 +39,11 @@
     <div class="field"><label for="sEmail">Public email</label><input id="sEmail" type="email" name="email" value="<?= e($v('email')) ?>" maxlength="190"></div>
     <div class="field"><label for="sNotify">Enquiry notifications email</label><input id="sNotify" type="email" name="notify_email" value="<?= e($v('notify_email')) ?>" maxlength="190"></div>
     <div class="field full"><label for="sAddr">Office address</label><input id="sAddr" name="address" value="<?= e($v('address')) ?>" maxlength="255"></div>
+    <div class="field full">
+      <label for="sHours">Office hours <small>(one line per entry, shown as “When we’re here” on the contact page)</small></label>
+      <textarea id="sHours" name="office_hours" rows="4" maxlength="500" placeholder="Monday–Friday: 8:30am–5:30pm&#10;Saturday: 10:00am–3:00pm"><?= e(str_replace('|', "\n", $v('office_hours'))) ?></textarea>
+      <p class="field-hint">Each line is shown as a separate opening time. Leave empty to hide the opening hours.</p>
+    </div>
   </div>
 </div>
 <div class="admin-card admin-form">

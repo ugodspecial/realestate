@@ -85,6 +85,26 @@ check('settings form accepts a logo upload', str_contains((string) file_get_cont
 check('settings form is multipart', str_contains((string) file_get_contents(ROOT_PATH . '/app/views/admin/settings.php'), 'enctype="multipart/form-data"'));
 check('admin controller saves brand_name', str_contains((string) file_get_contents(ROOT_PATH . '/app/Core/AdminController.php'), "'brand_name'"));
 check('admin controller saves the logo', str_contains((string) file_get_contents(ROOT_PATH . '/app/Core/AdminController.php'), "'brand_logo'"));
+
+// Office hours are editable in admin and shown on the contact page.
+$settingsView = (string) file_get_contents(ROOT_PATH . '/app/views/admin/settings.php');
+$adminCtrl = (string) file_get_contents(ROOT_PATH . '/app/Core/AdminController.php');
+$contactView = (string) file_get_contents(ROOT_PATH . '/app/views/public/contact.php');
+check('settings form has an office hours field', str_contains($settingsView, 'name="office_hours"'));
+check('settings office hours field is a textarea', str_contains($settingsView, '<textarea id="sHours" name="office_hours"'));
+check('settings office hours field is labelled', str_contains($settingsView, 'label for="sHours"'));
+check('settings office hours field explains the contact page', str_contains($settingsView, 'contact page'));
+check('admin controller saves office_hours', str_contains($adminCtrl, "'office_hours'"));
+check('admin controller normalises office hours to one entry per line', str_contains($adminCtrl, "implode('|', \$lines)"));
+check('contact page shows the opening hours', str_contains($contactView, "setting('office_hours')"));
+check('contact page labels the opening hours', str_contains($contactView, 'When we’re here'));
+
+// The services page keeps a single call-to-action, the one in the footer.
+$servicesView = (string) file_get_contents(ROOT_PATH . '/app/views/public/services.php');
+$footerView = (string) file_get_contents(ROOT_PATH . '/app/views/components/footer.php');
+check('services page has no duplicate closing call-to-action', !str_contains($servicesView, 'class="simple-cta"'));
+check('services page has no "Start a conversation" button', !str_contains($servicesView, 'Start a conversation'));
+check('the footer keeps the call-to-action', str_contains($footerView, 'Start a conversation'));
 $logoPath = trim((string)setting('brand_logo'));
 check('logo path is constrained to the brand upload folder', $logoPath === '' || preg_match('#^uploads/brand/[a-zA-Z0-9._-]+$#', $logoPath) === 1);
 check('logo path cannot escape the public folder', !str_contains($logoPath, '..') && !str_starts_with($logoPath, '/'));
