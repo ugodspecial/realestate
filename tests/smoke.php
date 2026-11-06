@@ -127,6 +127,25 @@ check('nav closes on resize to desktop', str_contains($navJs, 'window.innerWidth
 check('nav closes when a link is chosen', str_contains($navJs, "e.target.closest('a')"));
 check('nav preserves the reading position', str_contains($navJs, 'navScrollY') && str_contains($navJs, 'nav-scroll-locked'));
 check('scroll lock is released on close', str_contains($navJs, "d.body.classList.remove('nav-scroll-locked')"));
+// The menu/close icons must be driven by the script's state class, not by the
+// :has() selector, so they work in every browser.
+check('toggle icons do not depend on :has()', !preg_match('/[;{]\s*[^{}]*:has\(/', $css));
+check('toggle icons swap on the nav-open class', str_contains($css, 'html.nav-open .toggle-icon-open{display:none}') && str_contains($css, 'html.nav-open .toggle-icon-close{display:inline-flex}'));
+check('nav sets the nav-open state class', str_contains($navJs, "classList.toggle('nav-open',open)"));
+
+// Admin navigation drawer on phones.
+$adminLayoutSrc = (string) file_get_contents(ROOT_PATH . '/app/views/admin/layout.php');
+check('admin has a drawer toggle', str_contains($adminLayoutSrc, 'class="admin-nav-toggle"'));
+check('admin drawer toggle is labelled', str_contains($adminLayoutSrc, 'aria-label="Open admin menu"'));
+check('admin drawer toggle controls the sidebar', str_contains($adminLayoutSrc, 'aria-controls="adminSidebar"'));
+check('admin sidebar has a stable id', str_contains($adminLayoutSrc, 'id="adminSidebar"'));
+check('admin drawer has a close button', str_contains($adminLayoutSrc, 'class="admin-sidebar-close"'));
+check('admin drawer has an overlay', str_contains($adminLayoutSrc, 'class="admin-sidebar-overlay"'));
+check('admin drawer is hidden off-screen by default', str_contains($css, '.admin-sidebar{') && str_contains($css, 'transform:translate3d(-100%,0,0)'));
+check('admin drawer opens on screen', str_contains($css, '.admin-sidebar.open{transform:translate3d(0,0,0)}'));
+check('admin drawer toggle is hidden on desktop', preg_match('/\.admin-nav-toggle\{[^}]*display:none/', $css) === 1);
+check('admin drawer script present', str_contains($navJs, 'admin-sidebar-overlay') && str_contains($navJs, 'adminSidebar'));
+check('admin drawer closes on escape', str_contains($navJs, "e.key==='Escape'&&sidebar.classList.contains('open')"));
 
 $uploadSrc = (string) file_get_contents(ROOT_PATH . '/app/Core/Uploads.php');
 check('logo upload sanitizes svg', str_contains($uploadSrc, 'sanitizeSvg') && str_contains($uploadSrc, 'script'));

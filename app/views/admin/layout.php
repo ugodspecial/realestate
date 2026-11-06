@@ -32,8 +32,10 @@ $newEnquiries = Auth::can('enquiries.manage') ? (int)Database::value("SELECT COU
 </head>
 <body>
 <a class="skip-link" href="#adminMain">Skip to main content</a>
+<button class="admin-nav-toggle" type="button" aria-label="Open admin menu" aria-controls="adminSidebar" aria-expanded="false"><span class="admin-nav-toggle-icon"><?= icon('menu') ?></span><span class="admin-nav-toggle-text">Menu</span></button>
 <div class="admin-shell">
-  <aside class="admin-sidebar" aria-label="Admin navigation">
+  <aside class="admin-sidebar" id="adminSidebar" aria-label="Admin navigation">
+    <button class="admin-sidebar-close" type="button" aria-label="Close admin menu"><?= icon('close') ?></button>
     <div class="admin-brand">
       <?php $adminLogo = brand_logo(); ?>
       <?php if ($adminLogo !== ''): ?>
@@ -67,6 +69,7 @@ $newEnquiries = Auth::can('enquiries.manage') ? (int)Database::value("SELECT COU
       <form id="adminLogout" method="post" action="<?= url('logout') ?>" hidden><?= csrf_field() ?></form>
     </div>
   </aside>
+  <div class="admin-sidebar-overlay" hidden></div>
   <main class="admin-main" id="adminMain">
     <?php foreach (take_flashes() as $f): ?>
       <div class="notice<?= $f['type'] === 'error' ? ' notice-error' : '' ?>" role="status"><?= icon($f['type'] === 'error' ? 'alert' : 'check') ?><div><?= e($f['message']) ?></div><button class="notice-close" aria-label="Dismiss message"><?= icon('close') ?></button></div>

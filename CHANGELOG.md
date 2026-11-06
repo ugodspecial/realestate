@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.3 — 2026-11-06
+
+Mobile menu icons and admin navigation drawer.
+
+- Fixed the close (×) icon showing next to the hamburger on the public site
+  when the menu was closed. The icon swap relied on the CSS `:has()`
+  selector, which older browsers do not support; the state is now driven by
+  a `nav-open` class the script sets on `<html>`, so it works everywhere.
+- The admin sidebar no longer covers the page content on phones. It is now a
+  slide-in drawer opened from a compact "Menu" bar at the top of the page,
+  with a close button, a dimmed overlay, and a keyboard-dismissible state.
+  The admin content is visible immediately instead of below a full-screen
+  menu.
+
 ## 1.0.2 — 2026-11-06
 
 Mobile navigation and responsive fixes.

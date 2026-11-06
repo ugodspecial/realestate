@@ -80,6 +80,29 @@ on(intent,'change',function(){if(etype)etype.value=intent.value});
 /* Current year */
 var year=d.getElementById('currentYear');if(year)year.textContent=new Date().getFullYear();
 })();
+/* Admin sidebar drawer (phones and small tablets). */
+(function(){'use strict';var d=document;
+var toggle=d.querySelector('.admin-nav-toggle'),sidebar=d.getElementById('adminSidebar'),overlay=d.querySelector('.admin-sidebar-overlay'),closeBtn=d.querySelector('.admin-sidebar-close');
+if(!toggle||!sidebar)return;
+function setOpen(open){
+  sidebar.classList.toggle('open',open);
+  if(overlay){overlay.hidden=false;/* allow the transition to run */requestAnimationFrame(function(){overlay.classList.toggle('show',open)});}
+  toggle.setAttribute('aria-expanded',open?'true':'false');
+  toggle.setAttribute('aria-label',open?'Close admin menu':'Open admin menu');
+  d.body.classList.toggle('dialog-open',open);
+  d.documentElement.classList.toggle('admin-drawer-open',open);
+  if(open&&closeBtn)closeBtn.focus();
+}
+function close(){setOpen(false);toggle.focus();}
+toggle.addEventListener('click',function(){setOpen(!sidebar.classList.contains('open'))});
+if(closeBtn)closeBtn.addEventListener('click',close);
+if(overlay)overlay.addEventListener('click',close);
+/* Choosing a destination closes the drawer. */
+sidebar.addEventListener('click',function(e){if(e.target.closest('a'))setOpen(false);});
+d.addEventListener('keydown',function(e){if(e.key==='Escape'&&sidebar.classList.contains('open'))close();});
+/* Leaving the mobile range restores the normal layout. */
+window.addEventListener('resize',function(){if(window.innerWidth>1024&&sidebar.classList.contains('open'))setOpen(false);});
+})();
 /* Admin taxonomy inline editing (CSP-safe: no inline handlers in views). */
 (function(){'use strict';var d=document;
 d.querySelectorAll('[data-edit-taxonomy]').forEach(function(btn){btn.addEventListener('click',function(){

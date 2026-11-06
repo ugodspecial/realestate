@@ -288,14 +288,10 @@ body{overflow-x:hidden;max-width:100%}
   }
   .main-nav{z-index:60}
   .nav-overlay{z-index:55}
-  /* When the panel is open, the brand sits behind it. */
-  .site-header:has(.main-nav.open) .brand{position:relative;z-index:1}
-}
-
-/* Fallback for browsers without :has() — the toggle keeps a higher stacking
-   order regardless. */
-@supports not selector(:has(*)){
-  .mobile-toggle{position:relative;z-index:70}
+  /* While the panel is open, the brand sits behind it. The state comes from
+     the `nav-open` class the script sets on <html>, so no :has() support is
+     needed. */
+  html.nav-open .brand{position:relative;z-index:1}
 }
 
 /* ---------------------------------------------------------------------------
@@ -328,13 +324,6 @@ body{overflow-x:hidden;max-width:100%}
   .admin-cols{grid-template-columns:1fr}
   .form-actions{flex-wrap:wrap}
   .form-actions .btn{width:100%;justify-content:center}
-  /* The admin sidebar becomes a stacked block above the content. */
-  .admin-sidebar{position:static;height:auto;max-height:none}
-  .admin-brand{padding:16px 14px}
-  .admin-nav{display:flex;flex-wrap:wrap;gap:4px;padding:10px}
-  .admin-nav>span{width:100%;padding:8px 4px 4px}
-  .admin-nav a{padding:9px 10px;font-size:11px}
-  .admin-user{padding:14px}
 }
 
 /* Two-column admin layouts (taxonomy, testimonials) with a wider first
@@ -355,19 +344,12 @@ body{overflow-x:hidden;max-width:100%}
 }
 
 /* The toggle shows a menu icon when closed and a close icon when the panel
-   is open, so the control always communicates what it will do. */
-.toggle-icon-close{display:none}
-@media(max-width:1024px){
-  .mobile-toggle .toggle-icon-open,
-  .mobile-toggle .toggle-icon-close{display:inline-flex;align-items:center;justify-content:center}
-  .mobile-toggle .toggle-icon-close{display:none}
-  .main-nav.open~.mobile-toggle .toggle-icon-open,
-  .site-header:has(.main-nav.open) .mobile-toggle .toggle-icon-open{display:none}
-  .site-header:has(.main-nav.open) .mobile-toggle .toggle-icon-close{display:inline-flex}
-}
-/* Fallback when :has() is unsupported — the JS toggles a class on <html>. */
-html.nav-open .mobile-toggle .toggle-icon-open{display:none}
-html.nav-open .mobile-toggle .toggle-icon-close{display:inline-flex}
+   is open. The state is driven by the `nav-open` class that the script puts
+   on <html>, so this works in every browser without relying on :has(). */
+.toggle-icon-open{display:inline-flex;align-items:center;justify-content:center}
+.toggle-icon-close{display:none;align-items:center;justify-content:center}
+html.nav-open .toggle-icon-open{display:none}
+html.nav-open .toggle-icon-close{display:inline-flex}
 
 /* ---------------------------------------------------------------------------
    Scroll lock while the mobile menu is open.
@@ -377,3 +359,65 @@ html.nav-open .mobile-toggle .toggle-icon-close{display:inline-flex}
    reading position.
    --------------------------------------------------------------------------- */
 body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
+
+/* ---------------------------------------------------------------------------
+   Admin navigation drawer (phones and small tablets)
+   The sidebar used to stack above the page content, so the first screen of
+   every admin page was a full menu with the content below the fold. It is
+   now a slide-in panel opened from a bar at the top of the page.
+   --------------------------------------------------------------------------- */
+.admin-nav-toggle{
+  display:none;
+  position:sticky;top:0;z-index:65;
+  width:100%;
+  align-items:center;gap:10px;
+  padding:11px 16px;
+  background:var(--green-deep);color:#fff;
+  border:0;border-bottom:1px solid #ffffff1c;
+  font:500 13px/1.2 var(--font-body);
+  text-align:left;cursor:pointer;
+}
+.admin-nav-toggle-icon{display:inline-flex}
+.admin-nav-toggle-icon .icon{width:22px;height:22px}
+.admin-nav-toggle-text{letter-spacing:1.4px;text-transform:uppercase}
+.admin-sidebar-close{
+  display:none;
+  position:absolute;top:12px;right:12px;z-index:2;
+  width:40px;height:40px;align-items:center;justify-content:center;
+  background:#ffffff1a;color:#fff;border:0;border-radius:3px;cursor:pointer;
+}
+.admin-sidebar-close .icon{width:19px;height:19px}
+.admin-sidebar-overlay{
+  position:fixed;inset:0;z-index:64;
+  background:#102e2659;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.admin-sidebar-overlay.show{opacity:1;pointer-events:auto}
+
+@media(max-width:1024px){
+  .admin-nav-toggle{display:flex}
+  .admin-shell{grid-template-columns:1fr}
+  .admin-sidebar{
+    position:fixed;top:0;left:0;bottom:0;z-index:66;
+    width:min(300px,86vw);height:100vh;max-height:100vh;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    transform:translate3d(-100%,0,0);
+    transition:transform .28s ease;
+    box-shadow:8px 0 30px #102e2633;
+  }
+  .admin-sidebar.open{transform:translate3d(0,0,0)}
+  .admin-sidebar-close{display:inline-flex}
+  .admin-brand{padding-right:56px}
+  /* The nav is a plain vertical list inside the drawer. */
+  .admin-nav{display:block;padding:16px 12px}
+  .admin-nav>span{display:block;padding:12px 10px 7px}
+  .admin-nav a{display:flex;padding:11px 10px;font-size:12px;align-items:center;gap:10px}
+  .admin-user{padding:18px 20px}
+  .admin-main{padding:20px 16px}
+  /* The toggle bar sits behind the drawer while it is open. */
+  html.admin-drawer-open .admin-nav-toggle{z-index:60}
+}
+@media(max-width:640px){
+  .admin-main{padding:16px 12px}
+}
