@@ -448,22 +448,102 @@ body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
    without a heavy solid bar. Browsers without backdrop-filter get an
    opaque bar instead of a see-through one.
    --------------------------------------------------------------------------- */
-.site-header{
+/* The glass sits on a pseudo-element of the bar, never on the bar itself.
+   An element with a backdrop-filter becomes the containing block for the
+   position:fixed descendants inside it, so putting the effect on the bar
+   would trap the mobile navigation panel and collapse it to a short strip
+   with its links spilling out over the page. A pseudo-element is not an
+   ancestor of the panel, so the panel keeps the viewport as its
+   containing block and fills the screen as it should. */
+/* The header element is the sticky one; the glass is drawn by the bar
+   inside it so the fixed navigation panel is not trapped by the blur.
+   The header sits above the dimmed overlay so the navigation panel, which
+   is inside the header, is never covered by it. */
+.site-header{z-index:70}
+.site-header-bar{position:relative}
+.site-header-bar::before{
+  content:'';
+  position:absolute;inset:0;z-index:-1;
   background:#ffffffe0;
   -webkit-backdrop-filter:saturate(180%) blur(14px);
   backdrop-filter:saturate(180%) blur(14px);
+}
+.site-header-bar{
   border-bottom:1px solid #dfe5dc;
   box-shadow:0 1px 0 #ffffffb3 inset, 0 6px 24px -12px #102e2626;
 }
 /* Solid fallback for browsers that do not support backdrop-filter. */
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .site-header{background:#fff}
+  .site-header-bar::before{background:#fff}
 }
-/* The utility bar above the header scrolls away; the header itself sticks. */
-.site-header .header-inner{transition:height .25s ease}
 @media(max-width:1024px){
-  .site-header{background:#fffffff2}
+  .site-header-bar::before{background:#fffffff2}
 }
 @media(max-width:640px){
-  .site-header{background:#fffffff7;-webkit-backdrop-filter:saturate(180%) blur(12px);backdrop-filter:saturate(180%) blur(12px)}
+  .site-header-bar::before{background:#fffffff7;-webkit-backdrop-filter:saturate(180%) blur(12px);backdrop-filter:saturate(180%) blur(12px)}
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile navigation panel — full-height drawer
+   The navigation panel and the dimmed overlay live in a wrapper beside the
+   header, not inside it. The glass header uses a backdrop-filter, and any
+   element with a backdrop-filter becomes the containing block for the
+   position:fixed descendants inside it, so a panel nested in the header was
+   sized against the header instead of the viewport. It collapsed to a short
+   strip and its links spilled out over the page instead of sitting inside
+   the white panel.
+
+   On a desktop the wrapper is the positioning context and the navigation is
+   placed back over the header row, so it still reads as part of the header.
+   --------------------------------------------------------------------------- */
+
+@media(min-width:1025px){
+  /* On a desktop the navigation is part of the header row again. */
+  .site-header .main-nav{
+    position:static;
+    z-index:31;
+    display:flex;flex-direction:row;align-items:center;
+    gap:30px;margin:0 18px 0 auto;padding:0;
+    background:none;box-shadow:none;transform:none;transition:none;
+    visibility:visible;
+  }
+  .site-header .main-nav>a{padding:33px 0;border-bottom:0}
+  .site-header .mobile-nav-cta{display:none}
+  .site-header .main-nav-close{display:none}
+}
+@media(max-width:1024px){
+  .site-header .main-nav{
+    position:fixed;top:0;right:0;bottom:0;left:auto;
+    width:min(340px,88vw);max-width:86vw;height:auto;
+    background:#fff;
+    flex-direction:column;align-items:stretch;
+    padding:96px 35px 40px;margin:0;gap:5px;
+    z-index:60;
+    transform:translate3d(100%,0,0);
+    transition:transform .3s;
+    box-shadow:-10px 0 40px #102e2615;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+  }
+  .site-header .main-nav.open{transform:translate3d(0,0,0)}
+  /* The nav must not be reachable by keyboard while it is off screen. */
+  .site-header .main-nav:not(.open){visibility:hidden}
+  .site-header .main-nav.open{visibility:visible}
+}
+
+/* The close button lives inside the navigation panel, so it is always on
+   top of the panel it closes. The header's own toggle keeps the menu icon
+   and is hidden while the panel is open. */
+.main-nav-close{
+  display:none;
+  position:absolute;top:14px;right:16px;
+  width:42px;height:42px;align-items:center;justify-content:center;
+  background:transparent;color:var(--green);
+  border:0;cursor:pointer;
+}
+.main-nav-close .icon{width:22px;height:22px}
+@media(max-width:1024px){
+  .main-nav-close{display:inline-flex}
+  /* While the panel is open the header toggle would sit behind it. */
+  html.nav-open .mobile-toggle{visibility:hidden}
 }

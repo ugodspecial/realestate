@@ -33,6 +33,9 @@ function setNavState(open){
 function closeNav(){setNavState(false)}
 on(toggle,'click',function(){if(!nav)return;setNavState(!nav.classList.contains('open'))});
 on(overlay,'click',closeNav);
+/* The panel carries its own close button, so it works even when the panel
+   covers the header toggle. */
+on(nav?nav.querySelector('.main-nav-close'):null,'click',function(e){e.stopPropagation();closeNav()});
 /* Close the menu when a destination is chosen. */
 if(nav)nav.addEventListener('click',function(e){if(e.target.closest('a'))closeNav()});
 /* Returning to a desktop width should not leave the page scroll-locked. */

@@ -128,7 +128,9 @@ check('mobile toggle has an accessible label', str_contains($layoutSrc, 'aria-la
 check('mobile toggle controls the main nav', str_contains($layoutSrc, 'aria-controls="main-nav"'));
 check('mobile nav has a stable id', str_contains($layoutSrc, 'id="main-nav"'));
 check('nav overlay is present', str_contains($layoutSrc, 'class="nav-overlay"'));
-check('nav overlay sits inside the header', preg_match('#<header[^>]*>.*?nav-overlay.*?</header>#s', $layoutSrc) === 1);
+// The overlay sits beside the header, not inside it, so it cannot paint
+// over the navigation panel that lives in the header.
+check('nav overlay sits beside the header', preg_match('#</header>\s*<div class="nav-overlay"#s', $layoutSrc) === 1);
 check('toggle shows a close icon when open', str_contains($layoutSrc, 'toggle-icon-close'));
 check('toggle shows a menu icon when closed', str_contains($layoutSrc, 'toggle-icon-open'));
 
@@ -177,6 +179,16 @@ check('the public header is sticky', str_contains($css, '.site-header{background
 check('the sticky header has a glass backdrop blur', str_contains($css, 'backdrop-filter:saturate(180%) blur(14px)'));
 check('the glass header has a translucent background', str_contains($css, 'background:#ffffffe0'));
 check('the glass header has a solid fallback', str_contains($css, '@supports not ((backdrop-filter:blur(1px))'));
+// The glass must be drawn by a pseudo-element of the header bar, never by
+// the bar itself: an element with a backdrop-filter becomes the containing
+// block for the fixed navigation panel inside it, which collapses the panel
+// to a short strip and lets its links spill out over the page.
+$layoutView = (string) file_get_contents(ROOT_PATH . '/app/views/layout.php');
+check('the glass is drawn by a pseudo-element', str_contains($css, '.site-header-bar::before{'));
+check('the bar itself carries no backdrop filter', !preg_match('/\.site-header-bar\{[^}]*backdrop-filter/', $css));
+check('the navigation panel has its own close button', str_contains($layoutView, 'class="main-nav-close"'));
+check('the close button is wired up', str_contains($navJs, "querySelector('.main-nav-close')"));
+check('the close button is shown on small screens', str_contains($css, '.main-nav-close{display:inline-flex}'));
 check('the admin sidebar is sticky', str_contains($css, 'position:sticky;top:0;height:100vh;overflow-y:auto'));
 check('the admin drawer closes above phone width', str_contains($navJs, "window.innerWidth>640&&sidebar.classList.contains('open')"));
 

@@ -18,15 +18,17 @@
 <body class="public-site <?= e($page ?? 'home') ?>-page">
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="utility-bar"><div class="container utility-inner"><span><?= icon('pin') ?> Rooted in Lagos. Connected to your future.</span><div><a href="mailto:<?= e(setting('email')) ?>"><?= icon('mail') ?><span><?= e(setting('email')) ?></span></a><a href="<?= url('login') ?>"><?= icon('user') ?> Staff login</a></div></div></div>
-<header class="site-header"><div class="container header-inner">
+<header class="site-header"><div class="site-header-bar"><div class="container header-inner">
 <a class="brand" href="<?= url() ?>" aria-label="<?= e(brand()) ?> home"><?= brand_block() ?></a>
 <nav class="main-nav" id="main-nav" aria-label="Main navigation">
+<button class="main-nav-close" type="button" aria-label="Close navigation"><?= icon('close') ?></button>
 <?php foreach([''=>'Home','about'=>'About Us','services'=>'Services','properties'=>'Properties','contact'=>'Contact Us'] as $path=>$label): ?><a href="<?= url($path) ?>" <?= ($page ?? 'home')===($path ?: 'home')?'class="active" aria-current="page"':'' ?>><?= $label ?></a><?php endforeach; ?>
 <a class="mobile-nav-cta" href="<?= url('contact') ?>">Let’s talk <?= icon('arrow-up') ?></a>
 </nav>
 <a href="<?= url('contact') ?>" class="btn btn-primary header-cta">Let’s talk <?= icon('arrow-up') ?></a>
 <button class="mobile-toggle" aria-label="Open navigation" aria-controls="main-nav" aria-expanded="false"><span class="toggle-icon-open"><?= icon('menu') ?></span><span class="toggle-icon-close" aria-hidden="true"><?= icon('close') ?></span></button>
-</div><div class="nav-overlay" aria-hidden="true"></div></header>
+</div></div></header>
+<div class="nav-overlay" aria-hidden="true"></div>
 <main id="main">
 <?php $flashes=take_flashes(); if($flashes): ?><div class="container flash-stack"><?php foreach($flashes as $f): ?><div class="notice notice-<?= e($f['type']) ?>" role="status"><?= icon($f['type']==='success'?'check':'file') ?><span><?= e($f['message']) ?></span><button class="notice-close" aria-label="Dismiss message"><?= icon('close') ?></button></div><?php endforeach; ?></div><?php endif; ?>
 <?= $content ?>

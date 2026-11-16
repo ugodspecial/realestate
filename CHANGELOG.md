@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.6 — 2026-11-07
+
+Fix the mobile navigation panel.
+
+- The mobile menu panel no longer collapses to a short strip with its links
+  spilling out over the page. The glass effect on the header was the
+  cause: an element with a backdrop-filter becomes the containing block
+  for the position:fixed descendants inside it, so the panel was measured
+  against the header instead of the viewport. The blur is now drawn by a
+  pseudo-element of the header bar, which leaves the panel free to fill
+  the screen.
+- The panel now carries its own close button, so the menu can always be
+  dismissed, even though the panel covers the header toggle.
+- The dimmed overlay now sits beside the header instead of inside it, so
+  it can never paint over the menu panel.
+
 ## 1.0.5 — 2026-11-07
 
 Sticky navigation on every device, with a glass header.
