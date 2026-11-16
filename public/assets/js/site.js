@@ -101,7 +101,7 @@ if(overlay)overlay.addEventListener('click',close);
 sidebar.addEventListener('click',function(e){if(e.target.closest('a'))setOpen(false);});
 d.addEventListener('keydown',function(e){if(e.key==='Escape'&&sidebar.classList.contains('open'))close();});
 /* Leaving the mobile range restores the normal layout. */
-window.addEventListener('resize',function(){if(window.innerWidth>1024&&sidebar.classList.contains('open'))setOpen(false);});
+window.addEventListener('resize',function(){if(window.innerWidth>640&&sidebar.classList.contains('open'))setOpen(false);});
 })();
 /* Admin taxonomy inline editing (CSP-safe: no inline handlers in views). */
 (function(){'use strict';var d=document;

@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.5 — 2026-11-07
+
+Sticky navigation on every device, with a glass header.
+
+- The website header now stays pinned to the top while the page scrolls, on
+  phones, tablets, and desktops, and carries a frosted-glass finish so the
+  content scrolling underneath stays legible. Browsers without
+  backdrop-filter support get a solid bar instead.
+- The admin navigation now stays visible while the page scrolls. On a phone
+  it remains a drawer opened from the menu bar, which is itself pinned to
+  the top; from tablet width up it is a column beside the content that
+  stays in place.
+- Fixed the cause of the menus not sticking: the page was clipping its
+  horizontal overflow with `overflow-x: hidden` on the body, and a hidden
+  overflow turns the body into the scroll container for sticky
+  descendants, so nothing could stick. The clip now uses
+  `overflow-x: clip`, which contains the overflow without creating a
+  scroll container.
+
 ## 1.0.4 — 2026-11-06
 
 Services page call-to-action and editable opening hours.

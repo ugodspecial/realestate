@@ -60,9 +60,16 @@
 
 /* The off-canvas nav is translated 100% to the right, which pushed it past
    the viewport edge and made the whole page scroll sideways. Clip the
-   horizontal overflow so the hidden panel cannot widen the document. */
+   horizontal overflow so the hidden panel cannot widen the document.
+
+   The clip must use `overflow-x: clip` and not `hidden`. A hidden overflow
+   turns <body> into the scroll container for sticky descendants, and since
+   <body> does not itself scroll, the sticky header and the sticky admin
+   sidebar never stick. `clip` contains the overflow without creating a
+   scroll container, so both goals are met. The clip on <html> stays as a
+   fallback for browsers that do not support `clip`. */
 html{overflow-x:hidden}
-body{overflow-x:hidden;max-width:100%}
+body{overflow-x:clip;max-width:100%}
 
 /* Keep the nav anchored to the right edge of the viewport and out of the
    document flow while closed. `inset` is replaced by explicit edges so the
@@ -394,7 +401,7 @@ body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 }
 .admin-sidebar-overlay.show{opacity:1;pointer-events:auto}
 
-@media(max-width:1024px){
+@media(max-width:640px){
   .admin-nav-toggle{display:flex}
   .admin-shell{grid-template-columns:1fr}
   .admin-sidebar{
@@ -414,13 +421,49 @@ body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .admin-nav>span{display:block;padding:12px 10px 7px}
   .admin-nav a{display:flex;padding:11px 10px;font-size:12px;align-items:center;gap:10px}
   .admin-user{padding:18px 20px}
-  .admin-main{padding:20px 16px}
+  .admin-main{padding:16px 12px}
   /* The toggle bar sits behind the drawer while it is open. */
   html.admin-drawer-open .admin-nav-toggle{z-index:60}
 }
-@media(max-width:640px){
-  .admin-main{padding:16px 12px}
+/* On a tablet there is room for the navigation as a column beside the
+   content, so it stays visible and scrolls with the page. */
+@media(min-width:641px) and (max-width:1024px){
+  .admin-nav-toggle{display:none}
+  .admin-shell{grid-template-columns:220px 1fr}
+  .admin-sidebar{
+    position:sticky;top:0;height:100vh;max-height:100vh;
+    width:auto;transform:none;box-shadow:none;overflow-y:auto;
+  }
+  .admin-sidebar-close{display:none}
+  .admin-main{padding:26px 22px}
 }
 
 /* Helper text under an admin form field. */
 .admin-form .field-hint{font-size:10px;color:#8b9880;margin-top:6px;line-height:1.55}
+
+/* ---------------------------------------------------------------------------
+   Sticky header — glass effect
+   The header stays pinned to the top while the page scrolls and takes on a
+   frosted-glass finish, so the content scrolling underneath stays legible
+   without a heavy solid bar. Browsers without backdrop-filter get an
+   opaque bar instead of a see-through one.
+   --------------------------------------------------------------------------- */
+.site-header{
+  background:#ffffffe0;
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid #dfe5dc;
+  box-shadow:0 1px 0 #ffffffb3 inset, 0 6px 24px -12px #102e2626;
+}
+/* Solid fallback for browsers that do not support backdrop-filter. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .site-header{background:#fff}
+}
+/* The utility bar above the header scrolls away; the header itself sticks. */
+.site-header .header-inner{transition:height .25s ease}
+@media(max-width:1024px){
+  .site-header{background:#fffffff2}
+}
+@media(max-width:640px){
+  .site-header{background:#fffffff7;-webkit-backdrop-filter:saturate(180%) blur(12px);backdrop-filter:saturate(180%) blur(12px)}
+}

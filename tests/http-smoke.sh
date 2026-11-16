@@ -44,8 +44,17 @@ echo "$HOME_HTML" | grep -q 'id="main-nav"' && pass "main nav has its id" || fai
 echo "$HOME_HTML" | grep -q 'class="nav-overlay"' && pass "nav overlay present" || fail "nav overlay present"
 echo "$HOME_HTML" | grep -q 'toggle-icon-close' && pass "toggle has a close icon" || fail "toggle has a close icon"
 # The stylesheet must clip horizontal overflow so the off-canvas panel cannot
-# make the page scroll sideways.
+# make the page scroll sideways. The clip has to use `overflow-x: clip` on the
+# body: `hidden` would turn the body into the scroll container and stop the
+# sticky header and the sticky admin sidebar from sticking.
 curl -s "$BASE/assets/css/site.css" | grep -q 'html{overflow-x:hidden}' && pass "horizontal overflow is clipped" || fail "horizontal overflow is clipped"
+curl -s "$BASE/assets/css/site.css" | grep -q 'body{overflow-x:clip' && pass "body clips overflow without becoming a scroll container" || fail "body clips overflow without becoming a scroll container"
+# The sticky header must be declared sticky with a glass treatment.
+curl -s "$BASE/assets/css/site.css" | grep -q '.site-header{background:#fff;position:sticky;top:0' && pass "the header is sticky" || fail "the header is sticky"
+curl -s "$BASE/assets/css/site.css" | grep -q 'backdrop-filter:saturate(180%) blur(14px)' && pass "the sticky header has a glass effect" || fail "the sticky header has a glass effect"
+# The admin sidebar must be sticky, and the phone drawer must be the only
+# place the admin navigation is hidden away.
+curl -s "$BASE/assets/css/site.css" | grep -q '.admin-sidebar{background:var(--green-deep);color:#c9d8c4;display:flex;flex-direction:column;position:sticky;top:0' && pass "the admin sidebar is sticky" || fail "the admin sidebar is sticky"
 curl -s "$BASE/property/$SLUG" | grep -q "amenities-grid" && pass "amenities render" || fail "amenities render"
 
 # The services page must show a single call-to-action; the footer keeps it.

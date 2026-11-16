@@ -167,6 +167,19 @@ check('admin drawer toggle is hidden on desktop', preg_match('/\.admin-nav-toggl
 check('admin drawer script present', str_contains($navJs, 'admin-sidebar-overlay') && str_contains($navJs, 'adminSidebar'));
 check('admin drawer closes on escape', str_contains($navJs, "e.key==='Escape'&&sidebar.classList.contains('open')"));
 
+// Sticky navigation. The body must clip the horizontal overflow with
+// `overflow-x: clip`: using `hidden` turns the body into the scroll
+// container and stops the sticky header and admin sidebar from sticking.
+check('the body clips horizontal overflow without scrolling', str_contains($css, 'body{overflow-x:clip'));
+check('the body does not use overflow-x:hidden', !preg_match('/body\{[^}]*overflow-x:hidden/', $css));
+check('the html element still clips horizontal overflow', str_contains($css, 'html{overflow-x:hidden}'));
+check('the public header is sticky', str_contains($css, '.site-header{background:#fff;position:sticky;top:0'));
+check('the sticky header has a glass backdrop blur', str_contains($css, 'backdrop-filter:saturate(180%) blur(14px)'));
+check('the glass header has a translucent background', str_contains($css, 'background:#ffffffe0'));
+check('the glass header has a solid fallback', str_contains($css, '@supports not ((backdrop-filter:blur(1px))'));
+check('the admin sidebar is sticky', str_contains($css, 'position:sticky;top:0;height:100vh;overflow-y:auto'));
+check('the admin drawer closes above phone width', str_contains($navJs, "window.innerWidth>640&&sidebar.classList.contains('open')"));
+
 $uploadSrc = (string) file_get_contents(ROOT_PATH . '/app/Core/Uploads.php');
 check('logo upload sanitizes svg', str_contains($uploadSrc, 'sanitizeSvg') && str_contains($uploadSrc, 'script'));
 check('logo upload enforces a size limit', str_contains($uploadSrc, '2 * 1024 * 1024'));
