@@ -4,15 +4,31 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title ?? brand()) ?></title>
 <meta name="description" content="<?= e($description ?? setting('footer_text')) ?>">
-<?php if(!empty($noindex) || config('demo_mode')): ?><meta name="robots" content="noindex,nofollow"><?php endif; ?>
-<meta property="og:title" content="<?= e($title ?? brand()) ?>"><meta property="og:description" content="<?= e($description ?? '') ?>"><meta property="og:type" content="website"><meta property="og:site_name" content="<?= e(brand()) ?>">
-<?php if(isset($p)): ?><meta property="og:image" content="<?= e(image_url($p['image'])) ?>"><?php endif; ?>
-<?php if(config('app_url')): ?><link rel="canonical" href="<?= e(rtrim(config('app_url'),'/').url(in_array($route ?? 'home',['home',''],true) ? '' : (string)($route ?? ''))) ?>"><?php endif; ?>
+<meta name="robots" content="<?= (!empty($noindex) || config('demo_mode')) ? 'noindex,nofollow' : 'index,follow,max-image-preview:large' ?>">
+<?php if(setting('google_verification')): ?><meta name="google-site-verification" content="<?= e(setting('google_verification')) ?>">
+<?php endif; ?><?php if(setting('bing_verification')): ?><meta name="msvalidate.01" content="<?= e(setting('bing_verification')) ?>">
+<?php endif; ?><meta property="og:title" content="<?= e($title ?? brand()) ?>"><meta property="og:description" content="<?= e($description ?? '') ?>"><meta property="og:type" content="<?= isset($p) ? 'article' : 'website' ?>"><meta property="og:site_name" content="<?= e(brand()) ?>">
+<meta property="og:locale" content="en_NG">
+<?php $ogUrl = social_url(); ?><?php if($ogUrl): ?><meta property="og:url" content="<?= e($ogUrl) ?>">
+<?php endif; ?><?php if(isset($p)): ?><meta property="og:image" content="<?= e(image_url($p['image'])) ?>">
+<?php else: ?><meta property="og:image" content="<?= e(social_image_url()) ?>">
+<?php endif; ?><meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="<?= e($title ?? brand()) ?>"><meta name="twitter:description" content="<?= e($description ?? '') ?>">
+<meta name="twitter:image" content="<?= e(isset($p) ? image_url($p['image']) : social_image_url()) ?>">
+<?php if($ogUrl): ?><link rel="canonical" href="<?= e($ogUrl) ?>">
+<?php endif; ?>
 <link rel="icon" href="<?= asset('images/favicon.svg') ?>" type="image/svg+xml">
 <link rel="preload" href="<?= asset('fonts/Rajdhani-SemiBold.ttf') ?>" as="font" type="font/ttf" crossorigin>
 <link rel="preload" href="<?= asset('fonts/Roboto[wdth,wght].ttf') ?>" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="<?= asset('css/site.css') ?>">
-<?php if(isset($schema)): ?><script type="application/ld+json"><?= json_encode($schema,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script><?php endif; ?>
+<?php
+// Site-wide business schema on every page, plus the page-specific schema
+// (a listing, for example) when the controller supplies one.
+$ldJson = [organisation_schema()];
+if (isset($schema) && is_array($schema)) $ldJson[] = $schema;
+if (empty($noindex) && !config('demo_mode')): ?>
+<script type="application/ld+json"><?= json_encode(count($ldJson) === 1 ? $ldJson[0] : ['@context'=>'https://schema.org','@graph'=>$ldJson], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
+<?php endif; ?>
 <script src="<?= asset('js/site.js') ?>" defer></script>
 </head>
 <body class="public-site <?= e($page ?? 'home') ?>-page">

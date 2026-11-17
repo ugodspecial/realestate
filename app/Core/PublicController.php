@@ -44,11 +44,28 @@ final class PublicController {
     public static function sitemap(): void {
         header('Content-Type: application/xml; charset=UTF-8');
         if(config('demo_mode')) { echo '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>';return; }
-        $base=rtrim(config('app_url'),'/');
-        $paths=['','about','services','properties','contact','privacy'];
-        foreach(Database::all("SELECT slug,updated_at FROM properties WHERE publish_status='published'") as $p)$paths[]='property/'.$p['slug'];
+        // A sitemap must contain absolute URLs. Without a configured domain we
+        // would publish paths like "/about", which search engines reject, so
+        // fall back to the host of the current request and give up cleanly if
+        // even that is unknown.
+        $base=rtrim((string)config('app_url'),'/');
+        if($base==='') {
+            $host=(string)($_SERVER['HTTP_HOST'] ?? '');
+            if(preg_match('/^[a-z0-9.\-]+(:\d+)?$/i',$host)) $base=(is_https()?'https://':'http://').$host;
+        }
+        if($base==='') { echo '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>'; return; }
+        $pages=[''=>null,'about'=>null,'services'=>null,'properties'=>null,'contact'=>null,'privacy'=>null,'terms'=>null];
+        $entries=[];
+        foreach($pages as $path=>$_) $entries[]=['loc'=>$base.url($path),'lastmod'=>null];
+        foreach(Database::all("SELECT slug,updated_at FROM properties WHERE publish_status='published' ORDER BY updated_at DESC") as $p) {
+            $entries[]=['loc'=>$base.url('property/'.$p['slug']),'lastmod'=>substr((string)$p['updated_at'],0,10)];
+        }
         echo '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
-        foreach($paths as $path)echo '<url><loc>'.e($base.url($path)).'</loc></url>';
+        foreach($entries as $entry) {
+            echo '<url><loc>'.e($entry['loc']).'</loc>';
+            if($entry['lastmod'] && preg_match('/^\d{4}-\d{2}-\d{2}$/',$entry['lastmod'])) echo '<lastmod>'.e($entry['lastmod']).'</lastmod>';
+            echo '</url>';
+        }
         echo '</urlset>';
     }
     public static function legal(string $type): void { render('public/legal',['title'=>($type==='privacy'?'Privacy Policy':'Website Terms').' | '.brand(),'description'=>'Information about using ' . brand() . '’s website and services.','type'=>$type,'page'=>'']); }

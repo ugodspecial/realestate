@@ -111,7 +111,23 @@ ok('the footer reserves space for the floating buttons on small screens',
 ok('the copyright is indented clear of the floating buttons on wide screens',
     (bool) preg_match('/@media\(min-width:1025px\)\{\s*\.footer-bottom\{padding-right:\s*(?:[89]\d|1\d\d)px\}/i', $css));
 
-echo "\n== Stylesheet structure ==\n";
+echo "\n== Demo-only copy and empty sections ==\n";
+$homeView = (string) file_get_contents($root . '/app/views/public/home.php');
+ok('the testimonial demo note only renders in demo mode',
+    (bool) preg_match("/if\\s*\\(\\s*config\\('demo_mode'\\)\\s*\\)\\s*:\\s*\\?><p class=\"demo-stories\"/", $homeView));
+ok('the demo note is not unconditional', !preg_match('/<\\/div><p class="demo-stories">/', $homeView));
+ok('the location section is skipped when there are no locations',
+    (bool) preg_match('/<\\?php if\\(\\$locations\\): \\?><section class="section locations-section">/', $homeView));
+ok('the location section is closed after its condition',
+    (bool) preg_match('/locations-section.*?<\\?php endif; \\?>/s', $homeView));
+$cssNow = (string) file_get_contents($root . '/public/assets/css/site.css');
+ok('the location grid does not reserve fixed empty rows',
+    !preg_match('/\\.location-grid\\{[^}]*grid-template-rows\\s*:/', $cssNow));
+ok('location rows come from the cards that exist',
+    (bool) preg_match('/\\.location-grid\\{[^}]*grid-auto-rows/', $cssNow));
+ok('an empty location grid collapses', str_contains($cssNow, '.location-grid:empty{display:none}'));
+
+echo "\n== Copy sits clear of the button beneath it ==\n";
 // An unterminated comment silently swallows every rule that follows it, which
 // is how the trust-strip fix went missing once. Keep the stylesheet balanced.
 $commentOpen = substr_count($css, '/*');

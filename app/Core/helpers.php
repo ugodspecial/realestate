@@ -25,6 +25,72 @@ function image_url(?string $path): string {
     if (str_starts_with($path, 'uploads/')) return base_path() . '/' . $path;
     return asset('images/hero-villa.jpg');
 }
+/**
+ * Absolute URL of the current page, used for the canonical link, the Open
+ * Graph url and the sitemap. Returns an empty string when no public host is
+ * known, so nothing is emitted rather than a wrong guess.
+ */
+function social_url(): string {
+    $base = rtrim((string) config('app_url'), '/');
+    if ($base === '') {
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+        if ($host === '' || !preg_match('/^[a-z0-9.\-]+(:\d+)?$/i', $host)) return '';
+        $base = (is_https() ? 'https://' : 'http://') . $host;
+    }
+    $route = trim((string) ($GLOBALS['route'] ?? ($_GET['route'] ?? '')), '/');
+    if (in_array($route, ['', 'home'], true)) return $base . '/';
+    if (str_starts_with($route, 'public/')) $route = substr($route, 7);
+    return $base . url($route);
+}
+/** Absolute URL of the share image, preferring a property photo when present. */
+function social_image_url(?string $photo = null): string {
+    $relative = $photo ? image_url($photo) : asset('images/hero-villa.jpg');
+    if (preg_match('#^https?://#i', $relative)) return $relative;
+    $base = '';
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    if (preg_match('/^[a-z0-9.\-]+(:\d+)?$/i', $host)) $base = (is_https() ? 'https://' : 'http://') . $host;
+    elseif (config('app_url')) $base = rtrim((string) config('app_url'), '/');
+    return $base . $relative;
+}
+/** Opening hours as a clean list, one entry per line in the admin. */
+function office_hours(): array {
+    $raw = trim((string) setting('office_hours'));
+    if ($raw === '') return [];
+    return array_values(array_filter(array_map('trim', preg_split('/\R|\|/u', $raw) ?: []), static fn($l) => $l !== ''));
+}
+/**
+ * Site-wide structured data. Google uses this for the knowledge panel and to
+ * understand the business behind the site; Property pages add their own
+ * listing schema on top.
+ */
+function organisation_schema(): array {
+    $base = rtrim((string) config('app_url'), '/');
+    if ($base === '') $base = social_url();
+    $schema = [
+        '@context' => 'https://schema.org',
+        '@type' => 'RealEstateAgent',
+        'name' => brand(),
+        'description' => setting('about_summary') ?: setting('footer_text'),
+        'url' => $base !== '' ? $base . '/' : '',
+    ];
+    if (setting('phone')) $schema['telephone'] = setting('phone');
+    if (setting('email')) $schema['email'] = setting('email');
+    if (setting('address')) {
+        $schema['address'] = ['@type' => 'PostalAddress', 'streetAddress' => setting('address'), 'addressCountry' => 'NG'];
+    }
+    if (setting('address')) $schema['areaServed'] = setting('address');
+    if ($base !== '') $schema['image'] = social_image_url();
+    $sameAs = array_values(array_filter([
+        setting('facebook'), setting('instagram'), setting('twitter'), setting('linkedin'),
+    ], static fn($v) => trim((string) $v) !== ''));
+    if ($sameAs) $schema['sameAs'] = $sameAs;
+    // Opening hours, when the office has them configured.
+    $hours = office_hours();
+    if ($hours) {
+        $schema['openingHoursSpecification'] = [['@type' => 'OpeningHoursSpecification', 'description' => implode('; ', $hours)]];
+    }
+    return $schema;
+}
 function redirect(string $path, int $status = 303): never { header('Location: ' . (preg_match('#^https?://#', $path) ? $path : url($path)), true, $status); exit; }
 function request_method(): string { return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'); }
 function input(string $key, mixed $default = ''): mixed { $value = $_POST[$key] ?? $default; if (is_array($value)) return $default; return is_string($value) ? trim($value) : $value; }

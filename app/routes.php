@@ -4,6 +4,9 @@ $base=trim(base_path(),'/'); if($base && str_starts_with($route,$base.'/'))$rout
 if($route==='public/index.php' || $route==='index.php')$route='';
 if(str_starts_with($route,'public/'))$route=substr($route,7);
 $_SESSION['form_started'] ??= time();
+// Exposed to the layout so canonical and Open Graph URLs describe the page
+// that was actually requested.
+$GLOBALS['route']=$route;
 $method=request_method();
 try {
     if($route==='' || $route==='home') { PublicController::home(); }

@@ -57,6 +57,21 @@
     <div class="field"><label for="sPer">Listings per page</label><input id="sPer" type="number" name="listings_per_page" min="3" max="48" value="<?= e($v('listings_per_page') ?: '9') ?>"></div>
     <div class="field"><label for="sMap">Map embed code <small>(optional)</small></label><input id="sMap" name="map_embed" value="<?= e($v('map_embed')) ?>" maxlength="4000" placeholder="Paste a map share URL or embed code"></div>
   </div>
+</div>
+<div class="admin-card admin-form">
+  <h2>Search engines</h2>
+  <p>Let Google and Bing list the site. Leave a verification code blank if you have not set that up yet.</p>
+  <div class="form-grid">
+    <div class="field full">
+      <label for="sGv">Google Search Console verification <small>(optional)</small></label>
+      <input id="sGv" name="google_verification" value="<?= e($v('google_verification')) ?>" maxlength="120" placeholder="Paste the content value from the verification meta tag">
+      <p class="field-hint">Search Console gives you the meta tag value directly. Only the code is needed — the tag itself is generated for you.</p>
+    </div>
+    <div class="field full">
+      <label for="sBv">Bing Webmaster verification <small>(optional)</small></label>
+      <input id="sBv" name="bing_verification" value="<?= e($v('bing_verification')) ?>" maxlength="120" placeholder="Paste the msvalidate.01 value">
+    </div>
+  </div>
   <div class="form-actions"><button class="btn btn-primary" type="submit"><?= icon('check') ?> Save settings</button></div>
 </div>
 </form>

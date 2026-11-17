@@ -373,7 +373,7 @@ final class AdminController {
     /* ---------------- Settings ---------------- */
     private static function settings(string $method, array $user): void {
         Auth::require('settings.manage');
-        $keys = ['brand_name', 'brand_tagline', 'tagline', 'phone', 'whatsapp', 'email', 'notify_email', 'address', 'office_hours', 'map_embed', 'facebook', 'instagram', 'twitter', 'linkedin', 'listings_per_page'];
+        $keys = ['brand_name', 'brand_tagline', 'tagline', 'phone', 'whatsapp', 'email', 'notify_email', 'address', 'office_hours', 'map_embed', 'facebook', 'instagram', 'twitter', 'linkedin', 'listings_per_page', 'google_verification', 'bing_verification'];
         if ($method === 'POST') {
             verify_csrf();
             $driver = Database::connection()->getAttribute(PDO::ATTR_DRIVER_NAME);

@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.2.0 — 2026-11-03
+
+Four fixes, and the site is now ready to be listed on search engines.
+
+- The "Illustrative client stories for this demonstration website." line
+  under the testimonials only appears in demo mode. A live site no longer
+  carries demonstration wording.
+- On phones the phone number in "Give us a call" ran on from its label on
+  the same line. A tap-target rule was also matching the wrapping element
+  and overriding the block layout, so the number could not sit under the
+  label. That rule now only targets inline links, and the label/value pair
+  is laid out as a column, so the number always stacks.
+- The location section reserved two fixed 220px rows whether or not there
+  were cards to fill them, leaving hundreds of pixels of empty background
+  on desktop. Rows now come from the cards that actually exist, and the
+  whole section is skipped when there are no locations at all.
+- Search engine visibility:
+  - Live sites publish `index,follow` plus a canonical URL; the demo keeps
+    `noindex,nofollow` so an unfinished copy never gets indexed.
+  - Every page now carries Open Graph and Twitter card metadata, including
+    an image and the page URL.
+  - Business structured data (`RealEstateAgent`) is emitted site-wide with
+    the phone number, address, opening hours and social profiles; property
+    pages add their listing schema alongside it.
+  - The sitemap now refuses to publish relative locations when no domain is
+    configured, adds the terms page and a last-modified date per property.
+  - Google Search Console and Bing verification codes can be set from
+    Settings → Search engines, without touching code.
+
+`tests/seo.php` (47 checks) is wired into CI and covers all of the above.
+
 ## 1.1.0 — 2026-11-03
 
 Spacing on the about page, and proper contact icons in the footer.
