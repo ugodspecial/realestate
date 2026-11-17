@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 define('ROOT_PATH', dirname(__DIR__));
-define('APP_VERSION', '1.0.8');
+define('APP_VERSION', '1.0.9');
 $config = require ROOT_PATH . '/app/config.php';
 date_default_timezone_set('Africa/Lagos');
 mb_internal_encoding('UTF-8');

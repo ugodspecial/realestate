@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.0.9 — 2026-11-03
+
+Responsive pass across every public page.
+
+Audited every public page (home, listings, property, about, services,
+contact, privacy, terms, sign-in) at nine viewport widths from 320px to
+1600px, and fixed each layout that broke.
+
+- The trust strip on the home page held four reassurance points on one
+  unbroken row, so on a phone the last two were pushed past the edge of the
+  screen and could never be read. It now folds into two columns on tablets
+  and a single column on phones.
+- The results toolbar on the listings page could not fit the result count,
+  the sort control and the grid/list toggle on one line; the toggle was
+  pushed off the right edge. It now wraps, and the toggle stays on screen
+  down to 320px.
+- The "looking for something specific" callout at the foot of the listings
+  page stacked its text and its link on one row, so the link ran off the
+  edge. It now stacks on phones.
+- The floating call and back-to-top buttons sat over the closing copyright
+  line. On small screens the footer reserves their height; on wide screens
+  the copyright is indented clear of their column. The copyright is now
+  fully legible as the last thing in the footer at every width.
+- Small labels that were rendering at 7-9px - photo captions, testimonial
+  attributions, badge text, property references, demo labels and the brand
+  line - now stop at a 10px floor.
+
+Two guards were added so these cannot silently return:
+
+- `tests/responsive-regression.php` pins the consent control, the footer
+  copyright order, the text floor and the narrow-screen folding rules, and
+  runs in CI.
+- The site audit now additionally asserts that the floating buttons never
+  cover the copyright line and that the copyright is both the last element
+  in the footer and the last one drawn.
+
 ## 1.0.8 — 2026-11-07
 
 Stop browsers from serving a stale stylesheet.

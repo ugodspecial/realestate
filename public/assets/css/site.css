@@ -198,9 +198,29 @@ body{overflow-x:clip;max-width:100%}
   .checkbox-label{min-height:36px;align-items:center}
 }
 
-/* The hidden radio inputs stay hidden — the label carries the tap area. */
-.checkbox-label input[type="radio"],.checkbox-label input[type="checkbox"]{
-  position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;
+/* The checkbox stays visible: it is a required field, and a visitor has to
+   be able to see the box they are being asked to tick. The label carries
+   the tap area around it, so the row is easy to hit on a phone. */
+.checkbox-label{
+  align-items:flex-start;
+  cursor:pointer;
+}
+.checkbox-label input[type="checkbox"]{
+  position:static;opacity:1;pointer-events:auto;
+  appearance:none;-webkit-appearance:none;
+  width:17px;height:17px;margin:1px 0 0;flex:0 0 17px;
+  border:1px solid #b9c6ad;border-radius:3px;background:#fff;
+  cursor:pointer;
+  transition:background .15s,border-color .15s;
+}
+.checkbox-label input[type="checkbox"]:checked{
+  background:var(--green);border-color:var(--green);
+  /* A tick, drawn with two borders so no extra file is needed. */
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size:13px 13px;background-position:center;background-repeat:no-repeat;
+}
+.checkbox-label input[type="checkbox"]:focus-visible{
+  outline:2px solid #427762;outline-offset:2px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -537,4 +557,135 @@ body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
      covers the header and carries its own close button in the top corner.
      Showing both would put two close icons on screen at once. */
   html.nav-open .mobile-toggle{visibility:hidden}
+}
+
+/* ---------------------------------------------------------------------------
+   Footer legal line
+   The copyright is the last thing in the footer on every device, so the
+   legal notice closes the page.
+   --------------------------------------------------------------------------- */
+.footer-bottom .footer-legal-links{display:flex;gap:20px;flex-wrap:wrap}
+.footer-bottom .footer-copyright{margin-left:auto}
+@media(max-width:1024px){
+  .footer-bottom .footer-copyright{margin-left:0;margin-top:4px}
+}
+/* The floating call and back-to-top buttons are pinned to the bottom right
+   corner, which is exactly where the closing copyright line sits. On narrow
+   screens the footer reserves their full height; on wide screens the line is
+   right-aligned, so it is indented clear of their column instead. Either way
+   the copyright always remains fully legible as the last item. */
+@media(max-width:1024px){
+  .site-footer{padding-bottom:132px}
+}
+@media(min-width:1025px){
+  .footer-bottom{padding-right:104px}
+}
+
+/* ---------------------------------------------------------------------------
+   Tap targets
+   Interactive things that are small on a phone are given a comfortable
+   target, without changing how they look.
+   --------------------------------------------------------------------------- */
+@media(pointer:coarse),(max-width:1024px){
+  /* The show/hide password button on the sign-in form. */
+  .password-toggle{min-width:44px;min-height:44px;padding:8px;justify-content:center}
+  /* The link back to the website on the sign-in form. */
+  .login-back{display:inline-block;padding:12px 0;margin-top:26px}
+  /* Links inside running text, such as the privacy policy link. */
+  .legal-content a{display:inline-block;padding:6px 0}
+  /* The advisor's phone number on a property page. */
+  .advisor-phone{min-height:40px;padding:8px 0}
+  /* The privacy policy link inside the consent label. */
+  .checkbox-label span a{display:inline-block;padding:8px 0;margin:-8px 0}
+}
+
+/* ---------------------------------------------------------------------------
+   Smallest text on the page
+   A number of labels were rendering between 7px and 9px, which is below a
+   comfortable reading size on real devices. They keep their character and
+   their tracking, but they stop shrinking past a 10px floor.
+   --------------------------------------------------------------------------- */
+.brand-type small,
+.footer-brand-col .brand-type small{font-size:10px;letter-spacing:4px}
+.badge,
+.property-card-bottom .badge,
+.image-item .badge{font-size:10px}
+.property-id,
+.property-photo-count{font-size:10px}
+.detail-price>span{font-size:10px}
+.gallery-demo-label{font-size:10px}
+.advisor-profile small{font-size:10px}
+.image-caption{font-size:10px}
+.testimonial figcaption small{font-size:10px}
+.demo-stories{font-size:10px}
+@media(max-width:480px){
+  .brand-type small,
+  .footer-brand-col .brand-type small{font-size:10px;letter-spacing:3.4px}
+  .badge,
+  .property-card-bottom .badge,
+  .image-item .badge{font-size:10px}
+  .property-id,
+  .property-photo-count{font-size:10px}
+}
+
+/* ---------------------------------------------------------------------------
+   Trust strip
+   Four reassurance points sat on one unbroken row, so on a phone the last
+   one was pushed past the edge of the screen and could never be read. It
+   now folds into a two-column grid and then a single column.
+   --------------------------------------------------------------------------- */
+@media(max-width:1024px){
+  .trust-strip>.container{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px 18px;
+    padding-block:18px;
+    justify-items:start;
+  }
+  .trust-strip i{display:none}
+}
+@media(max-width:480px){
+  .trust-strip>.container{
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+  .trust-strip span{font-size:11px}
+}
+
+/* ---------------------------------------------------------------------------
+   Results toolbar
+   The result count, the sort control and the grid/list toggle were pinned to
+   one line; on a narrow phone the toggle was shoved off the right edge.
+   --------------------------------------------------------------------------- */
+@media(max-width:640px){
+  .results-toolbar{
+    flex-wrap:wrap;
+    align-items:flex-start;
+    gap:12px;
+  }
+  .results-toolbar>p{flex:1 1 100%}
+  .results-toolbar>div{
+    flex:1 1 100%;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  .sort-form{flex-wrap:wrap;gap:8px}
+  .view-toggle{flex:0 0 auto}
+}
+
+/* ---------------------------------------------------------------------------
+   Search help callout
+   The closing "talk to our team" prompt kept its text and the link on one
+   row, so the link ran off the right edge on the narrowest phones.
+   --------------------------------------------------------------------------- */
+@media(max-width:640px){
+  .search-help{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:18px;
+    padding:24px 20px;
+  }
+  .search-help>div{align-items:flex-start;gap:16px}
+  .search-help .text-link{margin-top:0;flex-wrap:wrap}
 }

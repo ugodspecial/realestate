@@ -113,7 +113,9 @@ check('brand logo is rendered when set', $logoPath === '' || (is_file(ROOT_PATH 
 // The copyright line must always show the written company name, never the
 // uploaded logo image and never the shortened display wordmark.
 $footerSrc = (string) file_get_contents(ROOT_PATH . '/app/views/components/footer.php');
-preg_match('#<div class="footer-bottom">(.*?)</div>#s', $footerSrc, $footerBottomMatch);
+// The bottom row now nests a legal-links block, so capture through to the
+// closing footer tag rather than stopping at the first inner </div>.
+preg_match('#<div class="footer-bottom">(.*)</div>\s*</footer>#s', $footerSrc, $footerBottomMatch);
 $footerBottom = $footerBottomMatch[1] ?? '';
 check('copyright line renders', str_contains($footerBottom, 'All rights reserved'));
 check('copyright line uses the legal brand name', str_contains($footerBottom, 'brand_legal()'));
