@@ -27,7 +27,7 @@ final class PublicController {
         verify_csrf(); $p=null;
         if(input('property_id')) { $p=Properties::byId((int)input('property_id')); if(!$p || $p['publish_status']!=='published')abort_page(404,'This property is not available for enquiries.'); }
         $result=Enquiries::submit($_POST,$p);
-        if(isset($result['reference'])) { flash('success','Thank you, '.explode(' ',input('name'))[0].'. Your enquiry has been received. Your reference is '.$result['reference'].'. Our team will contact you using the details you provided.'); redirect($p?'property/'.$p['slug'].'#enquiry':'contact#enquiry'); }
+        if(isset($result['reference'])) { flash('enquiry','Thank you, '.explode(' ',input('name'))[0].'. Your enquiry has been received. Your reference is '.$result['reference'].'. Our team will contact you using the details you provided.'); redirect($p?'property/'.$p['slug'].'#enquiry':'contact#enquiry'); }
         remember_old($_POST); flash('error',implode(' ',$result)); redirect($p?'property/'.$p['slug'].'#enquiry':'contact#enquiry');
     }
     public static function login(): void {

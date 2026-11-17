@@ -100,6 +100,19 @@ function csrf_field(): string { return '<input type="hidden" name="_token" value
 function verify_csrf(): void {
     if (request_method() !== 'POST' || !hash_equals(csrf_token(), (string)($_POST['_token'] ?? ''))) abort_page(419, 'This form has expired. Please refresh the page and try again.');
 }
+/**
+ * Split an enquiry confirmation into its greeting, body and reference so the
+ * confirmation dialog can show the reference on its own line. Falls back to
+ * putting the whole message in the body when no reference is present.
+ */
+function enquiry_flash_parts(string $message): array {
+    if (preg_match('/^(.*?)\bYour reference is ([A-Z0-9-]{4,})\.\s*(.*)$/su', $message, $m)) {
+        $lead = rtrim(trim($m[1]));
+        if ($lead !== '' && !str_ends_with($lead, '.')) $lead .= '.';
+        return ['lead' => $lead, 'reference' => $m[2], 'tail' => trim($m[3])];
+    }
+    return ['lead' => '', 'reference' => '', 'tail' => $message];
+}
 function flash(string $type, string $message): void { $_SESSION['flash'][] = ['type'=>$type, 'message'=>$message]; }
 function take_flashes(): array { $f = $_SESSION['flash'] ?? []; unset($_SESSION['flash']); return $f; }
 function flash_all(): array { return take_flashes(); }

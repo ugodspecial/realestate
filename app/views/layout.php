@@ -46,7 +46,41 @@ if (empty($noindex) && !config('demo_mode')): ?>
 </div></div></header>
 <div class="nav-overlay" aria-hidden="true"></div>
 <main id="main">
-<?php $flashes=take_flashes(); if($flashes): ?><div class="container flash-stack"><?php foreach($flashes as $f): ?><div class="notice notice-<?= e($f['type']) ?>" role="status"><?= icon($f['type']==='success'?'check':'file') ?><span><?= e($f['message']) ?></span><button class="notice-close" aria-label="Dismiss message"><?= icon('close') ?></button></div><?php endforeach; ?></div><?php endif; ?>
+<?php
+$flashes = take_flashes();
+// A submitted enquiry gets a proper confirmation dialog rather than a banner:
+// the reference is something the visitor may need to write down, so it should
+// be unmissable and dismissible on its own terms.
+$enquiryFlash = null;
+$bannerFlashes = [];
+foreach ($flashes as $f) {
+    if (($f['type'] ?? '') === 'enquiry' && $enquiryFlash === null) { $enquiryFlash = $f; continue; }
+    $bannerFlashes[] = $f;
+}
+if ($enquiryFlash):
+    $parts = enquiry_flash_parts((string) $enquiryFlash['message']);
+?>
+<div class="confirm-dialog" id="enquiryDialog" role="dialog" aria-modal="true" aria-labelledby="enquiryDialogTitle" aria-describedby="enquiryDialogBody" hidden>
+  <div class="confirm-dialog-backdrop" data-dialog-dismiss></div>
+  <div class="confirm-dialog-panel" role="document">
+    <button type="button" class="confirm-dialog-close" data-dialog-dismiss aria-label="Close this message"><?= icon('close') ?></button>
+    <span class="confirm-dialog-icon" aria-hidden="true"><?= icon('check') ?></span>
+    <h2 id="enquiryDialogTitle" class="confirm-dialog-title">Enquiry received</h2>
+    <div id="enquiryDialogBody" class="confirm-dialog-body">
+      <?php if ($parts['lead'] !== ''): ?><p><?= e($parts['lead']) ?></p><?php endif; ?>
+      <?php if ($parts['reference'] !== ''): ?>
+      <p class="confirm-dialog-ref">
+        <span>Your reference</span>
+        <strong><?= e($parts['reference']) ?></strong>
+      </p>
+      <?php endif; ?>
+      <?php if ($parts['tail'] !== ''): ?><p><?= e($parts['tail']) ?></p><?php endif; ?>
+    </div>
+    <button type="button" class="btn btn-primary confirm-dialog-ok" data-dialog-dismiss>Okay</button>
+  </div>
+</div>
+<?php endif; ?>
+<?php if($bannerFlashes): ?><div class="container flash-stack"><?php foreach($bannerFlashes as $f): ?><div class="notice notice-<?= e($f['type']) ?>" role="status"><?= icon($f['type']==='success'?'check':'file') ?><span><?= e($f['message']) ?></span><button class="notice-close" aria-label="Dismiss message"><?= icon('close') ?></button></div><?php endforeach; ?></div><?php endif; ?>
 <?= $content ?>
 </main>
 <?php require ROOT_PATH.'/app/views/components/footer.php'; ?>

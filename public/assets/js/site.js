@@ -119,3 +119,64 @@ var name=d.getElementById('taxName');if(name){name.focus();name.scrollIntoView({
 var reset=d.getElementById('taxonomyReset');
 if(reset)reset.addEventListener('click',function(){window.location.reload()});
 })();
+
+/* Enquiry confirmation dialog.
+   Opens on load, fades in, and closes from the Okay button, the X, Escape, or
+   a backdrop click. Focus is moved into the dialog and trapped there while it
+   is open, then handed back to where it came from. CSP-safe: listeners only,
+   no inline handlers. */
+(function(){'use strict';
+var dialog=document.getElementById('enquiryDialog');
+if(!dialog)return;
+var panel=dialog.querySelector('.confirm-dialog-panel');
+var lastFocused=null,closing=false;
+var FOCUSABLE='button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])';
+function focusable(){return Array.prototype.slice.call(dialog.querySelectorAll(FOCUSABLE)).filter(function(el){return !el.disabled&&el.offsetParent!==null})}
+function open(){
+  lastFocused=document.activeElement;
+  dialog.hidden=false;
+  /* Force a reflow so the transition runs from the closed state. */
+  void dialog.offsetWidth;
+  dialog.classList.add('is-open');
+  document.body.classList.add('dialog-open');
+  /* Focus once the browser has finished settling the page: a deferred script
+     runs before load completes, and the browser's own focus reset would
+     otherwise take focus straight back to <body>. */
+  var moveFocus=function(){
+    var first=dialog.querySelector('.confirm-dialog-ok')||focusable()[0];
+    if(first)first.focus();
+  };
+  if(document.readyState==='complete'){requestAnimationFrame(moveFocus)}
+  else{window.addEventListener('load',function(){requestAnimationFrame(moveFocus)},{once:true})}
+}
+function close(){
+  if(closing||dialog.hidden)return;
+  closing=true;
+  dialog.classList.remove('is-open');
+  document.body.classList.remove('dialog-open');
+  var done=function(){
+    dialog.hidden=true;
+    closing=false;
+    if(lastFocused&&typeof lastFocused.focus==='function')lastFocused.focus();
+  };
+  /* Wait for the fade-out, but never leave the dialog stuck open. */
+  var finished=false;
+  var finish=function(){if(finished)return;finished=true;done()};
+  panel.addEventListener('transitionend',finish,{once:true});
+  setTimeout(finish,400);
+}
+dialog.querySelectorAll('[data-dialog-dismiss]').forEach(function(el){
+  el.addEventListener('click',close);
+});
+document.addEventListener('keydown',function(e){
+  if(dialog.hidden)return;
+  if(e.key==='Escape'){e.preventDefault();close();return}
+  if(e.key!=='Tab')return;
+  var items=focusable();
+  if(!items.length)return;
+  var first=items[0],last=items[items.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+});
+open();
+})();

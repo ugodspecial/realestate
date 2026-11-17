@@ -127,7 +127,7 @@ ok('location rows come from the cards that exist',
     (bool) preg_match('/\\.location-grid\\{[^}]*grid-auto-rows/', $cssNow));
 ok('an empty location grid collapses', str_contains($cssNow, '.location-grid:empty{display:none}'));
 
-echo "\n== Copy sits clear of the button beneath it ==\n";
+echo "\n== Stylesheet structure ==\n";
 // An unterminated comment silently swallows every rule that follows it, which
 // is how the trust-strip fix went missing once. Keep the stylesheet balanced.
 $commentOpen = substr_count($css, '/*');
@@ -166,6 +166,44 @@ foreach (['trust-strip', 'results-toolbar', 'search-help'] as $block) {
     $folds = preg_match('/@media\(max-width:\d+px\)\{[^@]*?' . $q . '[^@]*?(?:grid-template-columns|flex-direction\s*:\s*column|flex-wrap\s*:\s*wrap)/is', $css);
     ok("{$block} folds on small screens", (bool) $folds);
 }
+
+echo "\n== Enquiry confirmation dialog ==\n";
+$layoutView = (string) file_get_contents($root . '/app/views/layout.php');
+$pubController = (string) file_get_contents($root . '/app/Core/PublicController.php');
+$helpersSrc = (string) file_get_contents($root . '/app/Core/helpers.php');
+$js = (string) file_get_contents($root . '/public/assets/js/site.js');
+
+ok('a successful enquiry marks its flash as a dialog',
+    (bool) preg_match("/flash\\('enquiry'/", $pubController));
+ok('the dialog is only rendered for an enquiry flash', str_contains($layoutView, "'enquiry'"));
+ok('other flashes still render as banners', str_contains($layoutView, 'bannerFlashes'));
+ok('the dialog is a labelled modal',
+    str_contains($layoutView, 'role="dialog"') && str_contains($layoutView, 'aria-modal="true"')
+    && str_contains($layoutView, 'aria-labelledby="enquiryDialogTitle"'));
+ok('the dialog can be dismissed by an Okay button', str_contains($layoutView, 'confirm-dialog-ok'));
+ok('the dialog has an X close control', str_contains($layoutView, 'confirm-dialog-close'));
+ok('the X is labelled for assistive tech',
+    (bool) preg_match('/confirm-dialog-close" data-dialog-dismiss aria-label="[^"]+"/', $layoutView));
+ok('both controls share the dismiss hook', substr_count($layoutView, 'data-dialog-dismiss') >= 3);
+ok('the reference is split out for display', str_contains($helpersSrc, 'function enquiry_flash_parts'));
+ok('the reference helper falls back without a reference', str_contains($helpersSrc, "'reference' => ''"));
+ok('the dialog transitions its opacity',
+    (bool) preg_match('/\.confirm-dialog\{[^}]*transition:[^}]*opacity/s', $css));
+ok('the closed dialog is hidden from the tab order and screen readers',
+    (bool) preg_match('/\.confirm-dialog\{[^}]*visibility:hidden/s', $css));
+ok('the open state restores visibility', str_contains($css, '.confirm-dialog.is-open'));
+ok('the panel becomes a bottom sheet on phones',
+    (bool) preg_match('/@media\(max-width:640px\)\{[^}]*\.confirm-dialog\{[^}]*align-items:flex-end/s', $css));
+ok('reduced motion disables the transition',
+    (bool) preg_match('/prefers-reduced-motion[^}]*\{[^}]*\.confirm-dialog[^}]*transition:none/s', $css));
+ok('the close button meets the tap-target floor',
+    (bool) preg_match('/\.confirm-dialog-close\{[^}]*width:40px[^}]*height:40px/s', $css));
+ok('the script opens the dialog on load', (bool) preg_match("/getElementById\(.enquiryDialog.\)/", $js));
+ok('Escape closes it', str_contains($js, "'Escape'"));
+ok('focus is moved into the dialog', str_contains($js, 'first.focus()'));
+ok('focus is trapped while open', str_contains($js, "e.key!=='Tab'"));
+ok('scroll is locked while open', str_contains($js, "classList.add('dialog-open')"));
+ok('the script waits for load before moving focus', str_contains($js, "'complete'"));
 
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.3.0 — 2026-11-03
+
+The enquiry confirmation is now a proper dialog.
+
+Previously a successful enquiry came back as a green banner at the top of
+the page. The reference in that message is something a visitor may need to
+keep, so the confirmation now opens as a modal that is impossible to miss.
+
+- It fades in and fades out rather than snapping into place.
+- It closes four ways: the **Okay** button, the **X** at the top right,
+  **Escape**, or a click on the backdrop. Clicking inside the panel keeps it
+  open.
+- The reference is pulled out of the sentence and shown in its own framed
+  row, labelled "Your reference", so it can be read and copied at a glance.
+- On phones and small tablets it reflows into a bottom sheet, respecting the
+  device safe area; from 641px up it is a centred card.
+- Accessibility: it is a labelled, described `role="dialog"` with
+  `aria-modal`; focus moves into it on open and is trapped there while it is
+  open; the page behind is scroll-locked; the X has an accessible name and
+  both buttons meet the 44px tap-target floor; the animation is skipped for
+  visitors who prefer reduced motion.
+- Every other message (sign-in, sign-out, validation errors) still appears
+  as a banner, unchanged.
+
+Refactored the enquiry flash into its own `enquiry` type so the layout can
+route it to the dialog and leave other messages alone. Added 22 static checks
+to the CI regression suite; the full browser suite covers all four close
+paths and seven breakpoints (70 checks).
+
 ## 1.2.0 — 2026-11-03
 
 Four fixes, and the site is now ready to be listed on search engines.

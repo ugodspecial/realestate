@@ -720,3 +720,151 @@ body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
   .search-help>div{align-items:flex-start;gap:16px}
   .search-help .text-link{margin-top:0;flex-wrap:wrap}
 }
+
+/* ---------------------------------------------------------------------------
+   Enquiry confirmation dialog
+   A submitted enquiry returns a reference the visitor may need to keep, so the
+   confirmation is a centred dialog rather than an inline banner. It fades in
+   and out, closes with the Okay button, the X, Escape, or a backdrop click,
+   and reflows from a centred card into a bottom sheet on phones.
+   --------------------------------------------------------------------------- */
+.confirm-dialog{
+  position:fixed;
+  inset:0;
+  z-index:120;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  /* Fade + a short lift. Visibility keeps the closed dialog out of the tab
+     order and away from screen readers without needing display:none. */
+  opacity:0;
+  visibility:hidden;
+  transition:opacity .25s ease,visibility 0s linear .25s;
+}
+.confirm-dialog[hidden]{display:none}
+.confirm-dialog.is-open{
+  opacity:1;
+  visibility:visible;
+  transition:opacity .25s ease,visibility 0s;
+}
+.confirm-dialog-backdrop{
+  position:absolute;
+  inset:0;
+  background:#0d2b22;
+  opacity:.55;
+  backdrop-filter:blur(2px);
+}
+.confirm-dialog-panel{
+  position:relative;
+  width:100%;
+  max-width:440px;
+  max-height:calc(100vh - 48px);
+  overflow-y:auto;
+  background:#fff;
+  border-radius:6px;
+  padding:34px 32px 30px;
+  box-shadow:0 24px 70px #0b241c40;
+  text-align:center;
+  transform:translateY(12px) scale(.985);
+  transition:transform .25s ease;
+}
+.confirm-dialog.is-open .confirm-dialog-panel{transform:translateY(0) scale(1)}
+.confirm-dialog-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:54px;
+  height:54px;
+  margin-bottom:18px;
+  border-radius:50%;
+  background:#eaf3ec;
+  color:var(--green);
+}
+.confirm-dialog-icon .icon{width:26px;height:26px;stroke-width:2}
+.confirm-dialog-title{
+  font:600 24px/1.25 var(--font-display);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  color:var(--ink);
+  margin:0 0 14px;
+}
+.confirm-dialog-body p{
+  font-size:14px;
+  line-height:1.7;
+  color:var(--body);
+  margin:0;
+}
+.confirm-dialog-body p + p{margin-top:12px}
+/* The reference is the one thing worth copying down, so it gets its own
+   framed row rather than blending into the paragraph. */
+.confirm-dialog-ref{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:14px 16px;
+  margin:18px 0 !important;
+  border:1px solid #dbe4d6;
+  border-radius:4px;
+  background:var(--paper);
+}
+.confirm-dialog-ref span{
+  font-size:11px;
+  letter-spacing:1.4px;
+  text-transform:uppercase;
+  color:#7c8b74;
+}
+.confirm-dialog-ref strong{
+  font:600 20px/1.3 var(--font-display);
+  letter-spacing:2.5px;
+  color:var(--green);
+  word-break:break-word;
+}
+.confirm-dialog-close{
+  position:absolute;
+  top:12px;
+  right:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:40px;
+  height:40px;
+  border-radius:50%;
+  color:#7a8a72;
+  transition:background .2s,color .2s;
+}
+.confirm-dialog-close:hover{background:#eef2ea;color:var(--green)}
+.confirm-dialog-close .icon{width:18px;height:18px}
+.confirm-dialog-ok{
+  width:100%;
+  margin-top:24px;
+  min-height:48px;
+  font-size:14px;
+}
+@media(max-width:640px){
+  .confirm-dialog{
+    align-items:flex-end;
+    padding:0;
+  }
+  .confirm-dialog-panel{
+    max-width:none;
+    max-height:88vh;
+    border-radius:14px 14px 0 0;
+    padding:30px 22px calc(24px + env(safe-area-inset-bottom,0));
+    transform:translateY(100%);
+  }
+  .confirm-dialog.is-open .confirm-dialog-panel{transform:translateY(0)}
+  .confirm-dialog-title{font-size:21px}
+  .confirm-dialog-icon{width:48px;height:48px;margin-bottom:14px}
+  .confirm-dialog-ref strong{font-size:18px;letter-spacing:2px}
+}
+@media(max-width:360px){
+  .confirm-dialog-panel{padding:26px 18px calc(20px + env(safe-area-inset-bottom,0))}
+  .confirm-dialog-ref strong{font-size:16px;letter-spacing:1.4px}
+}
+/* Respect a reduced-motion preference: swap the fade for an instant show. */
+@media(prefers-reduced-motion:reduce){
+  .confirm-dialog,
+  .confirm-dialog-panel{transition:none}
+  .confirm-dialog-panel{transform:none}
+}
