@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.7 — 2026-11-07
+
+Close icon on the mobile menu.
+
+- The mobile menu showed two close icons at once: the one in the header
+  toggle and the one in the panel. The panel is a full-screen overlay that
+  covers the header, so it carries the only close button that is on
+  screen while the menu is open, and the header toggle is hidden. With the
+  menu closed the header shows the hamburger alone.
+
 ## 1.0.6 — 2026-11-07
 
 Fix the mobile navigation panel.

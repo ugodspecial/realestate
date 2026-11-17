@@ -544,6 +544,8 @@ body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
 .main-nav-close .icon{width:22px;height:22px}
 @media(max-width:1024px){
   .main-nav-close{display:inline-flex}
-  /* While the panel is open the header toggle would sit behind it. */
+  /* While the panel is open the header toggle is hidden, because the panel
+     covers the header and carries its own close button in the top corner.
+     Showing both would put two close icons on screen at once. */
   html.nav-open .mobile-toggle{visibility:hidden}
 }
