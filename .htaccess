@@ -9,6 +9,14 @@ RewriteRule ^uploads/(.*)$ public/uploads/$1 [L]
 RewriteCond %{REQUEST_URI} !^/public/
 RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
+# Stylesheets and scripts carry a version query string, so they are safe to
+# cache. Without these headers the browser can keep serving an old copy of
+# the stylesheet after a deployment and the page behaves in unexpected ways.
+<IfModule mod_headers.c>
+<FilesMatch "\.(css|js|woff2?|ttf|svg|png|jpe?g|webp|gif|ico)$">
+  Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+</IfModule>
 <IfModule !mod_rewrite.c>
 Require all denied
 </IfModule>

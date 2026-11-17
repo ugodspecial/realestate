@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.8 — 2026-11-07
+
+Stop browsers from serving a stale stylesheet.
+
+- Stylesheets and scripts now carry the application version in their URL,
+  and static assets send cache headers, so a browser can no longer keep
+  serving an old copy of the stylesheet after a deployment. The old copy is
+  what made the header show a close icon that should not have been there
+  and the mobile menu behave as it did before the earlier fixes.
+- Consolidated the navigation styles. Three separate blocks had built up
+  over successive fixes and were overriding each other; there is now one
+  rule for the desktop row of links and one for the mobile panel, and the
+  close button belongs to the mobile panel alone.
+
 ## 1.0.7 — 2026-11-07
 
 Close icon on the mobile menu.

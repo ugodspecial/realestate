@@ -10,7 +10,15 @@ function url(string $path = '', array $params = []): string {
     if ($params) $url .= (str_contains($url, '?') ? '&' : '?') . http_build_query($params);
     return $url;
 }
-function asset(string $path): string { return base_path() . '/assets/' . ltrim($path, '/'); }
+function asset(string $path): string {
+    /* Append the application version so a new release always loads the
+       current stylesheet and script. Without it the browser can keep
+       serving a cached copy of the asset indefinitely, which leaves the
+       page behaving in unexpected ways after a deployment. */
+    $url = base_path() . '/assets/' . ltrim($path, '/');
+    $version = defined('APP_VERSION') ? APP_VERSION : '1';
+    return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . rawurlencode($version);
+}
 function image_url(?string $path): string {
     if (!$path) return asset('images/hero-villa.jpg');
     if (str_starts_with($path, 'assets/')) return asset(substr($path, 7));

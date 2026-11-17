@@ -189,6 +189,16 @@ check('the bar itself carries no backdrop filter', !preg_match('/\.site-header-b
 check('the navigation panel has its own close button', str_contains($layoutView, 'class="main-nav-close"'));
 check('the close button is wired up', str_contains($navJs, "querySelector('.main-nav-close')"));
 check('the close button is shown on small screens', str_contains($css, '.main-nav-close{display:inline-flex}'));
+
+// Stylesheets and scripts carry the application version, so a browser
+// cannot keep serving an old copy after a deployment.
+$helpersSrc = (string) file_get_contents(ROOT_PATH . '/app/Core/helpers.php');
+check('assets carry a version query string', str_contains($helpersSrc, "'v='"));
+check('the asset helper uses the application version', str_contains($helpersSrc, 'APP_VERSION'));
+$htaccess = (string) file_get_contents(ROOT_PATH . '/.htaccess');
+check('static assets send cache headers', str_contains($htaccess, 'Cache-Control'));
+check('the navigation has one desktop rule', substr_count($css, '.site-header .main-nav{') === 2);
+check('the navigation close button is hidden on a desktop', str_contains($css, '.site-header .main-nav-close{display:none}'));
 check('the admin sidebar is sticky', str_contains($css, 'position:sticky;top:0;height:100vh;overflow-y:auto'));
 check('the admin drawer closes above phone width', str_contains($navJs, "window.innerWidth>640&&sidebar.classList.contains('open')"));
 
