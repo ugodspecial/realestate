@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.1.0 — 2026-11-03
+
+Spacing on the about page, and proper contact icons in the footer.
+
+- On the about page, "How we can help" sat directly against the paragraph
+  above it: the button's top edge touched the last line of text, with no
+  space between them at any width. Supporting copy now always carries its
+  own space before a button or a text link, 32px on desktop and 26px on
+  phones. The same rule covers the equivalent pairing on the home page.
+- The GET IN TOUCH column in the footer now leads each detail with its own
+  icon - an envelope for the email address, a handset for the phone number
+  and a map pin for the office address. The address is a map link and is
+  still driven by the admin office-address setting.
+- The bare "Lagos, Nigeria" line that sat under the footer brand logo has
+  been removed, so the address now appears in exactly one place: GET IN
+  TOUCH in the footer.
+
+Also fixed a stylesheet bug found while verifying this change: an earlier
+edit had left an unterminated comment, which silently discarded the
+trust-strip responsive rules and brought back the home-page overflow at
+320-411px. The comment is repaired, and the regression suite now fails if
+the stylesheet ever carries an unbalanced comment or orphaned rule text.
+
 ## 1.0.9 — 2026-11-03
 
 Responsive pass across every public page.
