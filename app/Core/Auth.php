@@ -31,7 +31,12 @@ final class Auth {
         RateLimiter::hit($key, 900);
         $user = Database::one('SELECT * FROM users WHERE email = ?', [strtolower($email)]);
         $hash = $user['password_hash'] ?? '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
-        if (!password_verify($password, $hash) || !$user || !$user['active']) return false;
+        if (!password_verify($password, $hash) || !$user || !$user['active']) {
+            // Record the attempt against the account when we know it exists,
+            // and against the address when we do not. Never the password.
+            self::logFailedSignIn($user ? (int) $user['id'] : null, strtolower($email), $user && !$user['active']);
+            return false;
+        }
         if (password_needs_rehash($hash, PASSWORD_DEFAULT)) Database::update('users', ['password_hash'=>password_hash($password, PASSWORD_DEFAULT)], (int)$user['id']);
         self::regenerateSession();
         $_SESSION['user_id'] = (int)$user['id'];
@@ -43,7 +48,50 @@ final class Auth {
         Audit::log('user.login', 'user', (int)$user['id'], 'Signed in');
         return true;
     }
-    public static function logout(): void { $_SESSION = []; self::regenerateSession(); }
+    public static function logout(): void {
+        // Sign-outs belong in the trail: a session that outlives a sign-out is
+        // exactly what an investigation needs to rule out.
+        if (!empty($_SESSION['user_id'])) {
+            try {
+                Audit::log('user.logout', 'user', (int) $_SESSION['user_id'], 'Signed out');
+            } catch (Throwable $e) {
+                // Signing out must always succeed, even if the log write fails.
+                error_log('Could not record a sign-out: ' . $e->getMessage());
+            }
+        }
+        $_SESSION = [];
+        self::regenerateSession();
+    }
+
+    /**
+     * Record a refused sign-in.
+     *
+     * The rate limiter alone is not enough: it forgets, and it is keyed by
+     * address rather than by account. One line per failure gives the admin
+     * area something to show and something to investigate.
+     */
+    private static function logFailedSignIn(?int $userId, string $email, bool $inactive): void {
+        // The per-address limiter bounds attempts on one account. Someone
+        // cycling through addresses defeats that, and every entry here is a
+        // row an unauthenticated stranger asked us to write, so cap how many
+        // a single address can create in a window.
+        $key = 'login-failure-log|' . ($_SERVER['REMOTE_ADDR'] ?? 'cli');
+        if (RateLimiter::tooMany($key, 20, 900)) return;
+        RateLimiter::hit($key, 900);
+        $reason = $inactive ? 'account is deactivated' : 'incorrect password';
+        try {
+            Audit::log(
+                'user.login_failed',
+                $userId !== null ? 'user' : 'email',
+                $userId,
+                'Refused sign-in for ' . mb_substr($email, 0, 190) . ' — ' . $reason
+            );
+        } catch (Throwable $e) {
+            // Bookkeeping must never turn a refusal into a 500. The refusal
+            // itself has already been made; the operator sees the log.
+            error_log('Could not record a refused sign-in: ' . $e->getMessage());
+        }
+    }
     /**
      * Rotate the session id, but only when it is actually safe to do so.
      *

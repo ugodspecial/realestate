@@ -12,7 +12,9 @@
 <div class="stats-grid">
   <div class="stat-card"><?= icon('home') ?><div><b><?= $stats['published'] ?></b><span>Published listings</span><small><?= $stats['available'] ?> currently available</small></div></div>
   <div class="stat-card"><?= icon('clock') ?><div><b><?= $stats['pending'] ?></b><span>Awaiting approval</span><small><?= Auth::can('properties.approve') ? 'Ready for your review' : 'Waiting for an approver' ?></small></div></div>
+  <?php if (isset($stats['enquiries'])): ?>
   <div class="stat-card"><?= icon('mail') ?><div><b><?= $stats['enquiries'] ?></b><span>New enquiries</span><small>Respond within one business day</small></div></div>
+  <?php endif; ?>
   <div class="stat-card"><?= icon('users') ?><div><b><?= (int)Database::value('SELECT COUNT(*) FROM users WHERE active=1') ?></b><span>Active staff</span><small>Across <?= count(array_unique(array_column(Database::all('SELECT role FROM users WHERE active=1'), 'role'))) ?> roles</small></div></div>
 </div>
 <div class="admin-cols">
@@ -32,6 +34,7 @@
       </tbody>
     </table></div>
   </div>
+  <?php if ($recentEnquiries): ?>
   <div class="admin-card">
     <h2>Latest enquiries</h2>
     <p>New messages from website visitors.</p>
@@ -48,7 +51,9 @@
       </tbody>
     </table></div>
   </div>
+  <?php endif; ?>
 </div>
+<?php if ($recentAudit): ?>
 <div class="admin-card">
   <h2>Recent activity</h2>
   <p>Who changed what, and when.</p>
@@ -58,3 +63,4 @@
     <?php endforeach; ?>
   </div>
 </div>
+<?php endif; ?>

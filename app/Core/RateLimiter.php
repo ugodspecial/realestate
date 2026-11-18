@@ -13,4 +13,15 @@ final class RateLimiter {
         }
     }
     public static function clear(string $key): void { Database::query('DELETE FROM rate_limits WHERE key_hash = ?', [hash('sha256',$key)]); }
+
+    /**
+     * Drop counters whose window has closed.
+     *
+     * Nothing reads an expired row, but their keys are derived from addresses
+     * and email addresses, so an unbounded table is both a storage problem and
+     * an unnecessary record of who tried to sign in.
+     */
+    public static function prune(): void {
+        Database::query('DELETE FROM rate_limits WHERE expires_at < ?', [Database::now()]);
+    }
 }

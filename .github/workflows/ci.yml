@@ -51,6 +51,9 @@ jobs:
           echo $! >/tmp/php-server.pid
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/health && break; sleep 1; done
       - run: bash tests/http-smoke.sh http://127.0.0.1:8080
+      # Role and security suites drive the running server, so they come after it.
+      - run: php tests/role-matrix.php http://127.0.0.1:8080
+      - run: php tests/security.php http://127.0.0.1:8080
       - run: php tests/seo.php
       - name: Fail on PHP deprecations/warnings
         run: '! grep -iE "deprecat|PHP (Warning|Fatal|Notice)|Uncaught" /tmp/php-server.log storage/logs/php-error.log'

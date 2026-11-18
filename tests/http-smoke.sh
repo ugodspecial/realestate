@@ -134,7 +134,7 @@ SETTINGS_TOKEN="$(curl -s -b "$JAR" -c "$JAR" "$BASE/admin/settings" | grep -o '
 # Post the whole settings form so no other value is cleared.
 php -r '
 $jar = $argv[1]; $token = $argv[2]; $base = $argv[3]; $root = getcwd();
-$curl = function(string $url, array $post = null) use ($jar) {
+$curl = function(string $url, ?array $post = null) use ($jar) {
   $ch = curl_init($url);
   curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $jar, CURLOPT_COOKIEFILE => $jar]);
   if ($post !== null) { curl_setopt($ch, CURLOPT_POST, true); curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post)); }

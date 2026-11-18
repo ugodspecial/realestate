@@ -36,12 +36,23 @@ final class AdminController {
         $stats = [
             'published' => (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='published'"),
             'pending' => (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='pending'"),
-            'enquiries' => (int)Database::value("SELECT COUNT(*) FROM enquiries WHERE status='new'"),
             'available' => (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='published' AND status='available'"),
         ];
         $recentProperties = Database::all(Properties::SELECT . ' ORDER BY p.updated_at DESC LIMIT 5');
-        $recentEnquiries = Database::all('SELECT e.*, p.title AS property_title FROM enquiries e LEFT JOIN properties p ON p.id=e.property_id ORDER BY e.created_at DESC LIMIT 5');
-        $recentAudit = Database::all('SELECT a.*, u.name AS user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 6');
+
+        // The dashboard is one page shared by four roles, so every panel has to
+        // be scoped to what the viewer may actually open. Showing a listing
+        // manager a visitor's name on the dashboard while refusing them the
+        // enquiry page is both a data leak and a dead link.
+        $recentEnquiries = [];
+        if (Auth::can('enquiries.manage')) {
+            $stats['enquiries'] = (int)Database::value("SELECT COUNT(*) FROM enquiries WHERE status='new'");
+            $recentEnquiries = Database::all('SELECT e.*, p.title AS property_title FROM enquiries e LEFT JOIN properties p ON p.id=e.property_id ORDER BY e.created_at DESC LIMIT 5');
+        }
+        $recentAudit = [];
+        if (Auth::can('audit.view')) {
+            $recentAudit = Database::all('SELECT a.*, u.name AS user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 6');
+        }
         self::layout('dashboard', 'Dashboard', compact('stats', 'recentProperties', 'recentEnquiries', 'recentAudit'), $user, 'dashboard');
     }
 
@@ -132,14 +143,36 @@ final class AdminController {
         if ($errors) { remember_old($_POST); foreach ($errors as $e) flash('error', $e); redirect('admin/properties/' . $property['id'] . '/edit'); }
         $data['slug'] = Properties::slug($data['title'], (int)$property['id']);
         $data['updated_at'] = Database::now();
-        // Only approvers may publish directly; managers' edits to pending/draft stay unapproved.
-        if (!Auth::can('properties.approve') && $property['publish_status'] !== 'published') $data['publish_status'] = 'pending';
-        elseif (!empty($_POST['publish']) && Auth::can('properties.approve')) { $data['publish_status'] = 'published'; $data['approved_by'] = $user['id']; }
-        elseif (isset($_POST['unpublish']) && Auth::can('properties.approve')) { $data['publish_status'] = 'draft'; }
+        // Publication is an approver's decision, and editing does not transfer
+        // it. A manager changing a live listing must not be able to alter what
+        // the public sees without it going back through approval, so any edit
+        // to published content by a non-approver returns it to the queue.
+        $wasPublished = $property['publish_status'] === 'published';
+        $canApprove = Auth::can('properties.approve');
+        if (!$canApprove && !$wasPublished) {
+            $data['publish_status'] = 'pending';
+        } elseif (!$canApprove && $wasPublished) {
+            $data['publish_status'] = 'pending';
+            $data['approved_by'] = null;
+        } elseif (!empty($_POST['publish'])) {
+            $data['publish_status'] = 'published';
+            $data['approved_by'] = $user['id'];
+        } elseif (isset($_POST['unpublish'])) {
+            $data['publish_status'] = 'draft';
+            $data['approved_by'] = null;
+        }
         Database::update('properties', $data, (int)$property['id']);
-        Audit::log('property.update', 'property', (int)$property['id'], "Updated “{$data['title']}”");
+        $returnedToQueue = $wasPublished && !$canApprove && $data['publish_status'] === 'pending';
+        Audit::log(
+            'property.update',
+            'property',
+            (int)$property['id'],
+            "Updated “{$data['title']}”" . ($returnedToQueue ? ' — returned to the approval queue' : '')
+        );
         clear_old();
-        flash('success', 'Property saved.');
+        flash('success', $returnedToQueue
+            ? 'Property saved. Because you changed a live listing and cannot approve it yourself, it is back in the approval queue until an approver reviews it.'
+            : 'Property saved.');
         redirect('admin/properties/' . $property['id'] . '/edit');
     }
 

@@ -91,7 +91,23 @@ function organisation_schema(): array {
     }
     return $schema;
 }
-function redirect(string $path, int $status = 303): never { header('Location: ' . (preg_match('#^https?://#', $path) ? $path : url($path)), true, $status); exit; }
+/**
+ * Send the browser to a page in this application.
+ *
+ * The target is always resolved against the configured base path, never used
+ * as a raw header value. Accepting an absolute URL here would turn any future
+ * parameter that reaches this function into an open redirect, and no caller
+ * needs to leave the site. A leading "//" or "\\" is stripped for the same
+ * reason: browsers read those as a host, not a path.
+ */
+function redirect(string $path, int $status = 303): never {
+    // Strip every leading slash and backslash, not just the first one: a
+    // browser normalises "\" to "/", so "/\evil.example" is "//evil.example",
+    // which it reads as a host. Only a plain relative path is ever emitted.
+    $path = ltrim($path, "/\\");
+    header('Location: ' . url($path), true, $status);
+    exit;
+}
 function request_method(): string { return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'); }
 function input(string $key, mixed $default = ''): mixed { $value = $_POST[$key] ?? $default; if (is_array($value)) return $default; return is_string($value) ? trim($value) : $value; }
 function query_value(string $key, string $default = ''): string { $v = $_GET[$key] ?? $default; if (is_array($v)) return $default; return is_string($v) ? trim($v) : $v; }

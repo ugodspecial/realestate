@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.5.0 — 2026-11-03
+
+Verified what each of the four roles can actually do, then fixed what the
+verification turned up. Adds a permission matrix, a security suite, and an
+authorization fix that closes a publication hole.
+
+**Roles, verified by driving the running site rather than by reading the code.**
+`tests/role-matrix.php` signs in as each role and walks 13 paths, the navigation
+that role is shown, the dashboard panels, privilege escalation by direct POST,
+session invalidation, and CSRF. 81 checks. It confirmed the matrix is
+`super_admin` (everything) > `admin` (everything but settings) >
+`listing_manager` (listings and enquiries) > `content_editor` (content only).
+
+**Fixed — a listing manager could edit a live listing in place.** Publication was
+only checked when a listing was *not* already published, so a manager could
+change the price or description of a listing the public was reading and it
+stayed published, with the original approver still credited. Editing published
+content is publication. Any write to a live listing by someone who cannot
+approve it now returns it to the queue, clears `approved_by`, and says so in the
+flash message and the audit trail. Verified against the old code: the same
+request now lands in `pending`.
+
+**Fixed — the dashboard leaked what the navigation was hiding.** One dashboard
+serves all four roles, and it queried enquiries and the audit trail
+unconditionally. A listing manager was refused `/admin/enquiries` but shown the
+five most recent enquirers by name on the dashboard. Both panels and their
+counters are now only queried and rendered when the viewer holds the matching
+permission.
+
+**Fixed — redirects could leave the site.** `redirect()` passed any absolute URL
+through to the `Location` header. No caller used it, but nothing stopped a
+future one from becoming an open redirect, so it now always resolves against the
+base path. Leading slashes *and* backslashes are stripped: browsers normalise
+`\` to `/`, so `/\evil.example` is `//evil.example`, which reads as a host.
+
+**Added — security logging.** Refused sign-ins and sign-outs are now recorded.
+A refusal is attributed to the account when it exists and to the address when it
+does not, and the reason distinguishes a wrong password from a deactivated
+account. The password is never recorded. Logging is capped at 20 entries per
+address per 15 minutes, because an unauthenticated stranger controls how often
+this fires, and a failure to write the log can never turn a refusal into an
+error page.
+
+**Added — `tests/security.php`**, 53 checks against a running instance:
+script payloads through real forms (listing title, enquiry message, audit
+details) come back escaped; object-level authorization, not just page-level;
+CSRF rejection with no state change; cookie flags and security headers;
+identical answers for an unknown address and a wrong password; uploads that
+reject PHP disguised as an image; throttling; audit integrity. It creates and
+deletes its own records and asserts at the end that the demo content is
+untouched.
+
+**Added — `bin/maintenance.php`** for routine housekeeping: spent and expired
+reset tokens, closed rate-limit windows, abandoned session files. Audit history
+is kept by default; set `AUDIT_RETENTION_DAYS` to bound it.
+
 ## 1.4.5 — 2026-11-03
 
 Made a half-finished upgrade impossible to miss.

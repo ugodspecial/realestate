@@ -211,7 +211,9 @@ $authSrc = (string) file_get_contents($root . '/app/Core/Auth.php');
 $usersIndex = (string) file_get_contents($root . '/app/views/admin/users/index.php');
 $usersForm = (string) file_get_contents($root . '/app/views/admin/users/form.php');
 
-ok('sign-in refuses an inactive account', (bool) preg_match('/!\$user\[.active.\]\s*\)\s*return false/', $authSrc));
+// The refusal may be a single guard or part of a compound condition that
+// logs the attempt first; what matters is that an inactive account is refused.
+ok('sign-in refuses an inactive account', (bool) preg_match('/!\$user\[.active.\]/', $authSrc));
 ok('an expired session is re-checked against the account',
     str_contains($authSrc, "WHERE id = ?") && str_contains($authSrc, "!\$user['active']"));
 ok('deactivation bumps the session version so open tabs die',
@@ -297,6 +299,30 @@ ok('the staff create path uses the guard', str_contains($adminSrc, 'PasswordRese
 // An opaque 500 is not an acceptable answer to a half-finished upgrade.
 ok('a missing column tells the operator to upgrade',
     str_contains($routesSrc2, 'bin/upgrade.php'));
+
+echo "\n== Permission and audit guards ==\n";
+$dashView = (string) file_get_contents($root . '/app/views/admin/dashboard.php');
+// One dashboard serves four roles. A panel must never reach a role that
+// cannot open the page it links to.
+ok('the dashboard gates the enquiry panel', str_contains($dashView, 'if ($recentEnquiries)'));
+ok('the dashboard gates the audit panel', str_contains($dashView, 'if ($recentAudit)'));
+ok('enquiry data is only queried with permission',
+    (bool) preg_match('/Auth::can\(.enquiries\.manage.\)/', $adminSrc));
+ok('audit data is only queried with permission',
+    (bool) preg_match('/Auth::can\(.audit\.view.\)/', $adminSrc));
+
+// Editing a live listing must not let a non-approver change what the public
+// sees without review.
+ok('a non-approver edit returns a live listing to the queue',
+    str_contains($adminSrc, "\$data['publish_status'] = 'pending';") && str_contains($adminSrc, 'returnedToQueue'));
+ok('an edit clears the previous approver', str_contains($adminSrc, "\$data['approved_by'] = null;"));
+
+// Security logging.
+ok('a refused sign-in is recorded', str_contains($authSrc, 'user.login_failed'));
+ok('a sign-out is recorded', str_contains($authSrc, 'user.logout'));
+ok('the failed-sign-in entry never includes the password',
+    !preg_match('/logFailedSignIn\([^)]*\$password/', $authSrc));
+ok('housekeeping exists', is_file($root . '/bin/maintenance.php'));
 
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);
