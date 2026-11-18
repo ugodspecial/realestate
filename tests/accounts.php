@@ -11,6 +11,17 @@ declare(strict_types=1);
 $root = dirname(__DIR__);
 require $root . '/app/bootstrap.php';
 
+// Auth::attempt() and Auth::logout() call session_regenerate_id(), which warns
+// when PHP is running without a session. Give the test a real one so the CI
+// deprecation guard only ever fails on genuine application warnings.
+// Auth also rotates the session id, which requires headers not to have been
+// sent yet. Buffer this script's own output so the run matches a real request
+// instead of failing on a warning caused by the test's own printing.
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    ob_start();
+    session_start();
+}
+
 $fail = 0; $pass = 0;
 function ok(string $label, bool $cond, string $detail = ''): void {
     global $fail, $pass;
@@ -85,4 +96,5 @@ Database::query('DELETE FROM audit_logs WHERE entity_type = ? AND entity_id = ?'
 Database::query('DELETE FROM rate_limits');
 
 echo "\n{$pass} passed, {$fail} failed\n";
+while (ob_get_level() > 0) { ob_end_flush(); }
 exit($fail === 0 ? 0 : 1);

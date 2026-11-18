@@ -29,7 +29,7 @@ final class Auth {
         $hash = $user['password_hash'] ?? '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
         if (!password_verify($password, $hash) || !$user || !$user['active']) return false;
         if (password_needs_rehash($hash, PASSWORD_DEFAULT)) Database::update('users', ['password_hash'=>password_hash($password, PASSWORD_DEFAULT)], (int)$user['id']);
-        session_regenerate_id(true);
+        self::regenerateSession();
         $_SESSION['user_id'] = (int)$user['id'];
         $_SESSION['session_version'] = (int)$user['session_version'];
         $_SESSION['last_activity'] = time();
@@ -39,6 +39,14 @@ final class Auth {
         Audit::log('user.login', 'user', (int)$user['id'], 'Signed in');
         return true;
     }
-    public static function logout(): void { $_SESSION = []; session_regenerate_id(true); }
+    public static function logout(): void { $_SESSION = []; self::regenerateSession(); }
+    /**
+     * Rotate the session id, but only when a session is actually active.
+     * Calling session_regenerate_id() with no session raises a PHP warning,
+     * which the deployment's error log treats as noise worth failing on.
+     */
+    private static function regenerateSession(): void {
+        if (session_status() === PHP_SESSION_ACTIVE) session_regenerate_id(true);
+    }
     public static function roleName(string $role): string { return ['super_admin'=>'Super Administrator','admin'=>'Administrator','listing_manager'=>'Listing Manager','content_editor'=>'Content Editor'][$role] ?? $role; }
 }

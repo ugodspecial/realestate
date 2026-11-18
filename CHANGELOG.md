@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.2 — 2026-11-03
+
+Fixed a PHP warning that surfaced when signing in or out without an active
+session.
+
+`Auth` called `session_regenerate_id()` unconditionally. On a normal web
+request there is always a session, so this never showed up in use — but any
+context without one (a CLI script, or a host that disables sessions) logged
+the warning, and the deployment treats warnings as failures. Session
+rotation now only happens when a session is actually active.
+
+Caught by the new `tests/accounts.php` the moment it was added to CI, which
+is exactly why it is there.
+
 ## 1.3.1 — 2026-11-03
 
 Closed two gaps in staff account handling, found while auditing what happens
