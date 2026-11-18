@@ -33,27 +33,56 @@ final class AdminController {
     }
 
     private static function dashboard(array $user): void {
-        $stats = [
-            'published' => (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='published'"),
-            'pending' => (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='pending'"),
-            'available' => (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='published' AND status='available'"),
-        ];
-        $recentProperties = Database::all(Properties::SELECT . ' ORDER BY p.updated_at DESC LIMIT 5');
+        // One dashboard serves four roles, but not with one set of numbers.
+        // Every panel, counter, and link below is gated by the permission for
+        // the thing it shows. A role must never be shown a figure it cannot
+        // open, and a link that answers 403 is a bug, not a teaser.
+        $canListings = Auth::can('properties.manage');
+        $canApprove = Auth::can('properties.approve');
+        $canEnquiries = Auth::can('enquiries.manage');
+        $canContent = Auth::can('content.manage');
+        $canUsers = Auth::can('users.manage');
+        $canAudit = Auth::can('audit.view');
 
-        // The dashboard is one page shared by four roles, so every panel has to
-        // be scoped to what the viewer may actually open. Showing a listing
-        // manager a visitor's name on the dashboard while refusing them the
-        // enquiry page is both a data leak and a dead link.
+        $stats = [];
+        $recentProperties = [];
         $recentEnquiries = [];
-        if (Auth::can('enquiries.manage')) {
+        $recentAudit = [];
+        $contentSummary = [];
+        $myEnquiries = [];
+
+        if ($canListings) {
+            $stats['published'] = (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='published'");
+            $stats['pending'] = (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='pending'");
+            $stats['available'] = (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='published' AND status='available'");
+            $recentProperties = Database::all(Properties::SELECT . ' ORDER BY p.updated_at DESC LIMIT 5');
+        }
+        if ($canEnquiries) {
             $stats['enquiries'] = (int)Database::value("SELECT COUNT(*) FROM enquiries WHERE status='new'");
             $recentEnquiries = Database::all('SELECT e.*, p.title AS property_title FROM enquiries e LEFT JOIN properties p ON p.id=e.property_id ORDER BY e.created_at DESC LIMIT 5');
         }
-        $recentAudit = [];
-        if (Auth::can('audit.view')) {
+        if ($canContent) {
+            // A content editor lands here and needs to see the work that is
+            // actually theirs. Rows are links into the pages they can open.
+            $contentSummary = [
+                'categories' => (int)Database::value('SELECT COUNT(*) FROM categories'),
+                'locations' => (int)Database::value('SELECT COUNT(*) FROM locations'),
+                'testimonials' => (int)Database::value('SELECT COUNT(*) FROM testimonials'),
+                'testimonials_pending' => (int)Database::value('SELECT COUNT(*) FROM testimonials WHERE approved=0'),
+            ];
+        }
+        if ($canUsers) {
+            $stats['staff'] = (int)Database::value('SELECT COUNT(*) FROM users WHERE active=1');
+            $stats['roles'] = count(array_unique(array_column(Database::all('SELECT role FROM users WHERE active=1'), 'role')));
+        }
+        if ($canAudit) {
             $recentAudit = Database::all('SELECT a.*, u.name AS user_name FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 6');
         }
-        self::layout('dashboard', 'Dashboard', compact('stats', 'recentProperties', 'recentEnquiries', 'recentAudit'), $user, 'dashboard');
+
+        self::layout('dashboard', 'Dashboard', compact(
+            'stats', 'recentProperties', 'recentEnquiries', 'recentAudit', 'contentSummary',
+            'canListings', 'canApprove', 'canEnquiries', 'canContent', 'canUsers', 'canAudit'
+        ), $user, 'dashboard');
     }
 
     /* ---------------- Properties ---------------- */

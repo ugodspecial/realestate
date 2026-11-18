@@ -171,6 +171,47 @@ if ($enquiry) {
 check('a content editor cannot open the enquiries area',
     http('GET', $base . '/admin/enquiries', $jars['content_editor'])['code'] === 403);
 
+// A content editor has no properties.manage, so no listing may reach them --
+// not a count, not a title, and above all not a link into a page that answers
+// 403. This is the difference between a content editor and a listing manager.
+check('a content editor sees no listing panel', !str_contains($ceHtml, 'Recently updated properties'));
+check('a content editor sees no listing counters', !str_contains($ceHtml, 'Published listings'));
+check('a content editor is given no listing links', !preg_match('#/admin/properties/\d+/edit#', $ceHtml));
+$prop = Database::one('SELECT title FROM properties ORDER BY id LIMIT 1');
+if ($prop) {
+    check('no listing title reaches a content editor', !str_contains($ceHtml, (string) $prop['title']), (string) $prop['title']);
+}
+
+// The two operational roles must not be interchangeable. If their dashboards
+// are identical, one of them is being shown work they cannot do.
+check('a listing manager sees the property panel', str_contains($lmHtml, 'Recently updated properties'));
+check('a listing manager sees no content panel', !str_contains($lmHtml, 'Website content'));
+check('a content editor sees the content panel', str_contains($ceHtml, 'Website content'));
+check('a content editor is offered no enquiry panel', !str_contains($ceHtml, 'New enquiries'));
+check('the two roles do not share a dashboard',
+    !str_contains($lmHtml, 'Website content') && !str_contains($ceHtml, 'Recently updated properties'));
+
+// Every link the dashboard offers must open for the role it was offered to.
+$linkNeed = [
+    'properties' => 'properties.manage', 'enquiries' => 'enquiries.manage',
+    'categories' => 'content.manage', 'locations' => 'content.manage',
+    'testimonials' => 'content.manage', 'users' => 'users.manage',
+    'settings' => 'settings.manage', 'audit' => 'audit.view',
+];
+foreach (['listing_manager', 'content_editor'] as $role) {
+    $html = $role === 'listing_manager' ? $lmHtml : $ceHtml;
+    $dead = [];
+    $m = [null, []];
+    preg_match_all('#href="(/admin[^"\#?]*)"#', $html, $m);
+    foreach (array_unique($m[1]) as $href) {
+        $section = explode('/', trim($href, '/'))[1] ?? 'admin';
+        if (isset($linkNeed[$section]) && !in_array($linkNeed[$section], Auth::PERMISSIONS[$role], true)) {
+            $dead[] = $href;
+        }
+    }
+    check("the {$role} dashboard links only to pages it can open", $dead === [], implode(', ', $dead));
+}
+
 echo "\n== Horizontal and vertical escalation ==\n";
 // Each role edits its own account only; there is no user id in the URL for
 // /admin/account, so cross-account access is impossible by construction.
@@ -207,11 +248,47 @@ echo "\n== Session and account protections ==\n";
 $oldJar = $jars['content_editor'];
 $newJar = signIn($base, (string) $creds['content_editor']['email'], (string) $creds['content_editor']['password']);
 check('a second session for the same account signs in', $newJar !== null);
+// Read the version *after* signing in: the session stored the value that was
+// current at sign-in, so this is the only value a later bump is compared with.
 $version = (int) Database::value('SELECT session_version FROM users WHERE email = ?', [$creds['content_editor']['email']]);
 Database::query('UPDATE users SET session_version = ? WHERE email = ?', [$version + 1, $creds['content_editor']['email']]);
 $r = http('GET', $base . '/admin', $oldJar);
-check('bumping the session version ends an open session', $r['code'] === 303 && str_contains($r['location'], 'login'), 'got ' . $r['code']);
-Database::query('UPDATE users SET session_version = ? WHERE email = ?', [$version + 2, $creds['content_editor']['email']]);
+// If the request was turned away, the rule holds and there is nothing more to
+// prove. If it was not, find out whether this environment can test it at all
+// before blaming the application: prove the web server actually observes a
+// write made by this process, using a throwaway record.
+$serverSeesWrites = false;
+if ($r['code'] !== 303) {
+    $probeRef = 'PROBE-' . bin2hex(random_bytes(4));
+    $probeCat = (int) Database::value('SELECT id FROM categories LIMIT 1');
+    $probeId = Database::insert('enquiries', [
+        'reference' => $probeRef, 'name' => 'Probe', 'email' => 'probe@example.test',
+        'phone' => '', 'message' => 'probe', 'status' => 'new', 'property_id' => null,
+        'created_at' => Database::now(),
+    ]);
+    $seen = str_contains(http('GET', $base . '/admin/enquiries', $jars['super_admin'])['body'], $probeRef);
+    Database::query('DELETE FROM enquiries WHERE id = ?', [$probeId]);
+    $serverSeesWrites = $seen;
+}
+if ($r['code'] === 200 && !$serverSeesWrites) {
+    $session = $_SESSION;
+    $_SESSION = ['user_id' => $creds['content_editor']['id'] ?? 0, 'session_version' => $version];
+    $stillUser = Auth::user();
+    $_SESSION = $session;
+    check('bumping the session version ends an open session (verified in-process: server does not share writes)',
+        $stillUser === null, 'session survived the bump');
+    echo "  note: this web server keeps its own copy of the database -- a write from\n";
+    echo "        this process is invisible to it -- so the rule was checked against\n";
+    echo "        Auth::user() directly. Run the suite on a normal server for the\n";
+    echo "        end-to-end version.\n";
+} else {
+    check('bumping the session version ends an open session', $r['code'] === 303 && str_contains($r['location'], 'login'), 'got ' . $r['code']);
+}
+// Put the account back exactly as it was. A test that leaves a demo account
+// altered makes every later run start from a state nobody chose, and the
+// leftover is invisible until something unrelated starts failing.
+Database::query('UPDATE users SET session_version = ? WHERE email = ?', [$version, $creds['content_editor']['email']]);
+check('the session version was restored', (int) Database::value('SELECT session_version FROM users WHERE email = ?', [$creds['content_editor']['email']]) === $version);
 
 echo "\n== CSRF ==\n";
 // Every state-changing request must carry a valid token. Posting without one

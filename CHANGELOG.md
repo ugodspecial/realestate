@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.5.1 — 2026-11-03
+
+The listing manager and the content editor were being shown the same dashboard.
+
+**Reported.** Both roles landed on an identical page and appeared to have the
+same access.
+
+**What was actually wrong.** The permission model was already correct and the
+two roles differ in every check — one holds listings and enquiries, the other
+holds content and no listings at all. The dashboard simply did not consult it.
+The template rendered the property panel, the property counters, the
+enquiries panel, the audit panel, and the staff counter for everyone, so a
+content editor was handed:
+
+- "Published listings" and "Awaiting approval" counts, for data they cannot open;
+- a "Recently updated properties" table whose every row linked to
+  `/admin/properties/{id}/edit` — a page that answers **403** for them;
+- five links they cannot open, on the one page every user sees first.
+
+A listing manager additionally saw the content group in the navigation but no
+content tools on the page, and neither role was told what its job actually was.
+
+**Fixed:**
+
+- `AdminController::dashboard()` computes each figure only when the viewer holds
+  the permission behind it, and passes the flags through to the view.
+- The view gates every panel, counter, and action button on those flags, so the
+  property table cannot be rendered for a role that cannot open a listing.
+- Content editors get a panel of their own: categories, locations, and
+  testimonials, each with a count and a link to the page that manages it.
+- The welcome line now states the role's remit, so a content editor is told what
+  they look after instead of inferring it from an empty page.
+- The dashboard no longer links to anything the viewer cannot open.
+
+`tests/dashboard-scope.php` (38 checks) renders the dashboard for all four roles
+in-process and asserts what each is and is not shown, that the two operational
+roles differ, and that no dashboard link leads to a 403. It needs no web server,
+so the rule is still checked where HTTP is unavailable. `tests/role-matrix.php`
+grows to 93 checks with the same assertions over real HTTP.
+
 ## 1.5.0 — 2026-11-03
 
 Verified what each of the four roles can actually do, then fixed what the

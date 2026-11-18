@@ -35,7 +35,12 @@ were once broken:
 
 1. **A shared page is not a shared permission.** The dashboard is the landing
    page for all four roles. Any panel on it must be gated by the permission for
-   the data it shows, not by the fact that the viewer reached the page.
+   the data it shows, not by the fact that the viewer reached the page. A
+   counter is data: showing "Awaiting approval" to someone who cannot open a
+   listing tells them something about the portfolio. A link is data too: every
+   link on the dashboard must open for the role that was shown it, or the page
+   is advertising work that answers 403. `tests/dashboard-scope.php` asserts
+   both without needing a web server.
 2. **Editing published content is publishing it.** `properties.approve` is
    meaningless if a non-approver can change a live listing in place. Any edit to
    a published listing by someone who cannot approve returns it to the queue and
