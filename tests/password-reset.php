@@ -273,6 +273,44 @@ check('the forced-change gate stays off', ($result['mustChange'] ?? null) === fa
 check('saving a user still works', ($result['renamed'] ?? null) === 'Renamed', $output);
 check('nothing was written to the error log', $bootErrors === '', $bootErrors);
 
+echo "\n== Finishing an upgrade ==\n";
+// A partially finished upgrade used to be invisible: bin/upgrade.php wrote
+// its failure reason to STDERR only, so the visible output ended at
+// "pending: 1" and nothing indicated the migrations had not been applied.
+$upgradeSrc = (string) file_get_contents($root . '/bin/upgrade.php');
+check('upgrade failures are reported on stdout too',
+    (bool) preg_match('/function \(string \$msg\).*?fwrite\(STDOUT/s', $upgradeSrc));
+
+$statusBin = $root . '/bin/status.php';
+check('a status command exists', is_file($statusBin));
+
+// Both commands must be usable on the current, healthy database.
+$statusOut = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($statusBin) . ' 2>&1');
+check('status reports the schema is current', str_contains($statusOut, 'Up to date'), trim(substr($statusOut, -80)));
+check('status names the password feature', str_contains($statusOut, 'First-login password change: available'));
+
+// An unwritable backup directory must fail loudly and apply nothing.
+$roDir = sys_get_temp_dir() . '/cedar-ro-' . bin2hex(random_bytes(4));
+mkdir($roDir, 0555, true);
+$before = Migrator::versions(Database::connection());
+$upgradeOut = (string) shell_exec(
+    escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($root . '/bin/upgrade.php')
+    . ' --backup-dir=' . escapeshellarg($roDir) . ' 2>/dev/null'
+);
+$afterMigration = Migrator::versions(Database::connection());
+check('a failed backup says so on stdout', str_contains($upgradeOut, 'UPGRADE FAILED'), trim(substr($upgradeOut, -120)));
+check('a failed backup applies nothing', $before === $afterMigration);
+check('a failed backup suggests a way forward',
+    str_contains($upgradeOut, '--backup-dir') || str_contains($upgradeOut, '--no-backup'));
+@chmod($roDir, 0755);
+@rmdir($roDir);
+
+// The banner that warns an operator in the browser.
+$adminLayout = (string) file_get_contents($root . '/app/views/admin/layout.php');
+check('the admin area warns about pending migrations',
+    str_contains($adminLayout, 'Database upgrade incomplete'));
+check('the warning names the command to run', str_contains($adminLayout, 'php bin/upgrade.php'));
+
 echo "\n== Demo accounts stay usable ==\n";
 $credsFile = $root . '/storage/demo-credentials.json';
 if (is_file($credsFile)) {

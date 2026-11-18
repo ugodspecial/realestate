@@ -12,6 +12,40 @@ a page that does need the column answers 503 asking you to run the upgrade. It
 is not a good place to leave an installation, but it will not take sign-in down
 the way it did in 1.4.3.
 
+### Checking whether the upgrade finished
+
+```
+php bin/status.php
+```
+
+This is safe to run at any time and changes nothing. It reports the schema
+version, any pending migrations, and whether the first-login password feature
+is active. Exit code is 0 when everything is applied, 1 when something is
+pending — so it works in a deploy script.
+
+In the browser, a Super Administrator or Administrator sees a banner on every
+admin page while migrations are pending. If you see *"Database upgrade
+incomplete"*, the upgrade did not finish.
+
+### If `bin/upgrade.php` stops at "pending: 1"
+
+The backup step runs before any migration. If it cannot write the backup, the
+upgrade stops with **nothing applied** — which is the safe outcome, but it
+means the features stay off.
+
+Since 1.4.4 the failure is printed to STDOUT as `UPGRADE FAILED: …`, not only
+to STDERR, so it cannot be missed in copied output. The usual cause is a
+`storage/backups` directory the web user cannot write to. Either fix the
+permissions, choose another location, or skip the step having taken your own
+backup:
+
+```
+php bin/upgrade.php --backup-dir=/some/writable/path
+php bin/upgrade.php --no-backup          # only with your own backup in hand
+```
+
+Then run `php bin/status.php` to confirm `Migrations pending: 0`.
+
 ## How it works
 
 - Migration files are named `NNN_description.php` (`001_baseline.php`,

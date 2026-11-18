@@ -20,6 +20,11 @@ $nav = [
 ];
 $pendingCount = Auth::can('properties.approve') ? (int)Database::value("SELECT COUNT(*) FROM properties WHERE publish_status='pending'") : 0;
 $newEnquiries = Auth::can('enquiries.manage') ? (int)Database::value("SELECT COUNT(*) FROM enquiries WHERE status='new'") : 0;
+// A deployment that copied the code but did not finish the upgrade leaves the
+// database behind the code. The affected features switch themselves off, which
+// looks like a bug rather than a missing step unless we say so. Only an
+// administrator can act on this, so nobody else is shown the banner.
+$pendingMigrations = Auth::can('users.manage') ? Migrator::pending(Database::connection(), Migrator::dir()) : [];
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,6 +76,19 @@ $newEnquiries = Auth::can('enquiries.manage') ? (int)Database::value("SELECT COU
   </aside>
   <div class="admin-sidebar-overlay" hidden></div>
   <main class="admin-main" id="adminMain">
+    <?php if ($pendingMigrations): ?>
+      <div class="notice notice-error" role="status" data-dismissible>
+        <?= icon('alert') ?>
+        <div>
+          <strong>Database upgrade incomplete.</strong>
+          <?= count($pendingMigrations) ?> migration<?= count($pendingMigrations) === 1 ? '' : 's' ?> still pending
+          (<?= e(implode(', ', array_column($pendingMigrations, 'version'))) ?>).
+          New features that depend on them are switched off. Run
+          <code>php bin/upgrade.php</code> from the application folder, then reload.
+        </div>
+        <button class="notice-close" aria-label="Dismiss message"><?= icon('close') ?></button>
+      </div>
+    <?php endif; ?>
     <?php foreach (take_flashes() as $f): ?>
       <div class="notice<?= $f['type'] === 'error' ? ' notice-error' : '' ?>" role="status"><?= icon($f['type'] === 'error' ? 'alert' : 'check') ?><div><?= e($f['message']) ?></div><button class="notice-close" aria-label="Dismiss message"><?= icon('close') ?></button></div>
     <?php endforeach; ?>

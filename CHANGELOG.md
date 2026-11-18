@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.4.5 — 2026-11-03
+
+Made a half-finished upgrade impossible to miss.
+
+**Reported symptom.** After running `php bin/upgrade.php` the output ended at
+`Migrations applied: 2; pending: 1` and the first-login password change did not
+happen. The migration had in fact never been applied — the backup step had
+failed, and `bin/upgrade.php` printed its reason to STDERR only. Copied to a
+bug report, the visible output was a progress line with no error and no
+completion.
+
+**Fixed:**
+
+- Every upgrade failure is now printed to STDOUT as well as STDERR, ending with
+  `UPGRADE FAILED: …` and an explicit "Nothing was applied" line.
+- The backup failure now says what to do: fix permissions, use
+  `--backup-dir=<writable path>`, or `--no-backup` if you have your own backup.
+- New `php bin/status.php` reports the schema version, pending migrations and
+  whether the first-login password feature is active. Exit code 1 when
+  something is pending, so it can gate a deploy.
+- The admin area shows a dismissible banner on every page while migrations are
+  pending, naming the command to run. Previously the state was silent: the site
+  worked, the new features were simply off.
+
+`tests/password-reset.php` now checks that a failed backup reports itself,
+applies nothing, and that both commands behave on a healthy database.
+
 ## 1.4.4 — 2026-11-03
 
 Fixed a 500 error on sign-in for any installation that had updated the code

@@ -12,7 +12,21 @@ $noBackup = isset($opts['no-backup']);
 $backupDir = $opts['backup-dir'] ?? ROOT_PATH . '/storage/backups';
 $backupPath = null;
 
-$fail = static function (string $msg): void { fwrite(STDERR, "ERROR: {$msg}" . PHP_EOL); exit(1); };
+/**
+ * Report a failure on both streams.
+ *
+ * STDERR is correct for a script, but an operator who copies the terminal
+ * output often captures STDOUT alone. When the only explanation goes to
+ * STDERR, the visible result is a progress line ending in "pending: 1" with
+ * no indication that nothing was applied and the site is still on the old
+ * schema. Every failure therefore also prints a terminated banner on STDOUT.
+ */
+$fail = static function (string $msg): void {
+    fwrite(STDERR, "ERROR: {$msg}" . PHP_EOL);
+    fwrite(STDOUT, PHP_EOL . "UPGRADE FAILED: {$msg}" . PHP_EOL);
+    fwrite(STDOUT, 'Nothing was applied. The database is unchanged and the site keeps working on its current schema.' . PHP_EOL);
+    exit(1);
+};
 
 try {
     $pdo = Database::connection();
@@ -39,8 +53,8 @@ try {
     if ($dryRun) exit(0);
 
     if (!$noBackup) {
-        if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true)) $fail("Cannot create backup dir {$backupDir}.");
-        if (!is_writable($backupDir)) $fail("Backup dir {$backupDir} is not writable.");
+        if (!is_dir($backupDir) && !mkdir($backupDir, 0755, true)) $fail("Cannot create backup dir {$backupDir}. Fix its permissions, or re-run with --backup-dir=<a writable path>.");
+        if (!is_writable($backupDir)) $fail("Backup dir {$backupDir} is not writable. Fix its permissions, or re-run with --backup-dir=<a writable path>. If you have already taken your own backup, --no-backup skips this step.");
         $stamp = gmdate('Ymd-His') . '-' . getmypid();
         if ($driver === 'sqlite') {
             $backupPath = $backupDir . '/db-' . $stamp . '.sqlite';
