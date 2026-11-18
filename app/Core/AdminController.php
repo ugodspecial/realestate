@@ -312,6 +312,7 @@ final class AdminController {
             $data = self::userInput();
             $errors = self::userErrors($data);
             if (Database::one('SELECT id FROM users WHERE email=?', [$data['email']])) $errors[] = 'That email address is already registered.';
+            if ($data['role'] === 'super_admin' && $user['role'] !== 'super_admin') $errors[] = 'Only a Super Administrator can grant that role.';
             if ($errors) { remember_old($_POST); foreach ($errors as $e) flash('error', $e); redirect('admin/users/new'); }
             $id = Database::insert('users', ['name' => $data['name'], 'email' => $data['email'], 'password_hash' => password_hash($data['password'], PASSWORD_DEFAULT), 'role' => $data['role'], 'active' => 1, 'created_at' => Database::now()]);
             Audit::log('user.create', 'user', $id, "Created {$data['name']} ({$data['role']})");
@@ -329,6 +330,22 @@ final class AdminController {
                 $data = self::userInput(true);
                 $errors = self::userErrors($data, true, (int)$edit['id']);
                 if ($edit['id'] === $user['id'] && ($data['role'] !== $edit['role'] || isset($_POST['deactivate']))) $errors[] = 'You cannot change your own role or deactivate your own account.';
+                // Guard the way back in. If every super administrator is
+                // deactivated or demoted, nobody can reach settings or the
+                // staff list again, and recovery needs direct database access.
+                $losesSuperAdmin = $edit['role'] === 'super_admin' && (($data['role'] !== 'super_admin') || isset($_POST['deactivate']));
+                if ($losesSuperAdmin && $edit['active']) {
+                    $others = (int) Database::value(
+                        "SELECT COUNT(*) FROM users WHERE role='super_admin' AND active=1 AND id<>?",
+                        [(int)$edit['id']]
+                    );
+                    if ($others === 0) $errors[] = 'This is the last active super administrator. Give another account that role before removing it, or nobody will be able to manage the site.';
+                }
+                // Only a super administrator may hand out that role, so an
+                // administrator cannot escalate their own access.
+                if ($data['role'] === 'super_admin' && $user['role'] !== 'super_admin') {
+                    $errors[] = 'Only a Super Administrator can grant that role.';
+                }
                 if ($errors) { remember_old($_POST); foreach ($errors as $e) flash('error', $e); redirect('admin/users/' . $edit['id'] . '/edit'); }
                 $update = ['name' => $data['name'], 'email' => $data['email'], 'role' => $data['role']];
                 if ($data['password'] !== '') $update['password_hash'] = password_hash($data['password'], PASSWORD_DEFAULT);

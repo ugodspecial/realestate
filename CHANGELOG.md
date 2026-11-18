@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.3.1 — 2026-11-03
+
+Closed two gaps in staff account handling, found while auditing what happens
+when someone leaves.
+
+Account deactivation already existed and worked: an inactive account cannot
+sign in, and deactivating someone bumps their session version so any tab they
+still have open is signed out on the next request. What was missing were the
+guards around it.
+
+- **The last active super administrator can no longer be removed.** Before
+  this, they could be demoted or deactivated like anyone else. With no super
+  administrator left, nobody can reach Settings or Staff & users again, and
+  recovery needs direct database access. The interface now refuses it and
+  explains why.
+- **Administrators can no longer grant the super administrator role.** The
+  role dropdown offered it to anyone who could manage staff, so an
+  administrator could escalate their own access. Both the create and edit
+  paths now refuse it unless the signed-in user is already a super
+  administrator.
+- The server-side checks cover the case where the form is posted directly,
+  not just what the dropdown offers.
+
+Added `tests/accounts.php` to CI (10 checks): an active account signs in, a
+deactivated one is refused, an existing session is revoked immediately, a
+reactivated account works again, and both guards hold. A browser suite also
+exercises the whole flow through the real interface at 13 checks, including
+signing in as a deactivated user and confirming the open tab is locked out.
+
 ## 1.3.0 — 2026-11-03
 
 The enquiry confirmation is now a proper dialog.

@@ -205,5 +205,29 @@ ok('focus is trapped while open', str_contains($js, "e.key!=='Tab'"));
 ok('scroll is locked while open', str_contains($js, "classList.add('dialog-open')"));
 ok('the script waits for load before moving focus', str_contains($js, "'complete'"));
 
+echo "\n== Account lifecycle guards ==\n";
+$adminSrc = (string) file_get_contents($root . '/app/Core/AdminController.php');
+$authSrc = (string) file_get_contents($root . '/app/Core/Auth.php');
+$usersIndex = (string) file_get_contents($root . '/app/views/admin/users/index.php');
+$usersForm = (string) file_get_contents($root . '/app/views/admin/users/form.php');
+
+ok('sign-in refuses an inactive account', (bool) preg_match('/!\$user\[.active.\]\s*\)\s*return false/', $authSrc));
+ok('an expired session is re-checked against the account',
+    str_contains($authSrc, "WHERE id = ?") && str_contains($authSrc, "!\$user['active']"));
+ok('deactivation bumps the session version so open tabs die',
+    (bool) preg_match("/session_version.\]\s*=\s*\(int\)Database::value/", $adminSrc));
+ok('an admin cannot deactivate themselves', str_contains($adminSrc, 'deactivate your own account'));
+ok('the last active super administrator is protected',
+    (bool) preg_match("/role='super_admin' AND active=1 AND id<>\?/", $adminSrc));
+ok('only a super administrator can grant that role',
+    str_contains($adminSrc, 'Only a Super Administrator can grant that role'));
+ok('the rule covers both creating and editing', substr_count($adminSrc, 'Only a Super Administrator can grant that role') === 2);
+ok('the staff list shows active versus deactivated',
+    str_contains($usersIndex, "'Deactivated'"));
+// The button name is chosen at render time from the account's current state.
+ok('the edit screen offers deactivate and reactivate',
+    str_contains($usersForm, "'deactivate' : 'reactivate'"));
+ok('the deactivate control asks for confirmation', str_contains($usersForm, 'data-confirm'));
+
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);
