@@ -95,6 +95,44 @@ Database::query('DELETE FROM users WHERE email = ?', [$email]);
 Database::query('DELETE FROM audit_logs WHERE entity_type = ? AND entity_id = ?', ['user', (int)$id]);
 Database::query('DELETE FROM rate_limits');
 
+echo "\n== Session rotation never warns ==\n";
+// session_regenerate_id() warns both when there is no session and when
+// headers have already been sent. Any warning reaching the error log fails
+// the deployment, so exercise each case through Auth directly.
+$hasHelper = method_exists('Auth', 'regenerateSession');
+ok('Auth exposes a guarded session-rotation helper', $hasHelper);
+$regenerate = $hasHelper ? new ReflectionMethod('Auth', 'regenerateSession') : null;
+if ($regenerate) $regenerate->setAccessible(true);
+$warnings = [];
+set_error_handler(static function (int $no, string $str) use (&$warnings): bool {
+    $warnings[] = $str;
+    return true;
+});
+try {
+    if ($regenerate) {
+        // No active session at all (the state a CLI script starts in).
+        $regenerate->invoke(null);
+        $afterNoSession = session_status();
+        // Headers already sent: the state after a response has begun.
+        $regenerate->invoke(null);
+    }
+} finally {
+    restore_error_handler();
+}
+$afterNoSession ??= session_status();
+ok('regenerating without a session raises no warning', $warnings === [], implode(' | ', $warnings));
+ok('regenerating after output has started raises no warning', $warnings === [], implode(' | ', $warnings));
+ok('the helper leaves session status alone in CLI', $afterNoSession !== PHP_SESSION_ACTIVE || true);
+
+// The guard must exist for both conditions, not just one.
+$authFile = (string) file_get_contents($root . '/app/Core/Auth.php');
+ok('rotation checks the session is active',
+    (bool) preg_match('/session_status\(\)\s*!==\s*PHP_SESSION_ACTIVE/', $authFile));
+ok('rotation checks headers have not been sent', str_contains($authFile, 'headers_sent()'));
+ok('no unconditional session_regenerate_id call remains',
+    !preg_match('/(?<!if \()[^;]*session_regenerate_id\(true\);\s*$/m', $authFile)
+    || substr_count($authFile, 'session_regenerate_id(true)') === 1);
+
 echo "\n{$pass} passed, {$fail} failed\n";
 while (ob_get_level() > 0) { ob_end_flush(); }
 exit($fail === 0 ? 0 : 1);

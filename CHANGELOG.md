@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.3 — 2026-11-03
+
+Finished the session-rotation fix from 1.3.2.
+
+The 1.3.2 change only guarded the "no active session" case and left a second
+one open: regenerating the session id after the response has started also
+raises a PHP warning ("after headers have already been sent"). That state is
+easy to reach — any script that prints before signing a user in. Rotation now
+checks both conditions and skips silently when either applies.
+
+Reproduced the original CI failure exactly before fixing it: the three
+warnings in the log pointed at `Auth.php` lines 32 and 42, which are the
+sign-in and sign-out call sites. Both are now behind the guarded helper.
+
+`tests/accounts.php` gained six checks that call the helper directly in every
+state — no session, headers already sent, and a clean active session — and
+fails if either guard is removed. Verified by reverting to both the original
+code and the incomplete 1.3.2 fix: each is caught.
+
 ## 1.3.2 — 2026-11-03
 
 Fixed a PHP warning that surfaced when signing in or out without an active

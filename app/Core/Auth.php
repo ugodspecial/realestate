@@ -41,12 +41,19 @@ final class Auth {
     }
     public static function logout(): void { $_SESSION = []; self::regenerateSession(); }
     /**
-     * Rotate the session id, but only when a session is actually active.
-     * Calling session_regenerate_id() with no session raises a PHP warning,
-     * which the deployment's error log treats as noise worth failing on.
+     * Rotate the session id, but only when it is actually safe to do so.
+     *
+     * session_regenerate_id() raises a PHP warning in two situations:
+     *   - there is no active session (CLI scripts, tests, a host with
+     *     sessions disabled), and
+     *   - the response has already started, so headers have been sent.
+     * Both are non-fatal, but the deployment treats any warning in the error
+     * log as a failure, so neither may reach it.
      */
     private static function regenerateSession(): void {
-        if (session_status() === PHP_SESSION_ACTIVE) session_regenerate_id(true);
+        if (session_status() !== PHP_SESSION_ACTIVE) return;
+        if (headers_sent()) return;
+        session_regenerate_id(true);
     }
     public static function roleName(string $role): string { return ['super_admin'=>'Super Administrator','admin'=>'Administrator','listing_manager'=>'Listing Manager','content_editor'=>'Content Editor'][$role] ?? $role; }
 }
