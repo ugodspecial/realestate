@@ -121,6 +121,7 @@ function remember_old(array $data): void { unset($data['_token'], $data['passwor
 function clear_old(): void { unset($_SESSION['old']); }
 function abort_page(int $status, string $message): never {
     http_response_code($status);
+    // The error view renders this, so the number must match what was sent.
     $title = ($status === 404 ? 'Page not found' : 'Request unavailable') . ' | ' . brand();
     require ROOT_PATH . '/app/views/public/error.php';
     exit;

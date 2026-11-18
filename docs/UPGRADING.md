@@ -5,6 +5,13 @@ versioned migrations in `database/migrations/`; `bin/upgrade.php` backs up
 the database and applies whatever is pending. Fresh installs run through the
 same migrator, so install and upgrade can never drift apart.
 
+**Run the upgrade when you deploy.** A deployment that copies the new code but
+skips `php bin/upgrade.php` is a supported-but-degraded state: features that
+depend on a new column switch themselves off rather than breaking the site, and
+a page that does need the column answers 503 asking you to run the upgrade. It
+is not a good place to leave an installation, but it will not take sign-in down
+the way it did in 1.4.3.
+
 ## How it works
 
 - Migration files are named `NNN_description.php` (`001_baseline.php`,

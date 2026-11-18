@@ -9,7 +9,7 @@ final class Auth {
     public static function user(): ?array {
         if (empty($_SESSION['user_id'])) return null;
         if (isset($_SESSION['last_activity']) && time() - $_SESSION['last_activity'] > 7200) { self::logout(); return null; }
-        $user = Database::one('SELECT id,name,email,role,active,session_version,must_change_password FROM users WHERE id = ?', [$_SESSION['user_id']]);
+        $user = Database::one('SELECT ' . self::columns() . ' FROM users WHERE id = ?', [$_SESSION['user_id']]);
         if (!$user || !$user['active'] || (int)$user['session_version'] !== (int)($_SESSION['session_version'] ?? -1)) { self::logout(); return null; }
         $_SESSION['last_activity'] = time();
         return $user;
@@ -54,6 +54,33 @@ final class Auth {
      * Both are non-fatal, but the deployment treats any warning in the error
      * log as a failure, so neither may reach it.
      */
+    /**
+     * Column list for the signed-in user.
+     *
+     * must_change_password arrives with migration 003. An installation that
+     * has not run `php bin/upgrade.php` yet is a normal thing to encounter
+     * mid-deployment, and it must not turn every sign-in into a 500: the
+     * account simply has no pending password change. Ask the schema rather
+     * than the exception handler.
+     */
+    private static function columns(): string {
+        return self::hasPasswordLifecycle()
+            ? 'id,name,email,role,active,session_version,must_change_password'
+            : 'id,name,email,role,active,session_version,0 AS must_change_password';
+    }
+
+    /** Whether migration 003 has been applied to this database. */
+    public static function hasPasswordLifecycle(): bool {
+        static $ready = null;
+        if ($ready !== null) return $ready;
+        try {
+            Database::value('SELECT must_change_password FROM users WHERE 1 = 0');
+            return $ready = true;
+        } catch (PDOException) {
+            return $ready = false;
+        }
+    }
+
     private static function regenerateSession(): void {
         if (session_status() !== PHP_SESSION_ACTIVE) return;
         if (headers_sent()) return;

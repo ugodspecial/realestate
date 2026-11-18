@@ -157,16 +157,26 @@ final class PasswordReset {
      */
     public static function applyNewPassword(int $userId, string $password): void {
         $current = (int) Database::value('SELECT session_version FROM users WHERE id = ?', [$userId]);
-        Database::update('users', [
+        Database::update('users', self::guardFlag([
             'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             'must_change_password' => 0,
             'session_version' => $current + 1,
-        ], $userId);
+        ]), $userId);
         // Keep the person who just chose the password signed in on this
         // device; everyone else holding the old password is signed out.
         if ((int) ($_SESSION['user_id'] ?? 0) === $userId) {
             $_SESSION['session_version'] = $current + 1;
         }
+    }
+
+    /**
+     * Drop the forced-change flag from an update when the column is not there
+     * yet. Every caller writes through this so a half-upgraded database
+     * degrades to the old behaviour instead of failing the save.
+     */
+    public static function guardFlag(array $data): array {
+        if (!Auth::hasPasswordLifecycle()) unset($data['must_change_password']);
+        return $data;
     }
 
     /** Should this user be made to choose a new password before continuing? */
@@ -182,11 +192,11 @@ final class PasswordReset {
     public static function issueTemporary(int $userId): string {
         $temporary = self::temporaryPassword();
         $current = (int) Database::value('SELECT session_version FROM users WHERE id = ?', [$userId]);
-        Database::update('users', [
+        Database::update('users', self::guardFlag([
             'password_hash' => password_hash($temporary, PASSWORD_DEFAULT),
             'must_change_password' => 1,
             'session_version' => $current + 1,
-        ], $userId);
+        ]), $userId);
         return $temporary;
     }
 

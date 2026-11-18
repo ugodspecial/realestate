@@ -33,6 +33,16 @@ try {
     else abort_page(404,'We couldn’t find that page. Let’s get you back to a place worth exploring.');
 } catch(PDOException $e) {
     error_log($e->getMessage());
-    foreach(['no such table',"doesn't exist"] as $needle) if(str_contains($e->getMessage(),$needle))abort_page(503,'The website is being prepared. Please run the installation command in the deployment guide.');
+    $message = $e->getMessage();
+    // A missing table means the site was never installed. A missing column
+    // means the code is newer than the database: the upgrade did not run.
+    // Say which, so the administrator knows what to do instead of seeing a
+    // generic 500.
+    foreach(['no such table',"doesn't exist"] as $needle) {
+        if(str_contains($message,$needle))abort_page(503,'The website is being prepared. Please run the installation command in the deployment guide.');
+    }
+    if(str_contains($message,'no such column') || str_contains($message,'Unknown column')) {
+        abort_page(503,'This site has been updated, but its database has not. Run "php bin/upgrade.php" from the application folder to finish, then reload this page.');
+    }
     throw $e;
 }

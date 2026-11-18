@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.4.4 — 2026-11-03
+
+Fixed a 500 error on sign-in for any installation that had updated the code
+but not the database.
+
+**What happened.** `Auth::user()` selected `must_change_password`
+unconditionally. That column arrives with migration 003, so on a database where
+`php bin/upgrade.php` had not yet run, every sign-in succeeded and then
+immediately failed on the next request:
+
+    SQLSTATE[HY000]: no such column: must_change_password
+
+The user saw "500 — LET'S TRY THAT AGAIN" with no explanation.
+
+**Why it shipped.** I tested the upgrade path by running the migrator, but
+never by running the application against a database that had not been upgraded.
+The tests all began with a migrated schema, so the gap was invisible to them.
+
+**Fixed at three levels:**
+
+- `Auth` asks the schema before using the column and falls back to reading the
+  flag as "no change pending", so an un-upgraded database keeps working exactly
+  as it did before this feature existed.
+- Every write that sets the flag goes through one guard that drops it when the
+  column is absent, so creating staff and resetting passwords also keep working.
+- A missing column now produces a 503 that names the fix — run
+  `php bin/upgrade.php` — instead of an opaque 500.
+
+`tests/password-reset.php` now boots the real `Auth` in a separate process
+against a database genuinely built without the column, and checks that signing
+in, loading the session and saving a user all work with nothing written to the
+error log. Against the previous code that suite aborts with exit code 1, which
+is precisely the failure users were hitting.
+
+If you are upgrading: `php bin/upgrade.php` is still the right thing to run. It
+is now not fatal to forget it.
+
 ## 1.4.3 — 2026-11-03
 
 Password lifecycle: staff choose their own password at first sign-in, and can

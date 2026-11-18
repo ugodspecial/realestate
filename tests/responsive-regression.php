@@ -284,6 +284,20 @@ ok('the stacked auth panel spaces its contents instead of overlapping',
 ok('the sign-in page does not link back to itself',
     str_contains((string) file_get_contents($root . '/app/views/auth/shell.php'), 'hideBackLink'));
 
+echo "\n== Upgrades must not take the site down ==\n";
+$routesSrc2 = (string) file_get_contents($root . '/app/routes.php');
+// A new column may not be assumed to exist: an installation that has not run
+// the upgrade yet must keep working. This caused a real 500 on every sign-in.
+ok('the session query asks the schema before using the new column',
+    str_contains($authSrc, 'hasPasswordLifecycle'));
+ok('there is a fallback column list for older databases',
+    str_contains($authSrc, "0 AS must_change_password"));
+ok('writes pass through a guard', str_contains($resetSrc, 'public static function guardFlag'));
+ok('the staff create path uses the guard', str_contains($adminSrc, 'PasswordReset::guardFlag'));
+// An opaque 500 is not an acceptable answer to a half-finished upgrade.
+ok('a missing column tells the operator to upgrade',
+    str_contains($routesSrc2, 'bin/upgrade.php'));
+
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);
 

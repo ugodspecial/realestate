@@ -314,7 +314,7 @@ final class AdminController {
             if (Database::one('SELECT id FROM users WHERE email=?', [$data['email']])) $errors[] = 'That email address is already registered.';
             if ($data['role'] === 'super_admin' && $user['role'] !== 'super_admin') $errors[] = 'Only a Super Administrator can grant that role.';
             if ($errors) { remember_old($_POST); foreach ($errors as $e) flash('error', $e); redirect('admin/users/new'); }
-            $id = Database::insert('users', ['name' => $data['name'], 'email' => $data['email'], 'password_hash' => password_hash($data['password'], PASSWORD_DEFAULT), 'role' => $data['role'], 'active' => 1, 'must_change_password' => 1, 'created_at' => Database::now()]);
+            $id = Database::insert('users', PasswordReset::guardFlag(['name' => $data['name'], 'email' => $data['email'], 'password_hash' => password_hash($data['password'], PASSWORD_DEFAULT), 'role' => $data['role'], 'active' => 1, 'must_change_password' => 1, 'created_at' => Database::now()]));
             Audit::log('user.create', 'user', $id, "Created {$data['name']} ({$data['role']})");
             clear_old();
             flash('success', 'Staff member created. Share their sign-in details securely — they will be asked to choose their own password at first sign-in.');
@@ -356,7 +356,7 @@ final class AdminController {
                 }
                 if (isset($_POST['deactivate'])) { $update['active'] = 0; $update['session_version'] = (int)Database::value('SELECT session_version FROM users WHERE id=?', [$edit['id']]) + 1; }
                 if (isset($_POST['reactivate'])) $update['active'] = 1;
-                Database::update('users', $update, (int)$edit['id']);
+                Database::update('users', PasswordReset::guardFlag($update), (int)$edit['id']);
                 Audit::log('user.update', 'user', (int)$edit['id'], "Updated {$data['name']} ({$data['role']})");
                 clear_old();
                 flash('success', 'Staff member updated.');
@@ -472,7 +472,7 @@ final class AdminController {
                 $update['session_version'] = (int)$full['session_version'] + 1;
                 $_SESSION['session_version'] = (int)$full['session_version'] + 1;
             }
-            Database::update('users', $update, (int)$user['id']);
+            Database::update('users', PasswordReset::guardFlag($update), (int)$user['id']);
             Audit::log('user.account', 'user', (int)$user['id'], 'Updated own profile');
             flash('success', 'Your profile was updated.');
             redirect('admin/account');

@@ -47,6 +47,14 @@ function clearThrottle(): void {
     Database::query("DELETE FROM rate_limits WHERE key_hash IN (SELECT key_hash FROM rate_limits)");
 }
 
+// Sweep anything an interrupted earlier run left behind, so a crash cannot
+// make the next run fail on stale rows.
+foreach (Database::all("SELECT id FROM users WHERE email LIKE 'pwtest.%@example.test'") as $stale) {
+    Database::query('DELETE FROM password_resets WHERE user_id = ?', [(int) $stale['id']]);
+    Database::query('DELETE FROM audit_logs WHERE entity_type = ? AND entity_id = ?', ['user', (int) $stale['id']]);
+    Database::query('DELETE FROM users WHERE id = ?', [(int) $stale['id']]);
+}
+
 echo "\n== Schema ==\n";
 $userColumns = array_column(Database::connection()->query('PRAGMA table_info(users)')->fetchAll(), 'name');
 check('users carries must_change_password', in_array('must_change_password', $userColumns, true));
@@ -172,6 +180,98 @@ check('pruning removes spent tokens',
     (int) Database::value('SELECT COUNT(*) FROM password_resets WHERE user_id=?', [$spentUser['id']]) === 0);
 check('pruning removes expired tokens',
     (int) Database::value('SELECT COUNT(*) FROM password_resets WHERE user_id=?', [$expiredUser['id']]) === 0);
+
+echo "\n== A database without migration 003 must not break sign-in ==\n";
+// This was a real outage: Auth::user() selected must_change_password
+// unconditionally, so an installation whose upgrade had not run answered
+// every sign-in with a 500. The column is optional until 003 is applied.
+$hasLifecycle = Auth::hasPasswordLifecycle();
+check('the schema check reports the column is present here', $hasLifecycle === true);
+
+// Simulate the older schema by rebuilding users without the column.
+$probePath = sys_get_temp_dir() . '/cedar-no003-' . bin2hex(random_bytes(4)) . '.sqlite';
+$probe = new PDO('sqlite:' . $probePath, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+[$tables] = (require ROOT_PATH . '/database/schema.php')('sqlite');
+foreach ($tables as $sql) {
+    $sql = str_replace('must_change_password TINYINT NOT NULL DEFAULT 0, ', '', $sql);
+    $sql = str_replace(', created_at DATETIME NULL, used_at DATETIME NULL', '', $sql);
+    $probe->exec($sql);
+}
+$probe->exec("INSERT INTO users (name,email,password_hash,role,active,session_version,created_at) VALUES ('Legacy','legacy@example.test','x','super_admin',1,1,'2020-01-01 00:00:00')");
+$columns = array_column($probe->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+check('the simulated database really lacks the column', !in_array('must_change_password', $columns, true));
+
+$applied = Migrator::run($probe, ROOT_PATH . '/database/migrations');
+$columns = array_column($probe->query('PRAGMA table_info(users)')->fetchAll(), 'name');
+check('running the upgrade adds the column', in_array('must_change_password', $columns, true), implode(',', $applied));
+check('the upgrade preserves existing accounts',
+    (string) $probe->query("SELECT name FROM users WHERE email='legacy@example.test'")->fetchColumn() === 'Legacy');
+check('an existing account is not forced to change its password',
+    (int) $probe->query("SELECT must_change_password FROM users WHERE email='legacy@example.test'")->fetchColumn() === 0);
+check('re-running the upgrade changes nothing', Migrator::run($probe, ROOT_PATH . '/database/migrations') === []);
+unset($probe);
+@unlink($probePath);
+
+// The guard helper drops the flag rather than letting the write fail.
+check('the write guard is available', method_exists('PasswordReset', 'guardFlag'));
+check('the guard keeps the flag on an upgraded database',
+    array_key_exists('must_change_password', PasswordReset::guardFlag(['must_change_password' => 1])));
+
+// The decisive check: run the real Auth against a database that genuinely
+// lacks the column, in a separate process with its own config, and confirm
+// signing in and reading the session both work. This is the outage.
+$boot = sys_get_temp_dir() . '/cedar-boot-' . bin2hex(random_bytes(4)) . '.php';
+$dbFile = sys_get_temp_dir() . '/cedar-old-' . bin2hex(random_bytes(4)) . '.sqlite';
+$logFile = sys_get_temp_dir() . '/cedar-old-' . bin2hex(random_bytes(4)) . '.log';
+$build = new PDO('sqlite:' . $dbFile, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+[$tables] = (require ROOT_PATH . '/database/schema.php')('sqlite');
+foreach ($tables as $sql) {
+    $build->exec(str_replace(['must_change_password TINYINT NOT NULL DEFAULT 0, ', ', created_at DATETIME NULL, used_at DATETIME NULL'], '', $sql));
+}
+$stmt = $build->prepare("INSERT INTO users (name,email,password_hash,role,active,session_version,created_at) VALUES ('Legacy',?,?,'super_admin',1,1,'2020-01-01 00:00:00')");
+$stmt->execute(['legacy@example.test', password_hash('LegacyPass-1', PASSWORD_DEFAULT)]);
+unset($build);
+
+file_put_contents($boot, '<?php
+define("ROOT_PATH", ' . var_export($root, true) . ');
+define("APP_VERSION", "test");
+$GLOBALS["config"] = ["app_name"=>"T","app_env"=>"local","app_url"=>"","base_path"=>"","pretty_urls"=>true,
+  "demo_mode"=>false,"db_driver"=>"sqlite","db_host"=>"","db_port"=>"","db_name"=>"","db_user"=>"","db_pass"=>"",
+  "sqlite_path"=>' . var_export($dbFile, true) . ',"mail_enabled"=>false,"mail_from"=>"",
+  "agent_portal_enabled"=>false,"session_name"=>"t","upload_max_bytes"=>1000];
+date_default_timezone_set("Africa/Lagos");
+ini_set("display_errors","0"); ini_set("log_errors","1"); ini_set("error_log", ' . var_export($logFile, true) . ');
+spl_autoload_register(static function (string $c): void {
+    $f = ROOT_PATH . "/app/Core/" . basename($c) . ".php";
+    if (is_file($f)) require $f;
+});
+require ROOT_PATH . "/app/Core/helpers.php";
+ob_start(); session_start();
+$out = [];
+$out["lifecycle"] = Auth::hasPasswordLifecycle();
+Database::query("DELETE FROM rate_limits");
+$out["signin"] = Auth::attempt("legacy@example.test", "LegacyPass-1", "1.2.3.4");
+$u = Auth::user();
+$out["user"] = $u["email"] ?? null;
+$out["flag"] = $u["must_change_password"] ?? "missing";
+$out["mustChange"] = PasswordReset::mustChange((array) $u);
+Database::update("users", PasswordReset::guardFlag(["name" => "Renamed", "must_change_password" => 1]), (int) $u["id"]);
+$out["renamed"] = Database::value("SELECT name FROM users WHERE id=?", [(int) $u["id"]]);
+while (ob_get_level() > 0) ob_end_clean();
+echo json_encode($out);
+');
+$output = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($boot) . ' 2>&1');
+$result = json_decode(trim($output), true);
+$bootErrors = is_file($logFile) ? (string) file_get_contents($logFile) : '';
+@unlink($boot); @unlink($dbFile); @unlink($logFile);
+
+check('an un-upgraded database is detected', ($result['lifecycle'] ?? null) === false, $output);
+check('signing in does not fail without the column', ($result['signin'] ?? null) === true, $output);
+check('the session loads instead of erroring', ($result['user'] ?? null) === 'legacy@example.test', $output);
+check('the missing flag reads as "no change pending"', ($result['flag'] ?? null) === 0, $output);
+check('the forced-change gate stays off', ($result['mustChange'] ?? null) === false, $output);
+check('saving a user still works', ($result['renamed'] ?? null) === 'Renamed', $output);
+check('nothing was written to the error log', $bootErrors === '', $bootErrors);
 
 echo "\n== Demo accounts stay usable ==\n";
 $credsFile = $root . '/storage/demo-credentials.json';
