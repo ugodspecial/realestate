@@ -2,7 +2,7 @@
 <div class="admin-top">
   <div>
     <h1><?= $isEdit ? 'Edit staff member' : 'Add staff member' ?></h1>
-    <p><?= $isEdit ? e($edit['name']) . ' · ' . e(Auth::roleName($edit['role'])) : 'They can sign in immediately with the password you set.' ?></p>
+    <p><?= $isEdit ? e($edit['name']) . ' · ' . e(Auth::roleName($edit['role'])) : 'They can sign in immediately with the password you set, then choose their own.' ?></p>
   </div>
   <div class="admin-actions"><a class="btn btn-outline btn-small" href="<?= url('admin/users') ?>">All staff</a></div>
 </div>
@@ -25,7 +25,7 @@
 <?php if ($isEdit && (int)$edit['id'] !== (int)($admin_user['id'] ?? 0)): ?>
 <div class="admin-card">
   <h2>Account controls</h2>
-  <p>Deactivation signs them out everywhere immediately. Password resets issue a one-time temporary password.</p>
+  <p>Deactivation signs them out everywhere immediately. A password reset issues one temporary password, which they must replace with their own at next sign-in.</p>
   <div class="row-actions">
     <form method="post" action="<?= url('admin/users/' . $edit['id'] . '/reset-password') ?>" data-confirm="Issue a new temporary password for <?= e($edit['name']) ?>?"><?= csrf_field() ?><input type="hidden" name="name" value="<?= e($edit['name']) ?>"><input type="hidden" name="email" value="<?= e($edit['email']) ?>"><input type="hidden" name="role" value="<?= e($edit['role']) ?>"><button type="submit">Reset password</button></form>
     <form method="post" action="<?= url('admin/users/' . $edit['id'] . '/edit') ?>" data-confirm="<?= $edit['active'] ? 'Deactivate' : 'Reactivate' ?> <?= e($edit['name']) ?>?"><?= csrf_field() ?><input type="hidden" name="name" value="<?= e($edit['name']) ?>"><input type="hidden" name="email" value="<?= e($edit['email']) ?>"><input type="hidden" name="role" value="<?= e($edit['role']) ?>"><button type="submit" class="<?= $edit['active'] ? 'danger' : '' ?>" name="<?= $edit['active'] ? 'deactivate' : 'reactivate' ?>" value="1"><?= $edit['active'] ? 'Deactivate account' : 'Reactivate account' ?></button></form>

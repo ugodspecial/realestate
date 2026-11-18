@@ -18,6 +18,12 @@ try {
     elseif($route==='enquiry' && $method==='POST')PublicController::enquiry();
     elseif($route==='login')PublicController::login();
     elseif($route==='logout' && $method==='POST')PublicController::logout();
+    // Password recovery. Both pages sit outside Auth::require() so someone
+    // who cannot sign in can still reach them.
+    elseif($route==='forgot-password')PublicController::forgotPassword($method);
+    elseif($route==='reset-password')PublicController::resetPassword($method);
+    // Reachable while signed in but still holding a password they were given.
+    elseif($route==='force-password-change')PublicController::forcePasswordChange($method);
     elseif($route==='account')PublicController::account();
     elseif($route==='privacy' || $route==='terms')PublicController::legal($route);
     elseif($route==='robots.txt')require ROOT_PATH.'/public/robots.php';

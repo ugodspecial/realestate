@@ -40,6 +40,79 @@ final class PublicController {
         echo view('auth/login',['demo_hint'=>config('demo_mode') ? 'Demo sign-in details are in storage/demo-credentials.json on this machine.' : '']);
     }
     public static function logout(): void { verify_csrf(); Auth::logout(); flash('success','You have been signed out.'); redirect('login'); }
+
+    /**
+     * "Forgot your password?" — accepts an address and always answers the same
+     * way. Whether the address belongs to an account is never revealed.
+     */
+    public static function forgotPassword(string $method): void {
+        if ($method === 'POST') {
+            verify_csrf();
+            $email = strtolower(mb_substr(input('email'), 0, 190));
+            $delivered = PasswordReset::request($email, $_SERVER['REMOTE_ADDR'] ?? '');
+            // In demo mode mail delivery is disabled, so the operator needs a
+            // way to see the link. Show it only where that is already the norm.
+            if ($delivered && config('demo_mode') && !config('mail_enabled')) {
+                $_SESSION['reset_preview'] = ['email' => $email];
+            }
+            flash('success', 'If that email address belongs to a staff account, a reset link is on its way. The link works for ' . PasswordReset::TOKEN_TTL_MINUTES . ' minutes.');
+            redirect('forgot-password');
+        }
+        echo view('auth/forgot-password', ['sent' => isset($_SESSION['reset_preview'])]);
+    }
+
+    /** The page reached from the link in the reset email. */
+    public static function resetPassword(string $method): void {
+        // A submitted form carries the token in the body, not the URL, so read
+        // it from whichever source applies. Reading only the query string
+        // would reject every real submission as an expired link.
+        $token = $method === 'POST' ? (string) input('token') : query_value('token');
+        $error = null;
+        if ($method === 'POST') {
+            verify_csrf();
+            $error = PasswordReset::consume($token, (string) ($_POST['password'] ?? ''), (string) ($_POST['password_confirm'] ?? ''));
+            if ($error === null) {
+                flash('success', 'Your password has been changed. Sign in with your new password.');
+                redirect('login');
+            }
+        }
+        $user = PasswordReset::find($token);
+        if (!$user) {
+            // A refused submission is worth a specific reason; an unknown or
+            // expired link just gets the "request a new one" page.
+            echo view('auth/reset-password', ['token' => '', 'invalid' => $error === null, 'email' => '', 'error' => $error]);
+            return;
+        }
+        echo view('auth/reset-password', ['token' => $token, 'invalid' => false, 'email' => (string) $user['email'], 'error' => $error]);
+    }
+
+    /**
+     * Shown when an account still holds a password somebody else chose for it.
+     * Signing in deliberately does not count as completing this step.
+     */
+    public static function forcePasswordChange(string $method): void {
+        $user = Auth::user();
+        if (!$user) { flash('error', 'Please sign in to continue.'); redirect('login'); }
+        if (!PasswordReset::mustChange($user)) redirect('admin');
+        $error = null;
+        if ($method === 'POST') {
+            verify_csrf();
+            $password = (string) ($_POST['password'] ?? '');
+            $error = PasswordReset::validate($password, (string) ($_POST['password_confirm'] ?? ''));
+            // A one-time password is handed over by an administrator, who may
+            // still be holding it. Reusing it would defeat the whole point.
+            if ($error === null && password_verify($password, (string) Database::value('SELECT password_hash FROM users WHERE id=?', [$user['id']]))) {
+                $error = 'Choose a password that is different from the one you were given.';
+            }
+            if ($error === null) {
+                PasswordReset::applyNewPassword((int) $user['id'], $password);
+                Audit::log('user.password_changed', 'user', (int) $user['id'], 'Chose a new password at first sign-in');
+                flash('success', 'Your password is set. Welcome aboard.');
+                redirect('admin');
+            }
+        }
+        echo view('auth/force-password-change', ['error' => $error, 'name' => (string) $user['name']]);
+    }
     public static function account(): void { Auth::require(); redirect('admin/account'); }
     public static function sitemap(): void {
         header('Content-Type: application/xml; charset=UTF-8');

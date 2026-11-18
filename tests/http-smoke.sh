@@ -20,6 +20,14 @@ expect "listings" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/propertie
 expect "filtered listings" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/properties?deal=sale&min_price=1000000&sort=price_asc")"
 expect "contact" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/contact")"
 expect "login page" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/login")"
+# Account recovery must be reachable without a session, or it is useless.
+expect "forgot password page" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/forgot-password")"
+expect "reset page without a token" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/reset-password")"
+expect "reset page with a bogus token" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/reset-password?token=deadbeef")"
+expect "forced change requires sign-in" 303 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/force-password-change")"
+curl -s "$BASE/login" | grep -qF "Forgot your password?" && pass "login page links to recovery" || fail "login page links to recovery"
+curl -s "$BASE/login" | grep -qE 'href="[^"]*forgot-password"' && pass "recovery link points at the right page" || fail "recovery link points at the right page"
+curl -s "$BASE/reset-password?token=deadbeef" | grep -qF "Link no longer valid" && pass "a bad token is explained" || fail "a bad token is explained"
 expect "admin redirects when signed out" 303 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/admin")"
 expect "missing page is 404" 404 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/no-such-page-here")"
 expect "sitemap" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/sitemap.xml")"
@@ -35,6 +43,42 @@ curl -s "$BASE/" | grep -qF "$(php -r 'require "app/bootstrap.php"; echo brand_l
 COPYRIGHT="$(curl -s "$BASE/" | grep -o '© [0-9]* [^<]*All rights reserved' | head -1)"
 [ -n "$COPYRIGHT" ] && echo "$COPYRIGHT" | grep -qF "$BRAND_NAME" && pass "copyright shows the company name" || fail "copyright shows the company name"
 curl -s "$BASE/" | grep -o '<div class="footer-bottom">.\{0,400\}' | grep -q 'brand-logo' && fail "copyright contains no logo" || pass "copyright contains no logo"
+
+# Password recovery, end to end. A visitor who cannot sign in must be able to
+# recover the account, and a spent link must never work twice.
+RECOVERY_EMAIL="$(php -r '$c=json_decode(file_get_contents("storage/demo-credentials.json"),true); echo $c["content_editor"]["email"];')"
+if [ -n "$RECOVERY_EMAIL" ]; then
+  RJAR="$(mktemp)"
+  RTOK="$(curl -s -c "$RJAR" "$BASE/forgot-password" | grep -o 'name="_token" value="[^"]*"' | head -1 | sed 's/.*value="//;s/"//')"
+  php -r 'require "app/bootstrap.php"; Database::query("DELETE FROM rate_limits");' >/dev/null 2>&1
+  curl -s -b "$RJAR" -c "$RJAR" -o /dev/null --data-urlencode "_token=$RTOK" --data-urlencode "email=nobody-at-all@example.test" "$BASE/forgot-password"
+  curl -s -b "$RJAR" -c "$RJAR" "$BASE/forgot-password" | grep -qF "If that email address belongs to a staff account" \
+    && pass "recovery answers an unknown address neutrally" || fail "recovery answers an unknown address neutrally"
+  rm -f "$RJAR"
+fi
+# A live token: the page offers a form, a weak password is refused, and the
+# token survives that refusal so the visitor can simply try again.
+LIVE_TOKEN="$(php -r 'require "app/bootstrap.php";
+$u=Database::one("SELECT * FROM users WHERE email=?",[(json_decode(file_get_contents("storage/demo-credentials.json"),true)["content_editor"]["email"] ?? "")]);
+echo $u ? PasswordReset::issue((int)$u["id"], $u) : "";' 2>/dev/null)"
+if [ -n "$LIVE_TOKEN" ]; then
+  LJAR="$(mktemp)"
+  LTOK="$(curl -s -c "$LJAR" "$BASE/reset-password?token=$LIVE_TOKEN" | grep -o 'name="_token" value="[^"]*"' | head -1 | sed 's/.*value="//;s/"//')"
+  curl -s -b "$LJAR" -c "$LJAR" "$BASE/reset-password?token=$LIVE_TOKEN" | grep -qF "Choose a new password" \
+    && pass "a live token shows the reset form" || fail "a live token shows the reset form"
+  # The form posts the token in the body, not the URL. This caught a real bug:
+  # reading the token only from the query string rejected every submission.
+  curl -s -b "$LJAR" -c "$LJAR" --data-urlencode "_token=$LTOK" --data-urlencode "token=$LIVE_TOKEN" \
+    --data-urlencode "password=short" --data-urlencode "password_confirm=short" "$BASE/reset-password" \
+    | grep -qF "at least 10 characters" && pass "a short password is refused" || fail "a short password is refused"
+  curl -s -b "$LJAR" -c "$LJAR" --data-urlencode "_token=$LTOK" --data-urlencode "token=$LIVE_TOKEN" \
+    --data-urlencode "password=RecoveredPass-77" --data-urlencode "password_confirm=RecoveredPass-77" "$BASE/reset-password" \
+    | grep -qF "Choose a new password" && fail "a valid reset is accepted" || pass "a valid reset is accepted"
+  curl -s "$BASE/reset-password?token=$LIVE_TOKEN" | grep -qF "Link no longer valid" \
+    && pass "a spent token cannot be reused" || fail "a spent token cannot be reused"
+  php tests/support/restore-demo-account.php content_editor >/dev/null 2>&1
+  rm -f "$LJAR"
+fi
 
 # Mobile navigation markup.
 HOME_HTML="$(curl -s "$BASE/")"

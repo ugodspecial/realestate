@@ -9,7 +9,7 @@ final class Auth {
     public static function user(): ?array {
         if (empty($_SESSION['user_id'])) return null;
         if (isset($_SESSION['last_activity']) && time() - $_SESSION['last_activity'] > 7200) { self::logout(); return null; }
-        $user = Database::one('SELECT id,name,email,role,active,session_version FROM users WHERE id = ?', [$_SESSION['user_id']]);
+        $user = Database::one('SELECT id,name,email,role,active,session_version,must_change_password FROM users WHERE id = ?', [$_SESSION['user_id']]);
         if (!$user || !$user['active'] || (int)$user['session_version'] !== (int)($_SESSION['session_version'] ?? -1)) { self::logout(); return null; }
         $_SESSION['last_activity'] = time();
         return $user;
@@ -18,6 +18,10 @@ final class Auth {
     public static function require(string $permission = 'dashboard'): array {
         $user = self::user();
         if (!$user) { $_SESSION['intended'] = $_SERVER['REQUEST_URI'] ?? url('admin'); redirect('login'); }
+        // An administrator-issued password must never outlive first contact.
+        // The change screen is dispatched outside this method, so redirecting
+        // here cannot loop: every protected page funnels through it.
+        if (PasswordReset::mustChange($user)) redirect('force-password-change');
         if (!self::can($permission)) abort_page(403, 'Your role does not have permission to access this area. Please contact a Super Administrator.');
         return $user;
     }

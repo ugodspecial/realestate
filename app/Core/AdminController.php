@@ -314,10 +314,10 @@ final class AdminController {
             if (Database::one('SELECT id FROM users WHERE email=?', [$data['email']])) $errors[] = 'That email address is already registered.';
             if ($data['role'] === 'super_admin' && $user['role'] !== 'super_admin') $errors[] = 'Only a Super Administrator can grant that role.';
             if ($errors) { remember_old($_POST); foreach ($errors as $e) flash('error', $e); redirect('admin/users/new'); }
-            $id = Database::insert('users', ['name' => $data['name'], 'email' => $data['email'], 'password_hash' => password_hash($data['password'], PASSWORD_DEFAULT), 'role' => $data['role'], 'active' => 1, 'created_at' => Database::now()]);
+            $id = Database::insert('users', ['name' => $data['name'], 'email' => $data['email'], 'password_hash' => password_hash($data['password'], PASSWORD_DEFAULT), 'role' => $data['role'], 'active' => 1, 'must_change_password' => 1, 'created_at' => Database::now()]);
             Audit::log('user.create', 'user', $id, "Created {$data['name']} ({$data['role']})");
             clear_old();
-            flash('success', 'Staff member created. Share their sign-in details securely.');
+            flash('success', 'Staff member created. Share their sign-in details securely — they will be asked to choose their own password at first sign-in.');
             redirect('admin/users');
         }
         if (ctype_digit($action)) {
@@ -348,7 +348,12 @@ final class AdminController {
                 }
                 if ($errors) { remember_old($_POST); foreach ($errors as $e) flash('error', $e); redirect('admin/users/' . $edit['id'] . '/edit'); }
                 $update = ['name' => $data['name'], 'email' => $data['email'], 'role' => $data['role']];
-                if ($data['password'] !== '') $update['password_hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
+                if ($data['password'] !== '') {
+                    $update['password_hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
+                    $update['must_change_password'] = 1;
+                    // Anyone still holding the old password is signed out.
+                    $update['session_version'] = (int)Database::value('SELECT session_version FROM users WHERE id=?', [$edit['id']]) + 1;
+                }
                 if (isset($_POST['deactivate'])) { $update['active'] = 0; $update['session_version'] = (int)Database::value('SELECT session_version FROM users WHERE id=?', [$edit['id']]) + 1; }
                 if (isset($_POST['reactivate'])) $update['active'] = 1;
                 Database::update('users', $update, (int)$edit['id']);
@@ -359,10 +364,9 @@ final class AdminController {
             }
             if ($sub === 'reset-password' && $method === 'POST') {
                 verify_csrf();
-                $temporary = bin2hex(random_bytes(6));
-                Database::update('users', ['password_hash' => password_hash($temporary, PASSWORD_DEFAULT), 'session_version' => (int)Database::value('SELECT session_version FROM users WHERE id=?', [$edit['id']]) + 1], (int)$edit['id']);
+                $temporary = PasswordReset::issueTemporary((int)$edit['id']);
                 Audit::log('user.reset', 'user', (int)$edit['id'], 'Reset password (temporary issued)');
-                flash('success', 'Temporary password: ' . $temporary . ' — share it securely; it will not be shown again.');
+                flash('success', 'Temporary password: ' . $temporary . ' — share it securely; it will not be shown again. They must choose a new password when they sign in.');
                 redirect('admin/users/' . $edit['id'] . '/edit');
             }
         }
@@ -461,9 +465,10 @@ final class AdminController {
             if ((string)($_POST['password'] ?? '') !== '') {
                 $full = Database::one('SELECT password_hash, session_version FROM users WHERE id=?', [$user['id']]);
                 if (!password_verify((string)($_POST['current_password'] ?? ''), (string)$full['password_hash'])) { flash('error', 'Your current password is incorrect.'); redirect('admin/account'); }
-                if (mb_strlen((string)$_POST['password']) < 10) { flash('error', 'New passwords must be at least 10 characters.'); redirect('admin/account'); }
-                if (!hash_equals((string)$_POST['password'], (string)($_POST['password_confirm'] ?? ''))) { flash('error', 'The two new passwords do not match.'); redirect('admin/account'); }
+                $problem = PasswordReset::validate((string)$_POST['password'], (string)($_POST['password_confirm'] ?? ''));
+                if ($problem !== null) { flash('error', $problem); redirect('admin/account'); }
                 $update['password_hash'] = password_hash((string)$_POST['password'], PASSWORD_DEFAULT);
+                $update['must_change_password'] = 0;
                 $update['session_version'] = (int)$full['session_version'] + 1;
                 $_SESSION['session_version'] = (int)$full['session_version'] + 1;
             }

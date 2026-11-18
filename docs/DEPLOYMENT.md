@@ -31,11 +31,30 @@ Set these in cPanel (*Software → MultiPHP INI / Environment*) or your process 
 | `DB_NAME`      | `you_cedar`        | Database name                        |
 | `DB_USER`      | `you_cedar`        | Database user                        |
 | `DB_PASS`      | `…`                | Database password                    |
-| `MAIL_ENABLED` | `true`             | Set `true` to email enquiry alerts   |
-| `MAIL_FROM`    | `noreply@cedar…`   | Sender for enquiry alerts            |
+| `MAIL_ENABLED` | `true`             | Enables enquiry alerts **and password reset emails** |
+| `MAIL_FROM`    | `noreply@cedar…`   | Sender for outgoing mail             |
 
 Optional: `BASE_PATH` (if installed in a subdirectory), `PRETTY_URLS=false` (if
 `mod_rewrite` is unavailable — URLs fall back to `index.php?route=…`).
+
+### Password recovery needs working mail
+
+Staff who forget their password use **Forgot your password?** on the sign-in
+page. That link is only useful if `MAIL_ENABLED` is `true` and `MAIL_FROM` is a
+real address the mail transport will accept — otherwise the message is never
+sent and the request silently does nothing.
+
+Decide what recovery looks like before you need it:
+
+- **With mail configured** (recommended): staff recover themselves. Links are
+  single-use and expire after 60 minutes.
+- **Without mail**: a Super Administrator or Administrator must issue a
+  temporary password from **Staff & users → Edit → Reset password** and pass it
+  on. The staff member is then required to choose their own password before
+  they can use the dashboard.
+
+Test the mail path after deploying: request a reset for your own address and
+confirm the message arrives with a working link.
 
 ## 4. Install the database
 

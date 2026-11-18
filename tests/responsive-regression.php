@@ -229,5 +229,62 @@ ok('the edit screen offers deactivate and reactivate',
     str_contains($usersForm, "'deactivate' : 'reactivate'"));
 ok('the deactivate control asks for confirmation', str_contains($usersForm, 'data-confirm'));
 
+echo "\n== Password lifecycle guards ==\n";
+$resetSrc = (string) file_get_contents($root . '/app/Core/PasswordReset.php');
+$publicSrc = (string) file_get_contents($root . '/app/Core/PublicController.php');
+$routesSrc = (string) file_get_contents($root . '/app/routes.php');
+$loginView = (string) file_get_contents($root . '/app/views/auth/login.php');
+
+// Recovery has to be reachable while signed out, so it must sit outside the
+// admin dispatch that calls Auth::require().
+ok('forgot-password is routed outside the admin area', str_contains($routesSrc, "PublicController::forgotPassword"));
+ok('reset-password is routed outside the admin area', str_contains($routesSrc, "PublicController::resetPassword"));
+ok('the forced change screen is routed', str_contains($routesSrc, "forcePasswordChange"));
+ok('the sign-in page offers password recovery', str_contains($loginView, "forgot-password"));
+
+// An administrator-issued password must never become the permanent one.
+ok('signed-in staff are stopped while a change is pending',
+    (bool) preg_match('/mustChange\(\$user\)\)\s*redirect\(/', $authSrc));
+ok('setting a password by hand flags a change', str_contains($adminSrc, "'must_change_password' => 1"));
+ok('the staff reset issues a forced change', str_contains($adminSrc, 'PasswordReset::issueTemporary'));
+ok('clearing the flag happens when the user chooses their own',
+    str_contains($resetSrc, "'must_change_password' => 0"));
+
+// Token handling. These are the parts that are easy to get wrong and quiet
+// when they are.
+ok('only a hash of the token is stored', str_contains($resetSrc, "hash('sha256', \$token)"));
+ok('a token is spent exactly once', str_contains($resetSrc, 'AND used_at IS NULL'));
+ok('expiry compares timestamps without a timezone shift',
+    str_contains($resetSrc, '(string) $row[\'expires_at\'] <= Database::now()'));
+ok('resetting bumps the session version', str_contains($resetSrc, "'session_version' => \$current + 1"));
+ok('an inactive account cannot request a reset', (bool) preg_match('/!\$user\s*\|\|\s*!\$user\[.active.\]/', $resetSrc));
+ok('a new request replaces the previous token', str_contains($resetSrc, 'DELETE FROM password_resets WHERE user_id'));
+
+// The submitted form carries the token in the body. Reading it only from the
+// query string silently rejected every real submission; this is the guard.
+ok('the reset handler reads the token from the submitted form',
+    (bool) preg_match('/\$method === .POST. \? \(string\) input\(.token.\)/', $publicSrc));
+ok('passwords are validated in one place', str_contains($resetSrc, 'public static function validate'));
+
+// The user must be told nothing about whether an address has an account.
+ok('recovery answers every address the same way',
+    str_contains($publicSrc, 'If that email address belongs to a staff account'));
+
+// Touch targets. The recovery link sits next to the sign-in button and is the
+// one control a locked-out visitor on a phone must be able to hit.
+$cssSrc = (string) file_get_contents($root . '/public/assets/css/site.css');
+ok('the recovery link has a full-height tap target',
+    (bool) preg_match('/\.login-links a\{[^}]*min-height:44px/', $cssSrc));
+ok('the sign-out control is not styled as an uppercase CTA',
+    str_contains($cssSrc, '.login-signout-link{') && !preg_match('/\.login-signout[^{]*\.text-link/', $cssSrc));
+// The mobile panel stacked its contents with space-between inside a fixed
+// min-height, which overlapped the wordmark with the eyebrow.
+ok('the stacked auth panel spaces its contents instead of overlapping',
+    (bool) preg_match('/\.login-visual\{gap:\d+px/', $cssSrc));
+ok('the sign-in page does not link back to itself',
+    str_contains((string) file_get_contents($root . '/app/views/auth/shell.php'), 'hideBackLink'));
+
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);
+
+

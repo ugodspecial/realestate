@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.4.3 — 2026-11-03
+
+Password lifecycle: staff choose their own password at first sign-in, and can
+recover an account they are locked out of.
+
+**First sign-in.** A password typed by an administrator — whether on the create
+form, the edit form, or via **Reset password** — is now temporary. The account
+is flagged, and every admin page redirects to a change screen until the person
+chooses a password of their own. The issued password cannot be reused for this.
+This matters more than it looks: previously an administrator-chosen password
+could quietly remain the account's permanent one, so the administrator kept
+knowing a working credential for someone else's account, indefinitely.
+
+**Forgotten password.** **Forgot your password?** on the sign-in page emails a
+single-use link that expires after 60 minutes. The form answers identically
+whether or not the address has an account, so it cannot be used to discover who
+works here. Only a hash of the token is stored, a new request invalidates any
+earlier link, and completing a reset signs the account out everywhere.
+
+**Also fixed while in here:**
+
+- `password_resets` existed in the schema but nothing used it; it now records
+  when a token was issued and spent, so a link is provably single-use.
+- Resetting a password did not bump `session_version` in one path, which would
+  have left an existing session alive after a reset.
+- The four signed-out pages now share one shell instead of duplicating the
+  page markup, so they cannot drift apart.
+- On mobile the auth panel stacked its contents with no gap inside a fixed
+  min-height, so the eyebrow overlapped the wordmark.
+- The new recovery link was a 16px-tall tap target on a phone.
+- The forced-change screen styled its sign-out button with `.text-link`, which
+  renders as an uppercase display-font CTA.
+
+Migration 003 adds `users.must_change_password` and the reset bookkeeping
+columns. Existing accounts are **not** forced to change their password on
+upgrade — only newly issued ones are.
+
+`php tests/password-reset.php` covers the above and runs in CI.
+
 ## 1.3.3 — 2026-11-03
 
 Finished the session-rotation fix from 1.3.2.
