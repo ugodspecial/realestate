@@ -1,13 +1,31 @@
 # Changelog
 
+## 1.8.3 — 2026-11-03
+
+**Restore the About page body copy.** The previous release removed the two
+`about_body` paragraphs on a misreading of the review note. A company page with
+no explanation of the company is not a design improvement — the copy is restored
+in full and in order beneath the summary:
+
+  "Cedar Tranquility Real Estate connects people with places they can believe
+  in. From the energy of Lagos to the possibilities of Abuja, we bring local
+  knowledge, careful selection, and a personal approach to every property
+  journey."
+
+  "We take time to understand what matters to you. Then we help you explore the
+  options, ask the right questions, and move forward with clarity. No
+  unnecessary complexity. No one-size-fits-all advice. Just thoughtful real
+  estate, with people at its heart."
+
+The panel now reads: eyebrow, title, summary, the two paragraphs, then the
+call to action. An empty paragraph is skipped rather than rendering as a gap, so
+an editor clearing the field leaves no stray spacing.
+
 ## 1.8.2 — 2026-11-03
 
 Four corrections from review.
 
-**About page.** The two body paragraphs (`about_body`) are removed, so the panel
-now runs eyebrow, title, one-line summary, link — the composition in the review
-screenshot. The `about_body` setting is untouched; the home page still draws its
-first paragraph from it.
+**About page.** (Superseded by 1.8.3 — the body copy was restored.)
 
 **Home about image.** Reported as no longer visible while the About page showed
 the same file. The difference was the `mask` reveal on the home copy: it starts
