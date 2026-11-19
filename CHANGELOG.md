@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.8.6 — 2026-11-03
+
+**The About copy never appeared on a production install. Tile labels broke
+mid-word. The service heading was boxed.**
+
+*About copy — the actual cause.* The About page has always rendered
+`about_body`, and the demo database always contained the paragraphs, which is
+why this looked fixed twice. It was not: `bin/install.php` seeded `about_body`
+as an empty string. A production install therefore had a lead paragraph and no
+company description — exactly the panel in the screenshot, whose summary text
+("Thoughtful real estate, with people at its heart") is the installer's default,
+not the demo seed's.
+
+The copy now lives in one place, `ABOUT_BODY_DEFAULT`, used by the installer,
+the demo seed and the About view. The view uses `?:` rather than `??` because
+`setting()` only falls back on a missing key, and an empty string is present —
+that distinction is why an earlier fallback attempt changed nothing. Verified by
+clearing `about_body` in the database: both paragraphs still render.
+
+*Category labels broke mid-word.* `overflow-wrap:anywhere` with `hyphens:auto`
+let the browser break inside a word, so APARTMENTS and COMMERCIAL rendered as
+"APARTMEN / TS" and "COMMERCI / AL". A property type is one word; the rule is
+now `overflow-wrap:normal`, and the size ramp is verified to fit the longest
+label at every breakpoint instead of breaking to escape.
+
+*The icon went back to the corner.* It is once more in the top-right of the
+tile, on the number's line, as it was before the visual-effects work — but as a
+grid item in that row rather than an absolute overlay. That keeps the original
+position and still guarantees the label can never slide beneath it. Because the
+label now owns the full tile width, it is set at 2.55vw (up from 2.05vw).
+
+*Mobile tiles.* One column below 400px became a compact horizontal row —
+number, label and count on the left, icon top-right — instead of a full-screen
+stack of five near-identical panels.
+
+*Service headings.* `.service-detail h2` was capped at `max-width:22ch` inside a
+1050px column, so a three-word heading broke over three lines and read as
+though it were boxed, and it was lumped into the 20-29px sub-heading ramp. It
+is now 24-34px at 46ch, and fits on one line at every width from 768 up.
+
 ## 1.8.5 — 2026-11-03
 
 **Fix the stray dark pill, and size the category tiles to the approved

@@ -8,7 +8,7 @@ return static function (): void {
         'about_eyebrow'=>'ROOTED IN TRUST. BUILT AROUND YOU.',
         'about_title'=>"MORE THAN PROPERTY.\nA PARTNER FOR WHAT'S NEXT.",
         'about_summary'=>'A new home. A first investment. A space for your next big idea. Whatever brings you here, we believe the right property should open a door to a better future.',
-        'about_body'=>"Cedar Tranquility Real Estate connects people with places they can believe in. From the energy of Lagos to the possibilities of Abuja, we bring local knowledge, careful selection, and a personal approach to every property journey.\n\nWe take time to understand what matters to you. Then we help you explore the options, ask the right questions, and move forward with clarity. No unnecessary complexity. No one-size-fits-all advice. Just thoughtful real estate, with people at its heart.",
+        'about_body'=>ABOUT_BODY_DEFAULT,
         'contact_title'=>"EVERY GREAT MOVE\nSTARTS WITH A CONVERSATION.",
         'contact_intro'=>'Tell us what you have in mind. Our property advisors are here to help you take the next step.',
         'email'=>'hello@cedartranquility.example','notify_email'=>'hello@cedartranquility.example',

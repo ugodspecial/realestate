@@ -147,6 +147,12 @@ function setting(string $key, string $default = ''): string {
     if ($settings === null) { try { $settings = array_column(Database::all('SELECT key_name, value FROM settings'), 'value', 'key_name'); } catch (Throwable $e) { $settings = []; } }
     return (string)($settings[$key] ?? $default);
 }
+/* The company description shown on the About page. Defined once so the view
+   fallback, the demo seed and the production installer cannot drift apart: a
+   fresh production install used to seed about_body as an empty string, so the
+   About page rendered a lead paragraph and no company description at all. */
+const ABOUT_BODY_DEFAULT = "Cedar Tranquility Real Estate connects people with places they can believe in. From the energy of Lagos to the possibilities of Abuja, we bring local knowledge, careful selection, and a personal approach to every property journey.\n\nWe take time to understand what matters to you. Then we help you explore the options, ask the right questions, and move forward with clarity. No unnecessary complexity. No one-size-fits-all advice. Just thoughtful real estate, with people at its heart.";
+
 function brand(): string { return setting('brand_name') ?: setting('site_name') ?: 'Cedar Tranquility Real Estate'; }
 function brand_tagline(): string { return setting('brand_tagline') ?: 'REAL ESTATE'; }
 /**
