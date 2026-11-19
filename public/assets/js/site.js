@@ -180,3 +180,240 @@ document.addEventListener('keydown',function(e){
 });
 open();
 })();
+
+/* ===========================================================================
+   Motion system
+   ---------------------------------------------------------------------------
+   Dependency-free and progressive. Everything here is an enhancement: the
+   document is complete and readable without it, and every effect switches
+   itself off when the visitor has asked for reduced motion.
+
+   Design notes:
+   - Reveals use one shared IntersectionObserver and unobserve on first entry,
+     so the cost falls as the page is read rather than rising.
+   - Parallax is batched into a single requestAnimationFrame per scroll and
+     writes only `transform`, so it never triggers layout.
+   - Nothing here queries the DOM on every frame.
+   =========================================================================== */
+(function () {
+  'use strict';
+  var d = document;
+  /* matchMedia is present in every browser we support, but partial or shimmed
+     implementations can return undefined. Resolve to a harmless stub so the
+     module never dereferences a missing MediaQueryList. */
+  function media(query) {
+    try {
+      var mql = window.matchMedia && window.matchMedia(query);
+      if (mql && typeof mql.matches === 'boolean') return mql;
+    } catch (err) { /* fall through to the stub */ }
+    return { matches: false, addEventListener: null, addListener: null };
+  }
+  var reduce = media('(prefers-reduced-motion: reduce)');
+
+  /* Mark the document as scripted. The stylesheet only hides [data-reveal]
+     under `.js`, so a visitor without JavaScript sees the finished page. */
+  d.documentElement.classList.add('js');
+
+  var supportsIO = 'IntersectionObserver' in window;
+
+  /* One scroll listener for the whole module, batched into a single frame.
+     Registered here so everything below can call onScroll() safely. */
+  var scrollHandlers = [];
+  function onScroll(fn) { scrollHandlers.push(fn); }
+
+  /* ------------------------------------------------------- Scroll reveals */
+  var revealItems = Array.prototype.slice.call(d.querySelectorAll('[data-reveal]'));
+
+  /* A group staggers its own children, so markup only has to say "group". */
+  d.querySelectorAll('[data-reveal-group]').forEach(function (group) {
+    Array.prototype.forEach.call(group.children, function (child, i) {
+      if (!child.hasAttribute('data-reveal')) child.setAttribute('data-reveal', group.getAttribute('data-reveal-group') || 'up');
+      if (!child.hasAttribute('data-reveal-delay')) child.setAttribute('data-reveal-delay', String(i * 90));
+      revealItems.push(child);
+    });
+  });
+
+  function applyDelay(el) {
+    var delay = el.getAttribute('data-reveal-delay');
+    if (delay) el.style.setProperty('--reveal-delay', delay + 'ms');
+  }
+  revealItems.forEach(applyDelay);
+
+  function showNow(el) {
+    el.classList.add('is-in');
+    var wrap = el.closest('.img-reveal');
+    if (wrap) wrap.classList.add('is-in');
+  }
+
+  if (!reduce.matches && supportsIO) {
+    var revealObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        showNow(entry.target);
+        revealObserver.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.06 });
+    revealItems.forEach(function (el) {
+      /* Anything already on screen at load is revealed immediately: waiting for
+         a scroll that may never come would leave the first screen blank. */
+      var box = el.getBoundingClientRect();
+      if (box.top < window.innerHeight && box.bottom > 0) { showNow(el); return; }
+      revealObserver.observe(el);
+    });
+  } else {
+    revealItems.forEach(showNow);
+  }
+
+  /* --------------------------------------------------- Reading progress bar */
+  var progress = d.querySelector('.read-progress > span');
+  var progressWrap = d.querySelector('.read-progress');
+  if (progress && progressWrap) {
+    var tickProgress = function () {
+      var doc = d.documentElement;
+      var max = doc.scrollHeight - window.innerHeight;
+      var y = window.scrollY || doc.scrollTop || 0;
+      var ratio = max > 0 ? Math.min(1, Math.max(0, y / max)) : 0;
+      progress.style.transform = 'scaleX(' + ratio.toFixed(4) + ')';
+      progressWrap.classList.toggle('is-visible', y > window.innerHeight * 0.6);
+    };
+    onScroll(tickProgress);
+    tickProgress();
+  }
+
+  /* ----------------------------------------------------------- Header state */
+  var header = d.querySelector('.site-header');
+  if (header) {
+    var lastState = null;
+    var tickHeader = function () {
+      var scrolled = (window.scrollY || 0) > 12;
+      if (scrolled === lastState) return;
+      lastState = scrolled;
+      header.classList.toggle('is-scrolled', scrolled);
+    };
+    onScroll(tickHeader);
+    tickHeader();
+  }
+
+  /* -------------------------------------------------------------- Parallax
+     Elements may declare data-parallax="0.12" (positive drifts down, negative
+     drifts up as the page scrolls). The offset is relative to the element's
+     position in the viewport, so items settle rather than drift forever. */
+  var parallaxItems = Array.prototype.slice.call(d.querySelectorAll('[data-parallax]'));
+  if (parallaxItems.length && !reduce.matches) {
+    var ticking = false;
+    var applyParallax = function () {
+      var vh = window.innerHeight;
+      for (var i = 0; i < parallaxItems.length; i++) {
+        var el = parallaxItems[i];
+        var box = el.getBoundingClientRect();
+        /* Skip anything far off screen: no point computing it. */
+        if (box.bottom < -200 || box.top > vh + 200) continue;
+        var strength = parseFloat(el.getAttribute('data-parallax')) || 0.1;
+        var centre = box.top + box.height / 2 - vh / 2;
+        var shift = centre * strength * -0.35;
+        el.style.transform = 'translate3d(0,' + shift.toFixed(2) + 'px,0)';
+      }
+      ticking = false;
+    };
+    var requestParallax = function () {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(applyParallax);
+    };
+    window.addEventListener('scroll', requestParallax, { passive: true });
+    window.addEventListener('resize', requestParallax, { passive: true });
+    requestParallax();
+  }
+
+  /* --------------------------------------------------- Anchor smooth scroll
+     Native `scroll-behavior: smooth` covers most cases; this adds the header
+     offset for in-page links and moves focus for keyboard users, which a
+     native smooth scroll does not do. */
+  d.addEventListener('click', function (event) {
+    var link = event.target.closest && event.target.closest('a[href^="#"]');
+    if (!link) return;
+    var id = link.getAttribute('href');
+    if (!id || id === '#' || id.length < 2) return;
+    var target = d.querySelector(id);
+    if (!target) return;
+    event.preventDefault();
+    var top = target.getBoundingClientRect().top + window.scrollY - (header ? header.offsetHeight + 16 : 90);
+    window.scrollTo({ top: top, behavior: reduce.matches ? 'auto' : 'smooth' });
+    /* Focus without a second scroll, so screen readers land where the eye does. */
+    if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+    if (history.replaceState) history.replaceState(null, '', id);
+  });
+
+  /* ------------------------------------------------ Pointer-capable hovers
+     Card tilt is skipped on touch, where there is no hover to respond to and
+     the motion would fight the scroll. */
+  var finePointer = media('(hover: hover) and (pointer: fine)');
+  if (finePointer.matches && !reduce.matches) {
+    d.querySelectorAll('[data-tilt]').forEach(function (card) {
+      var rect = null;
+      var raf = null;
+      var move = function (event) {
+        if (raf) return;
+        raf = window.requestAnimationFrame(function () {
+          raf = null;
+          if (!rect) rect = card.getBoundingClientRect();
+          var px = (event.clientX - rect.left) / rect.width - 0.5;
+          var py = (event.clientY - rect.top) / rect.height - 0.5;
+          var max = parseFloat(card.getAttribute('data-tilt')) || 5;
+          card.style.transform =
+            'perspective(900px) rotateX(' + (-py * max).toFixed(2) + 'deg) rotateY(' + (px * max).toFixed(2) + 'deg) translate3d(0,-6px,0)';
+        });
+      };
+      card.addEventListener('pointerenter', function () { rect = card.getBoundingClientRect(); });
+      card.addEventListener('pointermove', move);
+      card.addEventListener('pointerleave', function () {
+        if (raf) { window.cancelAnimationFrame(raf); raf = null; }
+        card.style.transform = '';
+        rect = null;
+      });
+    });
+  }
+
+  /* -------------------------------------------------- Scroll spy for in-page
+     navigation: marks the link whose section is currently in view. */
+  var spyLinks = Array.prototype.slice.call(d.querySelectorAll('[data-spy] a[href^="#"]'));
+  if (spyLinks.length && supportsIO) {
+    var sections = spyLinks.map(function (a) { return d.querySelector(a.getAttribute('href')); }).filter(Boolean);
+    if (sections.length) {
+      var spy = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          spyLinks.forEach(function (a) {
+            a.classList.toggle('active', a.getAttribute('href') === '#' + entry.target.id);
+          });
+        });
+      }, { rootMargin: '-45% 0px -50% 0px' });
+      sections.forEach(function (s) { spy.observe(s); });
+    }
+  }
+
+
+  /* One rAF-batched listener drives every scroll-dependent effect above. */
+  if (scrollHandlers.length) {
+    var scrollTick = false;
+    window.addEventListener('scroll', function () {
+      if (scrollTick) return;
+      scrollTick = true;
+      window.requestAnimationFrame(function () {
+        scrollTick = false;
+        for (var i = 0; i < scrollHandlers.length; i++) scrollHandlers[i]();
+      });
+    }, { passive: true });
+    window.addEventListener('resize', function () {
+      for (var i = 0; i < scrollHandlers.length; i++) scrollHandlers[i]();
+    }, { passive: true });
+  }
+
+  /* Re-check when the visitor changes the preference mid-session. */
+  if (reduce.addEventListener) {
+    reduce.addEventListener('change', function (e) {
+      if (e.matches) revealItems.forEach(showNow);
+    });
+  }
+})();

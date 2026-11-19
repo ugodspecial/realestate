@@ -1,5 +1,69 @@
 # Changelog
 
+## 1.6.0 — 2026-11-03
+
+Visual redesign. Every public page was rebuilt in place: the markup, content,
+routes, permissions and business logic are unchanged, and the stylesheet was
+extended rather than replaced.
+
+**What was wrong.** The site was correct and forgettable. Each page was the
+same shape — eyebrow, heading, card grid, repeat — so nothing guided the eye or
+gave a section its own identity. The hero left its right half empty on wide
+screens, the about story was a wall of text, every feature was three equal
+boxes, and the property page was one long undifferentiated column. There was no
+motion at all, and the pages were static on arrival.
+
+**The design system.** A fluid type scale (`--step--1` … `--step-6`) replaces
+fixed sizes, so headings scale with the viewport instead of snapping at
+breakpoints. Elevation is a five-step shadow scale rather than one blur, easing
+is named (`--ease-out`, `--ease-in-out`, `--ease-spring`), and durations are
+tokens so motion stays consistent. A grain overlay and layered gradients give
+the dark surfaces depth without an image.
+
+**Each section now has its own composition.** The featured listings open with a
+large lead card ringed by two smaller ones. The about story is an editorial
+split with a figures rail drawn from the live database. The values are a
+hairline-separated row, not cards. Locations are a mosaic whose first tile
+carries the section at twice the size. The difference section is a numbered
+rail with icons that invert on hover. Testimonials lead with one large quote and
+stack the rest beside it. The services band gets a vertical sheen and cards
+whose left rule lights up.
+
+**Motion.** Reveals are opt-in per element (`data-reveal="up|fade|left|right|
+scale|mask"`), staggered automatically inside a `data-reveal-group`, and driven
+by one shared `IntersectionObserver`. The hero adds a masked rise and a drawn
+rule on arrival; images open through a mask; the hero image drifts against the
+scroll (`data-parallax`); a reading-progress bar tracks the long pages; the
+header turns glass once scrolled; the mobile drawer staggers its items. Every
+effect is bound to a single rAF-batched scroll listener and writes only
+`transform` or `opacity`.
+
+**Accessibility.** `[data-reveal]` is hidden only under `.js`, so a visitor
+without JavaScript sees the finished page. If `IntersectionObserver` is
+missing, everything is revealed immediately. `prefers-reduced-motion:reduce`
+zeroes every animation and transition, forces reveals visible, hides the
+progress bar, and skips both parallax and tilt. Two contrast failures found by
+measurement were corrected — the gold process ordinal (2.26:1 → 4.85:1) and the
+contact detail lines (3.35:1 → 5.07:1). A missing `h2` on the results list
+restored the heading order, and a duplicate `data-reveal` attribute was removed.
+
+**Fixed along the way.**
+
+- The stylesheet's later global rules were overriding the original stylesheet's
+  breakpoint-specific ones, silently breaking the mobile layout. Every affected
+  selector is now reconciled inside its own media query, and the mosaic,
+  testimonial lead card and featured lead card each collapse properly.
+- `media()` guards `matchMedia`: a partial implementation returning `undefined`
+  no longer throws and takes the whole motion module down with it.
+
+**Verification.** All six public pages render, parse as well-formed documents,
+and pass structural accessibility checks (one `h1`, no heading jumps, alt text,
+labelled controls, no duplicate ids, no focusable content inside `aria-hidden`).
+`smoke` 120, `responsive-regression` 113, `seo` 48, `dashboard-scope` 38 all
+pass. `role-matrix` and `security` fail identically on an untouched checkout —
+their `shell_exec(PHP_BINARY …)` cannot spawn PHP under the wasm runtime — so
+that is environmental, not a regression.
+
 ## 1.5.1 — 2026-11-03
 
 The listing manager and the content editor were being shown the same dashboard.

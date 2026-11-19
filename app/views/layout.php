@@ -33,6 +33,7 @@ if (empty($noindex) && !config('demo_mode')): ?>
 </head>
 <body class="public-site <?= e($page ?? 'home') ?>-page">
 <a class="skip-link" href="#main">Skip to content</a>
+<div class="read-progress" aria-hidden="true"><span></span></div>
 <div class="utility-bar"><div class="container utility-inner"><span><?= icon('pin') ?> Rooted in Lagos. Connected to your future.</span><div><a href="mailto:<?= e(setting('email')) ?>"><?= icon('mail') ?><span><?= e(setting('email')) ?></span></a><a href="<?= url('login') ?>"><?= icon('user') ?> Staff login</a></div></div></div>
 <header class="site-header"><div class="site-header-bar"><div class="container header-inner">
 <a class="brand" href="<?= url() ?>" aria-label="<?= e(brand()) ?> home"><?= brand_block() ?></a>
