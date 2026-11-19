@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.8.5 — 2026-11-03
+
+**Fix the stray dark pill, and size the category tiles to the approved
+reference.**
+
+*The pill on every page.* A 62x41px dark rounded rectangle floated above the
+mobile navigation on every page at every scroll position. It was the toast — the
+element that carries "Saved", "Link copied" and similar confirmations.
+
+The toast exists in the DOM on every page so screen readers can announce it, and
+it is empty until there is something to say. It carried
+`animation: toast-in .55s both` unconditionally, and a `both` fill-mode keeps an
+animation's end state forever — the end state here being `opacity:1`. So the
+empty toast was painted at full opacity from first paint, overriding the
+`opacity:0` in its own base rule. With no text it collapsed to its padding, which
+is exactly the 62x41px pill in the screenshot. Because `--z-toast` (500) sits
+above `--z-drawer` (210), it also drew on top of the mobile menu.
+
+The animation now belongs to `.toast.show`, so it only runs when there is a
+message to animate in, and `.toast:empty` is held at `opacity:0` regardless.
+
+*Category tiles.* Rebuilt to the proportions of the supplied reference, which
+measured 337x312px with an 83px ghost number, a 34px icon and a 43px label. The
+tiles were 120-152px tall with a 30px label, and could not grow because the
+tile headline was grouped into two shared type ramps (`.property-card h3,
+.service-card h3, .category-card h3, ...`) that pinned it to 17-21px, and two
+older breakpoints restated it at 30-34px. The headline is now out of both ramps
+and sized only by the tile block.
+
+Five tiles at the reference width need a 1713px band, which is wider than the
+1240px container. The tiles therefore sit in their own centred band capped at
+94vw, while the section heading stays on the normal container edge. The label
+is capped at 42px — the largest size at which APARTMENTS (5.406em) still clears
+the icon track at 1025px, where the five-across band is tightest. Verified at
+fourteen widths from 360 to 1920: no label wraps, no icon collides, tile content
+always fits its height, and all five tiles share one height at every size.
+
 ## 1.8.4 — 2026-11-03
 
 **Stack the split panels, clear the floats, align the category tiles.** Three
