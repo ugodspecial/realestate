@@ -1,5 +1,74 @@
 # Changelog
 
+## 1.8.0 — 2026-11-03
+
+Third and final design pass. The first two passes built systems; this one removes
+what the systems had accumulated, and fixes a hero headline that was clipping.
+
+**What was wrong.** Successive design passes had *stacked* effects rather than
+replacing them. Twenty-six hover selectors were declared two to four times with
+conflicting values: `.property-card:hover` carried four different transforms
+(-5px, -8px, none, -5px) and `.location-card:hover` fired five animations at
+once — a lift, a shadow, a 1.06 image scale, a 6px copy slide and a 4px icon
+slide. Each was defensible alone; together the eye could not tell which movement
+was the point. The file also held 166 `:hover` rules, 28 transitions with no
+easing curve (falling back to the browser's lifeless default `ease`), and
+sixteen different section paddings.
+
+**Removed.**
+
+- `:hover` rules 166 → 103. Movement properties stripped from the superseded
+  declarations at their original line sites, not merely overridden later — an
+  appended rule renders correctly but leaves the file carrying dead weight.
+- No hover rule anywhere now performs two geometric moves at once. One transform
+  per element, one shadow, one direction of travel for every "go" icon (3px up
+  and right, replacing twelve different offsets).
+- The hero was running two competing entrance choreographies (`hero-rise`, 0.9s
+  staggered, and `enter-up`, 0.62–0.78s hard-coded). The second never rendered —
+  it lost the cascade — so its delays were dead code. One choreography remains.
+- An infinite 34-second sheen on the services band. It could not be perceived
+  during a scroll past, so it was only a repaint cost. Now a static gradient.
+
+**Timing.** Every transition draws from four durations and two named curves.
+Nothing is left on the browser default. The reveal stagger is now adaptive: a
+fixed 90ms step meant a five-tile grid spent 450ms starting its last tile and a
+nine-card results page would have spent 720ms. The step shrinks as the group
+grows, so any row finishes within ~310ms.
+
+**Type.** Headings were pinned to a flat 47px above 767px and 35px below — a
+step, not a scale, and two headings of equal rank could differ by 9px at the same
+viewport. All display headings now use one fluid ramp, verified monotonic from
+320 to 2560px, with each rank holding a guaranteed floor above the rank beneath.
+
+**Fixed: the hero headline was clipping on phones.** Read from the shipped
+Rajdhani Bold file, "FIND YOUR SPACE." advances 7.318em plus 0.14em tracking per
+gap: at 38px that is 358px of type against 304px of usable width on a 360px
+phone. It overflowed inside the hero's `overflow:hidden` on every screen below
+414px. The ramp is now derived from those measured metrics and holds ≤92% column
+fill at all widths; narrow phones drop tracking rather than type size.
+
+**Accessibility and touch.**
+
+- Body text moved from 4.23:1 to 4.89:1 on paper (5.26:1 on white, 4.54:1 on the
+  pale green wash) — it was under the 4.5:1 threshold on every surface.
+- The save button (33px square) and detail-header icon buttons were below the
+  44px touch minimum; both now meet it, with 18px of clearance from the badges.
+
+**Performance.** The stylesheet's design-rationale comments cost 23 KB gzipped —
+more than half of what it now weighs. They are preserved verbatim in
+`docs/design-notes-css.md`; the shipped CSS keeps only section markers.
+
+- CSS 50.7 → **32.8 KB gzipped** (222 → 167 KB raw, −37%).
+- JS 7.2 → 7.4 KB gzipped (adaptive stagger).
+- Home page markup unchanged at 71 KB.
+
+**Verified.** smoke, responsive-regression (113), seo (48), accounts (17),
+dashboard-scope (38), migrations, logo-sanitizer (28); jsdom suites for drawer,
+toast, gallery, sort, motion, reveal and a11y all clean. Zero heading or
+longest-word overflows across 8 pages × 10 viewport widths. All 9 keyframes
+declared and used, no orphans in either direction; no empty rules, no unbalanced
+braces.
+
 ## 1.7.0 — 2026-11-03
 
 Second design pass. The first pass gave every section its own composition; this

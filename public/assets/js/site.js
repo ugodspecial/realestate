@@ -244,7 +244,16 @@ open();
   d.querySelectorAll('[data-reveal-group]').forEach(function (group) {
     Array.prototype.forEach.call(group.children, function (child, i) {
       if (!child.hasAttribute('data-reveal')) child.setAttribute('data-reveal', group.getAttribute('data-reveal-group') || 'up');
-      if (!child.hasAttribute('data-reveal-delay')) child.setAttribute('data-reveal-delay', String(i * 90));
+      if (!child.hasAttribute('data-reveal-delay')) {
+        /* A fixed step punishes long rows: at 90ms a five-tile grid spends 450ms
+           starting its last tile, and a nine-card results page would spend
+           720ms. The step shrinks as the group grows so the whole row always
+           finishes within roughly the same window, and it is capped so a long
+           grid still resolves promptly. */
+        var count = group.children.length || 1;
+        var step = Math.max(26, Math.min(90, Math.round(340 / count)));
+        child.setAttribute('data-reveal-delay', String(i * step));
+      }
       revealItems.push(child);
     });
   });
