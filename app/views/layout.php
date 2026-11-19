@@ -18,8 +18,8 @@
 <?php if($ogUrl): ?><link rel="canonical" href="<?= e($ogUrl) ?>">
 <?php endif; ?>
 <link rel="icon" href="<?= asset('images/favicon.svg') ?>" type="image/svg+xml">
-<link rel="preload" href="<?= asset('fonts/Rajdhani-SemiBold.ttf') ?>" as="font" type="font/ttf" crossorigin>
-<link rel="preload" href="<?= asset('fonts/Roboto[wdth,wght].ttf') ?>" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="<?= asset('fonts/Rajdhani-SemiBold.ttf', false) ?>" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="<?= asset('fonts/Roboto[wdth,wght].ttf', false) ?>" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="<?= asset('css/site.css') ?>">
 <?php
 // Site-wide business schema on every page, plus the page-specific schema
@@ -35,7 +35,9 @@ if (empty($noindex) && !config('demo_mode')): ?>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="read-progress" aria-hidden="true"><span></span></div>
 <div class="utility-bar"><div class="container utility-inner"><span><?= icon('pin') ?> Rooted in Lagos. Connected to your future.</span><div><a href="mailto:<?= e(setting('email')) ?>"><?= icon('mail') ?><span><?= e(setting('email')) ?></span></a><a href="<?= url('login') ?>"><?= icon('user') ?> Staff login</a></div></div></div>
-<header class="site-header"><div class="site-header-bar"><div class="container header-inner">
+<header class="site-header">
+<div class="nav-overlay" aria-hidden="true"></div>
+<div class="site-header-bar"><div class="container header-inner">
 <a class="brand" href="<?= url() ?>" aria-label="<?= e(brand()) ?> home"><?= brand_block() ?></a>
 <nav class="main-nav" id="main-nav" aria-label="Main navigation">
 <button class="main-nav-close" type="button" aria-label="Close navigation"><?= icon('close') ?></button>
@@ -45,7 +47,6 @@ if (empty($noindex) && !config('demo_mode')): ?>
 <a href="<?= url('contact') ?>" class="btn btn-primary header-cta">Let’s talk <?= icon('arrow-up') ?></a>
 <button class="mobile-toggle" aria-label="Open navigation" aria-controls="main-nav" aria-expanded="false"><span class="toggle-icon-open"><?= icon('menu') ?></span><span class="toggle-icon-close" aria-hidden="true"><?= icon('close') ?></span></button>
 </div></div></header>
-<div class="nav-overlay" aria-hidden="true"></div>
 <div class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <main id="main">
 <?php

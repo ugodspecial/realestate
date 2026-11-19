@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 define('ROOT_PATH', dirname(__DIR__));
-define('APP_VERSION', '1.8.6');
+define('APP_VERSION', '1.8.7');
 $config = require ROOT_PATH . '/app/config.php';
 date_default_timezone_set('Africa/Lagos');
 mb_internal_encoding('UTF-8');
@@ -22,20 +22,35 @@ set_exception_handler(static function (Throwable $e): void {
 });
 if (PHP_SAPI !== 'cli') {
     $https = is_https();
+    // Do not announce the PHP version to every visitor and scanner.
+    header_remove('X-Powered-By');
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
+    // Collect abandoned sessions ourselves. Some distributions ship PHP with
+    // garbage collection off (gc_probability=0) and rely on a cron job that only
+    // cleans the default save path - so sessions kept under storage/ would pile
+    // up, one per anonymous visitor. 7200s matches the idle timeout in Auth.
+    ini_set('session.gc_probability', '1');
+    ini_set('session.gc_divisor', '100');
+    ini_set('session.gc_maxlifetime', '7200');
     session_name($config['session_name']);
     session_set_cookie_params(['lifetime'=>0, 'path'=>$config['base_path'] ?: '/', 'secure'=>$https, 'httponly'=>true, 'samesite'=>'Lax']);
     $sessionPath = ROOT_PATH . '/storage/sessions';
     if (is_dir($sessionPath) && is_writable($sessionPath)) session_save_path($sessionPath);
-    session_start();
+    // Not for health checks and crawler files: see session_wanted().
+    if (session_wanted()) session_start();
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+    header('Cross-Origin-Opener-Policy: same-origin');
+    // CSP frame-ancestors is the modern control; this covers older browsers. It
+    // used to be sent only when APP_ENV=production, so forgetting that one
+    // variable silently dropped the clickjacking fallback and HSTS as well.
+    header('X-Frame-Options: SAMEORIGIN');
+    if ($https) header('Strict-Transport-Security: max-age=31536000');
     header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'");
     if ($config['app_env'] === 'production') {
-        header('X-Frame-Options: SAMEORIGIN');
         header('Cache-Control: private, no-store');
-        if ($https) header('Strict-Transport-Security: max-age=31536000');
     }
 }

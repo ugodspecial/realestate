@@ -396,6 +396,8 @@ body.nav-scroll-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
     background:#fff;
     display:flex;flex-direction:column;align-items:stretch;
     padding:96px 35px 40px;margin:0;gap:5px;
+    /* Clear the iOS home indicator; the line above is the fallback. */
+    padding-bottom:calc(40px + env(safe-area-inset-bottom,0px));
     z-index:60;
     transform:translate3d(100%,0,0);
     transition:transform .3s;
@@ -4139,7 +4141,11 @@ summary,
    =========================================================================== */
 @media(max-width:1024px){
   body{padding-bottom:0}
-  .site-footer{padding-bottom:84px}
+  /* The reserve must clear BOTH controls: WhatsApp spans 16-64px from the
+     bottom, the back-to-top button 76-114px. 84px only cleared the first, so at
+     360-390px the centred copyright ran under the back-to-top button (measured
+     in a real browser). 124px = 114px + 10px of clearance. */
+  .site-footer{padding-bottom:124px}
   .whatsapp-float{right:14px;bottom:16px}
   .back-top{right:16px;bottom:76px}
 }
@@ -4240,10 +4246,19 @@ summary,
    1713px band — wider than the 1240px container the rest of the page uses. So
    the tiles get their own wider band, centred, while the section heading stays
    on the normal container edge. The width is capped at 94vw so the band keeps
-   the site's gutter on a large screen and never touches the viewport edge. */
+   the site's gutter on a large screen and never touches the viewport edge.
+
+   Centring: `margin-inline:auto` does NOT centre a box that is wider than its
+   container — the auto margins resolve to zero, so the band sat flush with the
+   container's left edge and spilled to the right (14px past the screen at 1440,
+   about half a tile at 1920). Here the band is placed by its own centre line
+   instead: half the container, less half the band. That is a positive margin
+   when the band is narrower than the container and a negative one when it is
+   wider, so it is centred either way and the width is unchanged. */
 .category-grid-wrap{
-  width:min(1720px,94vw);
-  margin-inline:auto;
+  --band:min(1720px,94vw);
+  width:var(--band);
+  margin-inline:calc(50% - var(--band) / 2);
 }
 .category-grid{
   /* Five across, and each tile is square-ish like the reference. Below 640 the
@@ -4403,4 +4418,172 @@ summary,
   .category-card h3{font-size:23px}
   .category-bottom{grid-row:2;grid-column:2;margin-top:2px}
   .category-bottom .icon{display:none}
+}
+
+/* ===========================================================================
+   MOBILE NAV — the drawer must own the whole screen while it is open
+   ---------------------------------------------------------------------------
+   No menu item was tappable. Measured in a real browser at 390px with
+   document.elementFromPoint(): every item — including the close button — was
+   covered by div.nav-overlay.
+
+   Cause. The drawer lives inside .site-header, which is position:sticky and so
+   ALWAYS forms a stacking context (z-index:auto does not avoid it). The drawer's
+   z-index:210 is therefore compared only against its siblings inside the header;
+   at the top level the whole header competes as one box at --z-sticky (100). The
+   scrim sat outside the header at --z-overlay (200) and so painted over the
+   entire header — drawer included — and received every tap, which it treats as
+   "close". The original rules had scrim 55 under header 70; the z-index scale
+   consolidation raised the scrim to 200 and the header only to 100, inverting it.
+
+   Fix. The scrim now lives inside the header (see layout.php), in the same
+   stacking context as the drawer, so the scale means what it says: scrim 200,
+   drawer 210. Raising the drawer's own z-index could never have worked.
+   =========================================================================== */
+
+/* The WhatsApp button (48px) and back-to-top (38px) are --z-float (300), which
+   is above the header's context (100). At 390px they sit at x 328-376, inside
+   the drawer's x 55-390 band, at the bottom of the viewport. While the drawer is
+   open they are removed from painting and hit-testing, and fade back on close. */
+html.nav-open .whatsapp-float,
+html.nav-open .back-top,
+html.nav-open .read-progress{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+@media(prefers-reduced-motion:no-preference){
+  .whatsapp-float,
+  .back-top{transition:opacity .2s ease,visibility 0s linear .2s,right .2s,transform .2s}
+  html.nav-open .whatsapp-float,
+  html.nav-open .back-top{transition:opacity .2s ease,visibility 0s linear 0s,right .2s,transform .2s}
+}
+
+/* Comfortable tap targets, and bottom padding that clears the iOS home bar. */
+@media(max-width:1024px){
+  .main-nav>a,
+  .main-nav .mobile-nav-cta{
+    min-height:48px;
+    display:flex;
+    align-items:center;
+  }
+  .main-nav .mobile-nav-cta{justify-content:center}
+}
+
+/* The scrim only exists for the off-canvas drawer (<=1024px). Above that the
+   navigation is inline, so the element is removed outright rather than left as
+   an empty box that happens to have no size. */
+@media(min-width:1025px){
+  .nav-overlay{display:none}
+}
+
+/* ===========================================================================
+   FOOTER — phones and tablets
+   ---------------------------------------------------------------------------
+   Below 1025px the footer was a single column of 12 links at ~50px pitch (and a
+   brand/Explore, Company/Contact pairing on tablets, which split Explore from
+   Our company). It is now:
+
+       brand ........................... full width
+       EXPLORE        | OUR COMPANY ..... two equal columns
+       GET IN TOUCH .................... full width (an e-mail address and a
+                                          street address need the room)
+
+   Explore and Our company hold links of at most ~118px at 14px, so two columns
+   fit comfortably down to 320px (each column is ~136px there).
+
+   The legal row is a two-column grid so Privacy policy and Terms of use sit side
+   by side, and the note and copyright are centred. The DOM order is unchanged
+   (legal, note, copyright) - a regression test pins it.
+   =========================================================================== */
+@media(max-width:1024px){
+  .footer-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    column-gap:clamp(20px,6vw,56px);
+    row-gap:clamp(30px,6vw,44px);
+    padding:clamp(34px,6vw,52px) 0 clamp(30px,5vw,40px);
+  }
+  .footer-grid>.footer-brand-col,
+  .footer-grid>.footer-contact{grid-column:1 / -1}
+  .footer-brand-col>p{max-width:46ch}
+
+  /* One consistent 44px row per link instead of 40px + 10px margin + padding. */
+  .footer-grid>.footer-col>a:not(.brand){
+    margin-top:0;
+    padding-block:0;
+    min-height:44px;
+  }
+  .footer-grid>.footer-col>h3{margin-bottom:6px}
+  .footer-grid>.footer-col>a.footer-address{min-height:44px;padding-block:6px}
+  .footer-grid>.footer-contact>a.footer-whatsapp{margin-top:6px!important}
+}
+
+/* Tablet: the contact details have room to sit two across. */
+@media(min-width:641px) and (max-width:1024px){
+  .footer-grid>.footer-contact{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    column-gap:clamp(20px,6vw,56px);
+    align-items:start;
+  }
+  .footer-grid>.footer-contact>h3{grid-column:1 / -1}
+  /* Two across, so the WhatsApp row must not carry the single-column offset. */
+  .footer-grid>.footer-contact>a.footer-whatsapp{margin-top:0!important}
+}
+
+/* The bottom bar: centred, with the two legal links as a two-column row. */
+@media(max-width:1024px){
+  .footer-bottom{
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    gap:6px;
+    padding-top:var(--space-4);
+  }
+  .footer-bottom .footer-legal-links{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:0;
+    width:min(100%,360px);
+    margin-bottom:6px;
+  }
+  .footer-bottom .footer-legal-links a{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:44px;
+    padding-inline:12px;
+    text-align:center;
+  }
+  .footer-bottom .footer-legal-links a+a{border-left:1px solid #ffffff1f}
+  .footer-bottom .footer-legal-links a::after{display:none}
+  .footer-note,
+  .footer-bottom .footer-copyright{
+    display:block;
+    width:100%;
+    margin:0;
+    text-align:center;
+    text-wrap:balance;
+  }
+  .footer-note{line-height:1.6}
+  .footer-bottom .footer-copyright{line-height:1.6}
+}
+
+/* ===========================================================================
+   HEADER LOGO - tap area (1.8.7)
+
+   On a phone the logo is the link home, and the touch box around it was only
+   as tall as the artwork: 37px at 320-360px, 42px above that, and 35-39px once
+   the header shrinks on scroll. The footer links and the menu already use a
+   44px+ row, so the most-used link on the page was the smallest target.
+
+   The link now has a 48px minimum height (45px while the header is scrolled
+   and scaled to .94). The link is already a vertically centred flex row inside
+   a vertically centred bar, so the extra height is added equally above and
+   below: the symbol and wordmark do not move. At 1025px and up the link is
+   already 51px tall, so this is a phone and tablet rule only.
+   =========================================================================== */
+@media(max-width:1024px){
+  .site-header .brand{min-height:48px}
 }

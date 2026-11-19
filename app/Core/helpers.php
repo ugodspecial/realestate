@@ -10,12 +10,20 @@ function url(string $path = '', array $params = []): string {
     if ($params) $url .= (str_contains($url, '?') ? '&' : '?') . http_build_query($params);
     return $url;
 }
-function asset(string $path): string {
+function asset(string $path, bool $versioned = true): string {
     /* Append the application version so a new release always loads the
        current stylesheet and script. Without it the browser can keep
        serving a cached copy of the asset indefinitely, which leaves the
-       page behaving in unexpected ways after a deployment. */
+       page behaving in unexpected ways after a deployment.
+
+       Pass $versioned = false for a file that is requested by URL from
+       somewhere that cannot carry the version - the font files named in
+       the stylesheet's @font-face rules. A preload only helps when its URL
+       is byte-for-byte the one the page later asks for; with "?v=" on the
+       preload and none on the @font-face the browser fetched every
+       preloaded font twice. */
     $url = base_path() . '/assets/' . ltrim($path, '/');
+    if (!$versioned) return $url;
     $version = defined('APP_VERSION') ? APP_VERSION : '1';
     return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . rawurlencode($version);
 }
@@ -26,17 +34,31 @@ function image_url(?string $path): string {
     return asset('images/hero-villa.jpg');
 }
 /**
+ * The scheme and host that an absolute link may use, or '' when none is known.
+ *
+ * A Host header is chosen by whoever sends the request, so it can only be
+ * believed where a wrong answer is harmless. APP_URL is the one trustworthy
+ * source and always wins. Without it, a well-formed Host stands in for things
+ * that are shown only to the person who asked (canonical and Open Graph tags,
+ * the sitemap, JSON-LD) - never for anything that is delivered to someone else.
+ * See PasswordReset::link() for the case that must not use it.
+ */
+function trusted_origin(): string {
+    $configured = rtrim((string) config('app_url'), '/');
+    if ($configured !== '') return $configured;
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    // A hostname with an optional port. No userinfo, quotes, slashes or spaces.
+    if ($host === '' || strlen($host) > 253 || !preg_match('/^[a-z0-9](?:[a-z0-9.\-]*[a-z0-9])?(?::\d{1,5})?$/i', $host)) return '';
+    return (is_https() ? 'https://' : 'http://') . $host;
+}
+/**
  * Absolute URL of the current page, used for the canonical link, the Open
  * Graph url and the sitemap. Returns an empty string when no public host is
  * known, so nothing is emitted rather than a wrong guess.
  */
 function social_url(): string {
-    $base = rtrim((string) config('app_url'), '/');
-    if ($base === '') {
-        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
-        if ($host === '' || !preg_match('/^[a-z0-9.\-]+(:\d+)?$/i', $host)) return '';
-        $base = (is_https() ? 'https://' : 'http://') . $host;
-    }
+    $base = trusted_origin();
+    if ($base === '') return '';
     $route = trim((string) ($GLOBALS['route'] ?? ($_GET['route'] ?? '')), '/');
     if (in_array($route, ['', 'home'], true)) return $base . '/';
     if (str_starts_with($route, 'public/')) $route = substr($route, 7);
@@ -46,11 +68,7 @@ function social_url(): string {
 function social_image_url(?string $photo = null): string {
     $relative = $photo ? image_url($photo) : asset('images/hero-villa.jpg');
     if (preg_match('#^https?://#i', $relative)) return $relative;
-    $base = '';
-    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
-    if (preg_match('/^[a-z0-9.\-]+(:\d+)?$/i', $host)) $base = (is_https() ? 'https://' : 'http://') . $host;
-    elseif (config('app_url')) $base = rtrim((string) config('app_url'), '/');
-    return $base . $relative;
+    return trusted_origin() . $relative;
 }
 /** Opening hours as a clean list, one entry per line in the admin. */
 function office_hours(): array {
@@ -107,6 +125,28 @@ function redirect(string $path, int $status = 303): never {
     $path = ltrim($path, "/\\");
     header('Location: ' . url($path), true, $status);
     exit;
+}
+/**
+ * Whether this request should start a session.
+ *
+ * Uptime monitors and crawlers call /health, /robots.txt and /sitemap.xml all
+ * day and never send a cookie back, so a session per request means one new file
+ * in storage/sessions per request - and a Set-Cookie nobody keeps. Anyone can
+ * do the same on purpose to fill the disk. None of these three endpoints reads
+ * or writes session data, so they get none.
+ *
+ * The route is normalised exactly as app/routes.php does, and the answer is
+ * "yes" for anything unusual (an array in ?route=, a malformed URL): if this
+ * ever disagrees with the router it must err towards having a session.
+ */
+function session_wanted(): bool {
+    $raw = $_GET['route'] ?? parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+    if (!is_string($raw)) return true;
+    $route = trim($raw, '/');
+    $base = trim(base_path(), '/');
+    if ($base !== '' && str_starts_with($route, $base . '/')) $route = substr($route, strlen($base) + 1);
+    if (str_starts_with($route, 'public/')) $route = substr($route, 7);
+    return !in_array($route, ['health', 'robots.txt', 'sitemap.xml'], true);
 }
 function request_method(): string { return strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'); }
 function input(string $key, mixed $default = ''): mixed { $value = $_POST[$key] ?? $default; if (is_array($value)) return $default; return is_string($value) ? trim($value) : $value; }

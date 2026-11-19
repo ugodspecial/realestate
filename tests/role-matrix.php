@@ -264,7 +264,12 @@ if ($r['code'] !== 303) {
     $probeId = Database::insert('enquiries', [
         'reference' => $probeRef, 'name' => 'Probe', 'email' => 'probe@example.test',
         'phone' => '', 'message' => 'probe', 'status' => 'new', 'property_id' => null,
+        // admin_notes and updated_at are NOT NULL with no default; without them
+        // this probe threw instead of reporting that the environment cannot
+        // observe the write.
+        'admin_notes' => '',
         'created_at' => Database::now(),
+        'updated_at' => Database::now(),
     ]);
     $seen = str_contains(http('GET', $base . '/admin/enquiries', $jars['super_admin'])['body'], $probeRef);
     Database::query('DELETE FROM enquiries WHERE id = ?', [$probeId]);

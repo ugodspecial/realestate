@@ -111,6 +111,72 @@ ok('the footer reserves space for the floating buttons on small screens',
 ok('the copyright is indented clear of the floating buttons on wide screens',
     (bool) preg_match('/@media\(min-width:1025px\)\{\s*\.footer-bottom\{padding-right:\s*(?:[89]\d|1\d\d)px\}/i', $css));
 
+echo "\n== Header logo is a real tap target ==\n";
+// The logo is the most-used link on a phone and its box was only as tall as the
+// artwork (37-42px, 35-39px once scrolled). It is a centred flex row in a
+// centred bar, so a min-height grows the target without moving the artwork.
+ok('the header logo has a 48px minimum height on phones and tablets',
+    (bool) preg_match('/@media\(max-width:1024px\)\{\s*\.site-header \.brand\{min-height:\s*(?:4[8-9]|[5-9]\d)px\}\s*\}/', $css));
+ok('the logo link stays a vertically centred flex row, so the extra height is symmetric',
+    (bool) preg_match('/\.brand\{[^}]*display:(?:inline-)?flex[^}]*align-items:center/', $css));
+
+echo "\n== Category band is centred ==\n";
+// `margin-inline:auto` cannot centre a box wider than its container: the auto
+// margins resolve to 0 and the box sits flush-left, spilling to the right. The
+// 1720px/94vw band IS wider than the 1240px container above ~1320px, so on a
+// 1440px screen it ran 14px off the edge and at 1920px lost half a tile.
+preg_match('/\.category-grid-wrap\{([^}]*)\}/', $css, $band);
+$bandRule = $band[1] ?? '';
+ok('the category band rule exists', $bandRule !== '');
+ok('the band is positioned from its own centre line',
+    (bool) preg_match('/margin-inline:\s*calc\(\s*50%\s*-\s*var\(--band\)\s*\/\s*2\s*\)/', $bandRule));
+ok('the band does not rely on auto margins', !preg_match('/margin-inline:\s*auto/', $bandRule));
+ok('the band width is one variable, so width and margin cannot drift apart',
+    (bool) preg_match('/--band:\s*min\(1720px,\s*94vw\)/', $bandRule) && (bool) preg_match('/width:\s*var\(--band\)/', $bandRule));
+
+echo "\n== Footer columns on phones and tablets ==\n";
+// Explore and Our company sit side by side below 1025px. They used to stack into
+// one column on phones and, on tablets, were each paired with something else
+// (brand | Explore, Company | Contact), which separated the two link lists.
+$posExplore = strpos($footer, 'footer-explore');
+$posCompany = strpos($footer, 'footer-company');
+$posContact = strpos($footer, 'footer-contact');
+ok('the footer marks its three link columns', $posExplore !== false && $posCompany !== false && $posContact !== false);
+ok('Explore comes first, then Our company, then Get in touch',
+    $posExplore !== false && $posCompany > $posExplore && $posContact > $posCompany);
+ok('the footer columns carry the right headings',
+    (bool) preg_match('/footer-explore"><h3>EXPLORE/', $footer)
+    && (bool) preg_match('/footer-company"><h3>OUR COMPANY/', $footer)
+    && (bool) preg_match('/footer-contact"><h3>GET IN TOUCH/', $footer));
+ok('the two link lists are two equal columns at tablet and phone widths',
+    (bool) preg_match('/@media\(max-width:1024px\)\{\s*\.footer-grid\{\s*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/', $css));
+ok('the brand and the contact details span both columns',
+    (bool) preg_match('/\.footer-grid>\.footer-brand-col,\s*\.footer-grid>\.footer-contact\{grid-column:\s*1\s*\/\s*-1\}/', $css));
+ok('the grid is not collapsed to one column again below 641px',
+    !preg_match('/@media\(max-width:(?:640|600|480|420|400)px\)\{[^@]*?\.footer-grid\{[^}]*grid-template-columns:\s*1fr[;}]/', substr($css, (int) strrpos($css, 'FOOTER — phones and tablets'))));
+ok('each footer link row is a comfortable tap target',
+    (bool) preg_match('/\.footer-grid>\.footer-col>a:not\(\.brand\)\{[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/', $css));
+
+echo "\n== Footer bottom row on phones and tablets ==\n";
+ok('Privacy policy and Terms of use are a two-column row',
+    (bool) preg_match('/\.footer-bottom\s+\.footer-legal-links\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/', $css));
+ok('each legal link is a full-height tap target',
+    (bool) preg_match('/\.footer-bottom\s+\.footer-legal-links\s+a\{[^}]*min-height:\s*(?:4[4-9]|[5-9]\d)px/', $css));
+ok('the bottom row is centred',
+    (bool) preg_match('/\.footer-bottom\{[^}]*flex-direction:\s*column[^}]*align-items:\s*center[^}]*text-align:\s*center/', $css));
+ok('the footer note and the copyright are centred',
+    (bool) preg_match('/\.footer-note,\s*\.footer-bottom\s+\.footer-copyright\{[^}]*text-align:\s*center/', $css));
+ok('the copyright no longer pushes itself right with an auto margin on phones',
+    (bool) preg_match('/\.footer-note,\s*\.footer-bottom\s+\.footer-copyright\{[^}]*margin:\s*0[;}]/', $css));
+// The reserve must clear BOTH floating controls, or the centred copyright runs
+// under the back-to-top button (it did at 360-390px with the old 84px).
+preg_match('/@media\(max-width:1024px\)\{\s*body\{padding-bottom:0\}.*?\.site-footer\{padding-bottom:\s*(\d+)px\}.*?\.back-top\{right:16px;bottom:(\d+)px\}/s', $css, $reserve);
+preg_match('/\.back-top\{[^}]*?width:\s*(\d+)px;\s*height:\s*(\d+)px/s', $css, $backTop);
+$reservePx = (int) ($reserve[1] ?? 0);
+$backTopTop = (int) ($reserve[2] ?? 0) + (int) ($backTop[2] ?? 999);
+ok('the footer reserve is at least as tall as the back-to-top button sits',
+    $reservePx >= $backTopTop + 8, "reserve {$reservePx}px, button top edge {$backTopTop}px");
+
 echo "\n== Demo-only copy and empty sections ==\n";
 $homeView = (string) file_get_contents($root . '/app/views/public/home.php');
 ok('the testimonial demo note only renders in demo mode',

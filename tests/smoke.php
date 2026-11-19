@@ -130,13 +130,29 @@ check('mobile toggle has an accessible label', str_contains($layoutSrc, 'aria-la
 check('mobile toggle controls the main nav', str_contains($layoutSrc, 'aria-controls="main-nav"'));
 check('mobile nav has a stable id', str_contains($layoutSrc, 'id="main-nav"'));
 check('nav overlay is present', str_contains($layoutSrc, 'class="nav-overlay"'));
-// The overlay sits beside the header, not inside it, so it cannot paint
-// over the navigation panel that lives in the header.
-check('nav overlay sits beside the header', preg_match('#</header>\s*<div class="nav-overlay"#s', $layoutSrc) === 1);
+// The scrim must share a stacking context with the drawer. .site-header is
+// position:sticky, which ALWAYS forms a stacking context, so a scrim placed
+// outside the header is compared against the whole header (--z-sticky), never
+// against the drawer inside it. With the scrim at --z-overlay (200) and the
+// header at --z-sticky (100) it painted over every menu item and received each
+// tap as "close" — measured with elementFromPoint, 0 of 7 items were reachable.
+// An earlier version of this check asserted the opposite structure.
+check('nav overlay lives inside the header, in the drawer\'s stacking context', preg_match('#<header class="site-header">\s*<div class="nav-overlay"#s', $layoutSrc) === 1);
+check('nav overlay is not left outside the header', preg_match('#</header>\s*<div class="nav-overlay"#s', $layoutSrc) === 0);
 check('toggle shows a close icon when open', str_contains($layoutSrc, 'toggle-icon-close'));
 check('toggle shows a menu icon when closed', str_contains($layoutSrc, 'toggle-icon-open'));
 
 $css = (string) file_get_contents(ROOT_PATH . '/public/assets/css/site.css');
+$zToken = static function (string $name) use ($css): int {
+    return preg_match('/--' . preg_quote($name, '/') . ':\s*(\d+)/', $css, $m) === 1 ? (int) $m[1] : -1;
+};
+check('z scale: the scrim ranks below the drawer it shares a context with', $zToken('z-overlay') > 0 && $zToken('z-overlay') < $zToken('z-drawer'));
+check('z scale: floating controls rank above the header', $zToken('z-float') > $zToken('z-sticky'));
+check('z scale: toasts rank above dialogs, dialogs above floats', $zToken('z-toast') > $zToken('z-dialog') && $zToken('z-dialog') > $zToken('z-float'));
+// The floats (z 300) sit above the header context, and at phone widths sit inside
+// the drawer's footprint, so they must stand down while the drawer is open.
+check('floating controls stand down while the drawer is open', preg_match('/html\.nav-open \.whatsapp-float,\s*html\.nav-open \.back-top[^{]*\{[^}]*pointer-events:none/s', $css) === 1);
+check('scrim is removed outright on desktop', preg_match('/@media\(min-width:1025px\)\{\s*\.nav-overlay\{display:none\}/', $css) === 1);
 check('horizontal overflow is clipped', str_contains($css, 'html{overflow-x:hidden}'));
 check('nav is anchored to the viewport edge', preg_match('/\.main-nav\{[^}]*right:0/', $css) === 1 || str_contains($css, 'right:0;bottom:0;left:auto'));
 check('nav has a hidden closed state', str_contains($css, '.main-nav:not(.open){visibility:hidden}'));
@@ -199,6 +215,110 @@ check('assets carry a version query string', str_contains($helpersSrc, "'v='"));
 check('the asset helper uses the application version', str_contains($helpersSrc, 'APP_VERSION'));
 $htaccess = (string) file_get_contents(ROOT_PATH . '/.htaccess');
 check('static assets send cache headers', str_contains($htaccess, 'Cache-Control'));
+
+// Reflected XSS is the easy one to introduce: a template that echoes request data
+// without e(). No template may print anything read from the request unescaped. (Echoes
+// of values that merely came from the database are covered by the live tests in
+// tests/security.php, which plant markup in a title and look for it in the page.)
+$rawRequestEchoes = [];
+$viewIterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(ROOT_PATH . '/app/views', FilesystemIterator::SKIP_DOTS));
+foreach ($viewIterator as $viewFile) {
+    if ($viewFile->getExtension() !== 'php') { continue; }
+    $viewSource = (string) file_get_contents($viewFile->getPathname());
+    if (preg_match_all('/<\?=\s*(.*?)\s*\?>/s', $viewSource, $echoes)) {
+        foreach ($echoes[1] as $expression) {
+            $readsRequest = preg_match('/\$_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b|\binput\(|\bquery_value\(|\bold\(/', $expression) === 1;
+            // Escaped, cast, or a comparison that can only print one of two literals ("... ? 'selected' : ''").
+            $isSafe = preg_match('/^(?:e\(|\(int\)|\(float\)|rawurlencode\(|urlencode\(|json_encode\()/', $expression) === 1
+                || preg_match('/^[^?]+\?\s*\'[^\']*\'\s*:\s*\'[^\']*\'$/', $expression) === 1;
+            if ($readsRequest && !$isSafe) { $rawRequestEchoes[] = str_replace(ROOT_PATH . '/app/views/', '', $viewFile->getPathname()) . ': ' . substr(preg_replace('/\s+/', ' ', $expression), 0, 70); }
+        }
+    }
+}
+check('no template echoes request data without escaping it', $rawRequestEchoes === [], implode(' | ', array_slice($rawRequestEchoes, 0, 3)));
+
+// Health checks and crawler files must not start a session (a session is a file on
+// disk per request, from clients that never keep a cookie). The decision has to agree
+// with the router, and has to err towards "yes, start one" whenever it is unsure.
+$savedServer = $_SERVER; $savedGet = $_GET;
+$sessionCases = [
+    ['/health', null, false], ['/health/', null, false], ['/health?x=1', null, false],
+    ['/robots.txt', null, false], ['/sitemap.xml', null, false], ['/public/health', null, false],
+    ['/index.php?route=health', 'health', false],
+    ['/', null, true], ['/about', null, true], ['/contact', null, true], ['/login', null, true], ['/admin', null, true],
+    ['/forgot-password', null, true], ['/healthz', null, true], ['/health/x', null, true], ['/Health', null, true],
+    ['/%68ealth', null, true], ['/sitemap.xml.php', null, true], ['/index.php?route=login', 'login', true],
+    // "//health" parses as a host with no path, so the router serves the home page: it needs a session.
+    ['//health', null, true],
+];
+foreach ($sessionCases as [$uri, $route, $wanted]) {
+    $_SERVER['REQUEST_URI'] = $uri; unset($_GET['route']);
+    if ($route !== null) { $_GET['route'] = $route; }
+    check('session policy: ' . $uri . ($wanted ? ' starts one' : ' does not'), session_wanted() === $wanted);
+}
+$_SERVER['REQUEST_URI'] = '/health'; $_GET['route'] = ['health'];
+check('session policy: an array in ?route= keeps the session (the safe direction)', session_wanted() === true);
+$_SERVER = $savedServer; $_GET = $savedGet;
+$bootSrc = (string) file_get_contents(ROOT_PATH . '/app/bootstrap.php');
+check('bootstrap starts the session only through session_wanted()', str_contains($bootSrc, 'if (session_wanted()) session_start();') && substr_count($bootSrc, 'session_start()') === 1);
+
+// SQLite journal mode: WAL by default, one of a short list otherwise, never raw config.
+$dbSrc = (string) file_get_contents(ROOT_PATH . '/app/Core/Database.php');
+$cfgSrc = (string) file_get_contents(ROOT_PATH . '/app/config.php');
+check('the SQLite journal mode defaults to WAL', preg_match("/'sqlite_journal_mode'\s*=>\s*getenv\('SQLITE_JOURNAL_MODE'\)\s*\?:\s*'wal'/", $cfgSrc) === 1);
+check('the journal mode is chosen from a whitelist', str_contains($dbSrc, "in_array(\$journal, ['wal', 'delete', 'truncate', 'persist'], true)"));
+check('a value outside the whitelist falls back to WAL', str_contains($dbSrc, "\$journal = 'wal';"));
+check('the pragma is built only from the whitelisted value', str_contains($dbSrc, "'PRAGMA journal_mode = ' . \$journal") && !str_contains($dbSrc, 'PRAGMA journal_mode = WAL'));
+if (config('db_driver') === 'sqlite') {
+    $wantMode = strtolower((string) (getenv('SQLITE_JOURNAL_MODE') ?: 'wal'));
+    if (!in_array($wantMode, ['wal', 'delete', 'truncate', 'persist'], true)) { $wantMode = 'wal'; }
+    check('the open connection really uses the configured journal mode', strtolower((string) Database::value('PRAGMA journal_mode')) === $wantMode);
+}
+
+// A preloaded font is only used if its URL is exactly the one @font-face asks
+// for. The preload carried "?v=<version>" and the stylesheet cannot, so every
+// preloaded font was downloaded twice (about 860 KB on a first visit).
+$layoutSrc = (string) file_get_contents(ROOT_PATH . '/app/views/layout.php');
+$fontCss = (string) file_get_contents(ROOT_PATH . '/public/assets/css/site.css');
+preg_match_all('/<link rel="preload" href="<\?= asset\(\'fonts\/([^\']+)\'(, false)?\) \?>" as="font"([^>]*)>/', $layoutSrc, $preloads, PREG_SET_ORDER);
+check('the page preloads its fonts', count($preloads) >= 1);
+foreach ($preloads as $pl) {
+    check('preload of ' . $pl[1] . ' is unversioned, like its @font-face', ($pl[2] ?? '') === ', false');
+    check('preload of ' . $pl[1] . ' is for a font the stylesheet declares', str_contains($fontCss, "url('../fonts/" . $pl[1] . "')"));
+    check('preload of ' . $pl[1] . ' is anonymous-CORS, as font fetches are', str_contains($pl[3], 'crossorigin'));
+}
+check('asset() can return an unversioned URL', preg_match('/function asset\(string \$path, bool \$versioned = true\)/', $helpersSrc) === 1);
+check('an unversioned asset URL has no query string', strpos(asset('fonts/x.ttf', false), '?') === false);
+check('a versioned asset URL still carries ?v=', str_contains(asset('css/site.css'), '?v='));
+
+// Apache is not available to the test suite, and one unbalanced container tag
+// makes it answer every request with a 500. So check what can be checked here:
+// every <IfModule>/<FilesMatch>/... opens and closes, in order, in every file.
+foreach (['.htaccess', 'public/.htaccess', 'public/uploads/.htaccess', 'storage/.htaccess'] as $rel) {
+    $path = ROOT_PATH . '/' . $rel;
+    if (!is_file($path)) { continue; }
+    $stack = []; $ok = true; $why = '';
+    foreach (preg_split('/\R/', (string) file_get_contents($path)) as $n => $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') { continue; }
+        if (preg_match('/^<\s*(IfModule|IfDefine|FilesMatch|Files|Directory|DirectoryMatch|Location|LocationMatch|Limit|LimitExcept|If|Else|ElseIf)\b/i', $line, $m) && !str_starts_with($line, '</')) {
+            $stack[] = strtolower($m[1]);
+        } elseif (preg_match('/^<\/\s*([A-Za-z]+)\s*>/', $line, $m)) {
+            $top = array_pop($stack);
+            if ($top !== strtolower($m[1])) { $ok = false; $why = 'line ' . ($n + 1) . ' closes ' . $m[1] . ' but ' . ($top ?? 'nothing') . ' is open'; break; }
+        }
+    }
+    if ($ok && $stack) { $ok = false; $why = 'unclosed: ' . implode(', ', $stack); }
+    check($rel . ' has balanced container tags' . ($ok ? '' : ' (' . $why . ')'), $ok);
+}
+$publicHt = (string) file_get_contents(ROOT_PATH . '/public/.htaccess');
+foreach (['.htaccess' => $htaccess, 'public/.htaccess' => $publicHt] as $rel => $ht) {
+    preg_match('/<IfModule mod_deflate\.c>\s*<FilesMatch "([^"]+)">\s*SetOutputFilter DEFLATE\s*<\/FilesMatch>\s*<\/IfModule>/', $ht, $df);
+    check($rel . ' compresses static assets, guarded by IfModule', !empty($df[1]));
+    check($rel . ' compresses CSS, JS and fonts', !empty($df[1]) && str_contains($df[1], 'css') && str_contains($df[1], 'js') && str_contains($df[1], 'ttf'));
+    check($rel . ' never compresses HTML (BREACH) or PHP output', !empty($df[1]) && !preg_match('/html?|php/', $df[1]));
+    check($rel . ' does not compress already-compressed formats', !empty($df[1]) && !preg_match('/woff|jpe?g|png|webp|gif|mp4/', $df[1]));
+}
 check('the navigation has one desktop rule', substr_count($css, '.site-header .main-nav{') === 2);
 check('the navigation close button is hidden on a desktop', str_contains($css, '.site-header .main-nav-close{display:none}'));
 check('the admin sidebar is sticky', str_contains($css, 'position:sticky;top:0;height:100vh;overflow-y:auto'));

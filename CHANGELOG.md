@@ -1,5 +1,137 @@
 # Changelog
 
+## 1.8.7 — 2026-11-03
+
+**No menu item could be tapped. The footer is two columns on phones and
+tablets. A full audit of the site — layout, spacing, performance and security —
+and the fixes it found.**
+
+> **Upgrade note.** In production, `APP_URL` is now required for password-reset
+> emails. Without it no reset email is sent (see *Security* below). Set it to
+> your public address, e.g. `APP_URL=https://www.example.com`; `php
+> bin/status.php` warns when it is missing.
+
+*The mobile menu.* Every item was dead: 0 of 7 reachable in a real browser. The
+dimming layer behind the drawer sat outside the sticky header. A sticky header
+is always its own stacking context, so no `z-index` can lift the drawer's links
+above a layer outside it, and every tap landed on the dimmer, which closed the
+menu. (Setting the header to `z-index:auto` was tried first and measured worse.)
+The fix is structural: the dimmer now lives inside the header and shares the
+drawer's stacking context. Drawer links are 48px rows, the floating WhatsApp and
+back-to-top buttons step aside while the menu is open, and the dimmer is removed
+from layout on desktop. 7 of 7 items are reachable at 360, 390, 414, 768 and
+1024px, and the open/close/Escape/resize flow passes 22 of 22 checks at 390 and
+768. A smoke test had been pinning the broken structure ("the overlay sits
+beside the header"); it now asserts the working one.
+
+*Footer.* Explore and Our company sit side by side on phones and tablets (two
+equal columns, with the brand and the contact details spanning both). Link rows
+are 44px. On wider phones and tablets the contact details run two across.
+Privacy policy and Terms of use are a two-column row with a divider, and the
+note and copyright are centred. The page now reserves 124px beneath the footer:
+at 360-390px the centred copyright ran under the back-to-top button with the
+old 84px. Checked at 11 widths from 320 to 1280, desktop unchanged.
+
+*Audit: layout and spacing.* Every public page at 19 widths from 320 to 1920 (209
+loads) in a real browser, then the spacing rules on 10 pages at 10 widths:
+paragraph line height at least 1.45, paragraph-to-paragraph and text-to-button
+gaps, button-to-button gaps, tap targets of 40px or more. Found and fixed:
+
+- The category band overflowed its container. `margin-inline:auto` cannot
+  centre a box wider than its container, so above about 1320px the band sat
+  flush left and ran 14px off the right edge at 1440 and half a tile off at
+  1920. It is now placed from its own centre line and is centred and fully
+  inside the viewport at every width from 320 to 2560.
+- The header logo, the most-used link on a phone, was 35-42px tall. Its hit
+  area is now 48px (45px while the header is shrunk on scroll); the artwork does
+  not move.
+- The decorative watermark words (CEDAR, HELLO, PURPOSE) were read aloud by
+  screen readers before the page heading. They are now `aria-hidden`.
+- Nothing is left invisible: after scrolling every page top to bottom, 0 of 295
+  reveal-gated elements were still hidden (55 loads, 5 widths), and with
+  `prefers-reduced-motion` everything is shown at once.
+
+*Audit: performance.* The two preloaded fonts were each downloaded twice, about
+860 KB on a first visit: the preload URL carried `?v=<version>` and the
+stylesheet's `@font-face` cannot, so the browser treated them as different files.
+`asset()` gained an unversioned form, used for the preloads; each font is now
+fetched once (1250 KB, down from 2108 KB of fonts). The `.htaccess` files now
+ask Apache to compress CSS, JS and uncompressed font files (the build
+environment has no Apache, so the rules are checked for structure, not
+measured). HTML is deliberately left out: pages carry CSRF tokens and echo
+visitor input, which is what the BREACH attack needs.
+
+*Audit: security.* No website can honestly be called unhackable; this is what
+was reviewed, what was wrong, and what is now enforced by tests.
+
+- **Password-reset poisoning (high).** The emailed reset link was built from the
+  request's `Host` header, which the sender of a request chooses. Anyone could
+  ask for a reset for a member of staff with `Host: evil.example` and the genuine
+  email, with a live token, would point at their server: an account takeover.
+  The link now comes from `APP_URL` or not at all. In production without
+  `APP_URL` a reset request fails closed: the token is discarded, nothing is
+  sent, the visitor sees the same neutral message, and the attempt is logged and
+  audited.
+- **The same header elsewhere.** Canonical and Open Graph tags, JSON-LD and the
+  sitemap used `Host` even when `APP_URL` was set. `APP_URL` now always wins, and
+  a `Host` is accepted only if it is a well-formed host name.
+- **The built-in server handed out dotfiles.** `public/router.php` served
+  `/.htaccess` and `/uploads/.htaccess`. Dotfiles, traversal and control
+  characters now get the application's 404.
+- **Methods and routing.** Only GET, HEAD and POST are served (OPTIONS answers
+  204, anything else 405). `admin` is matched exactly, so `/admin.php` and
+  `/administrator` are ordinary 404s. The `.htaccess` rules also refuse
+  TRACE/TRACK and dotfiles (untestable here for the same reason).
+- **Headers.** `X-Frame-Options` and HSTS were sent only when `APP_ENV` was
+  `production`, so forgetting that one variable dropped both; they are now sent
+  everywhere. Added `Cross-Origin-Opener-Policy`, payment and USB to the
+  permissions policy, and removed `X-Powered-By`.
+- **Sessions.** `/health`, `/robots.txt` and `/sitemap.xml` no longer start a
+  session. Monitors and crawlers call them constantly and keep no cookie, so each
+  call wrote a file to `storage/sessions`, and anyone could do it on purpose to
+  fill the disk. Session garbage collection is switched on explicitly, and
+  `session.use_trans_sid` is off.
+- **Smaller fixes.** `Database::identifier()` used `$`, which also matches before
+  a trailing newline (now `\z`). The enquiry notification email contained the
+  literal text `brand() . ' dashboard.` instead of the site name. `robots.txt`
+  now disallows the password-recovery pages.
+- **Reviewed and found sound:** CSRF on every state-changing route; output
+  escaping (864 template echoes; every helper that returns HTML escapes); SQL
+  (all values bound, identifiers whitelisted); uploads (re-encoded, SVG
+  sanitised, scripts refused); cookie flags; the content security policy (no
+  inline or `eval` script); sign-in throttling; account enumeration; redirects;
+  and the installer, which refuses a short password and demo data outside
+  `APP_ENV=local`.
+
+*Tests.* Each of these fails if the behaviour regresses, and was checked by
+deliberately breaking the code and watching the right check go red:
+
+- `tests/security.php` has a new section that sends **every state-changing
+  route** (20 admin POSTs and 6 public ones) with no token and a forged one,
+  then reads the database to prove nothing changed, plus GET-must-not-act checks
+  and positive controls so a wrong field name cannot pass by accident. It also
+  caught that the existing "changes nothing" check on settings compared a cached
+  value with itself and could never fail; it now reads the database. New
+  sections cover reflected input and the session policy. All seven handlers whose
+  token check was removed in turn were detected.
+- `tests/host-header.php` (no server needed) covers the reset link, the origin
+  helper and the sitemap. `tests/smoke.php` gained a guard that no template
+  echoes request data unescaped, the session-policy table, font preload parity,
+  `.htaccess` structure and compression rules. `tests/responsive-regression.php`
+  pins the footer, the logo hit area and the centred band.
+- **`SQLITE_JOURNAL_MODE`** (`wal` by default; `delete`, `truncate` or `persist`
+  also accepted, anything else falls back to `wal`) lets a demo or CI database
+  run where WAL's shared memory is unavailable. In such a place the test process
+  and the web server each saw their own older copy of recent writes, which hid
+  real results: with it set, the password-reset suite is 71 of 71 (it was 61 of
+  71) and the security suite 137 of 137. SQLite remains refused in production.
+
+*Documentation.* `docs/SECURITY.md` covers the Host header, request methods,
+sessions and the CSRF coverage rule ("when you add a route that changes data,
+add it to that list"). `docs/DEPLOYMENT.md` marks `APP_URL` as required and
+explains running behind a proxy or CDN, where rate limits would otherwise treat
+every visitor as one address.
+
 ## 1.8.6 — 2026-11-03
 
 **The About copy never appeared on a production install. Tile labels broke

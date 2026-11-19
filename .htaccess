@@ -1,7 +1,15 @@
 Options -Indexes
+# Never serve dotfiles (.htaccess, .env, .git). Apache blocks .ht* by default, but
+# not every host keeps that default, and .env / .git are not covered by it.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
 DirectoryIndex public/index.php
 <IfModule mod_rewrite.c>
 RewriteEngine On
+# TRACE/TRACK echo the request back, including cookies, to a script that can read them.
+RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)$ [NC]
+RewriteRule .* - [F,L]
 RewriteRule ^(app|database|storage|bin|docs|tests)(/|$) - [F,L]
 RewriteRule ^config.*\.php$ - [F,L]
 RewriteRule ^assets/(.*)$ public/assets/$1 [L]
@@ -13,6 +21,16 @@ RewriteRule ^(.*)$ public/$1 [L]
 # cache. Without these headers the browser can keep serving an old copy of
 # the stylesheet after a deployment and the page behaves in unexpected ways.
 <IfModule mod_headers.c>
+# Compress the static files that benefit (text and the uncompressed font formats).
+# HTML is deliberately NOT listed: pages carry CSRF tokens, and compressing a page
+# that both holds a secret and reflects visitor input is what the BREACH attack
+# needs. Selected by file extension so it needs only mod_deflate; WOFF2, images
+# and video are already compressed and stay as they are.
+<IfModule mod_deflate.c>
+<FilesMatch "\.(css|js|svg|json|ttf|otf)$">
+SetOutputFilter DEFLATE
+</FilesMatch>
+</IfModule>
 <FilesMatch "\.(css|js|woff2?|ttf|svg|png|jpe?g|webp|gif|ico)$">
   Header set Cache-Control "public, max-age=31536000, immutable"
 </FilesMatch>

@@ -9,7 +9,10 @@ final class Database {
             self::$pdo = new PDO('sqlite:' . $config['sqlite_path'], null, null, $options);
             self::$pdo->exec('PRAGMA foreign_keys = ON');
             self::$pdo->exec('PRAGMA busy_timeout = 5000');
-            self::$pdo->exec('PRAGMA journal_mode = WAL');
+            // Chosen from a short list, never interpolated from raw configuration.
+            $journal = strtolower((string)($config['sqlite_journal_mode'] ?? 'wal'));
+            if (!in_array($journal, ['wal', 'delete', 'truncate', 'persist'], true)) $journal = 'wal';
+            self::$pdo->exec('PRAGMA journal_mode = ' . $journal);
         } else {
             $dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', $config['db_host'], $config['db_port'], $config['db_name']);
             self::$pdo = new PDO($dsn, $config['db_user'], $config['db_pass'], $options);
@@ -39,7 +42,8 @@ final class Database {
         self::query('UPDATE ' . $table . ' SET ' . implode(',', $sets) . ' WHERE id = ?', [...array_values($data), $id]);
     }
     public static function identifier(string $name): void {
-        if (!preg_match('/^[a-z_]+$/', $name)) throw new InvalidArgumentException('Invalid database identifier.');
+        // \z, not $: a bare $ also matches before a trailing newline.
+        if (!preg_match('/^[a-z_]+\z/', $name)) throw new InvalidArgumentException('Invalid database identifier.');
     }
     public static function now(): string { return gmdate('Y-m-d H:i:s'); }
 }

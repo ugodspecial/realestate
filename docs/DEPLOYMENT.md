@@ -24,7 +24,7 @@ Set these in cPanel (*Software → MultiPHP INI / Environment*) or your process 
 | Variable       | Example            | Purpose                              |
 |----------------|--------------------|--------------------------------------|
 | `APP_ENV`      | `production`       | Enables hardened production headers  |
-| `APP_URL`      | `https://cedar…`   | Canonical URLs, sitemap, JSON-LD     |
+| `APP_URL`      | `https://cedar…`   | **Required in production.** Canonical URLs, sitemap, JSON-LD, and the link in password-reset emails |
 | `DB_DRIVER`    | `mysql`            | Production must use MySQL/MariaDB    |
 | `DB_HOST`      | `localhost`        | Database host                        |
 | `DB_PORT`      | `3306`             | Database port                        |
@@ -36,6 +36,26 @@ Set these in cPanel (*Software → MultiPHP INI / Environment*) or your process 
 
 Optional: `BASE_PATH` (if installed in a subdirectory), `PRETTY_URLS=false` (if
 `mod_rewrite` is unavailable — URLs fall back to `index.php?route=…`).
+
+### `APP_URL` is not optional
+
+The link in a password-reset email is built from `APP_URL`, never from the
+request's `Host` header. A visitor chooses that header, so trusting it would let
+anyone ask for a reset with `Host: attacker.example` and have the genuine email,
+carrying a live token, point at their server. With `APP_ENV=production` and no
+`APP_URL`, reset requests therefore fail closed: nothing is sent, the token is
+discarded, the visitor still sees the same neutral answer, and the attempt is
+written to the log and the audit trail. `php bin/status.php` warns about it.
+
+### Behind a proxy or CDN
+
+Sign-in and enquiry rate limits are keyed on the connection's address
+(`REMOTE_ADDR`). That is correct when PHP is reached directly, which is the
+normal shared-hosting setup. Behind a reverse proxy or CDN every visitor appears
+to share the proxy's address, so the limits would apply to everyone together.
+If you deploy that way, have the web server restore the real client address
+before PHP runs (Apache `mod_remoteip`, nginx `real_ip_module`) rather than
+trusting a forwarded header inside the application.
 
 ### Password recovery needs working mail
 
@@ -72,6 +92,14 @@ CEDAR_ADMIN_PASSWORD='choose-a-strong-password' php bin/install.php \
   shell history).
 - For a **local staging** copy with sample content: `php bin/install.php --demo`
   (refused automatically unless `APP_ENV=local`).
+
+> **SQLite is for local demos and automated tests only; production refuses it.**
+> It runs in WAL mode, which coordinates processes through shared memory. On a
+> network filesystem, or in a sandbox whose processes cannot share memory, each
+> process can then see its own older copy of recent writes (a test inserts a row
+> and the web server cannot find it). Set `SQLITE_JOURNAL_MODE=delete` there to
+> use the classic rollback journal. Accepted values are `wal` (default), `delete`,
+> `truncate` and `persist`; anything else falls back to `wal`.
 
 ## 5. Permissions & go-live checklist
 

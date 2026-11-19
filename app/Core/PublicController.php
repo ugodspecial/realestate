@@ -18,8 +18,11 @@ final class PublicController {
     public static function property(string $slug): void {
         $p=Properties::find($slug); if(!$p)abort_page(404,'This property may have moved or is no longer available. Explore our current listings to find your next place.');
         $images=Properties::images((int)$p['id']);
-        $schema=['@context'=>'https://schema.org','@type'=>'RealEstateListing','name'=>$p['title'],'description'=>excerpt(strip_tags($p['description']),300),'url'=>rtrim(config('app_url') ?: ((is_https()?'https://':'http://').($_SERVER['HTTP_HOST'] ?? 'localhost')),'/').url('property/'.$p['slug']),'datePosted'=>substr($p['created_at'],0,10),'mainEntity'=>['@type'=>$p['category_name']==='Land'?'LandForm':'Residence','name'=>$p['title'],'address'=>['@type'=>'PostalAddress','addressLocality'=>$p['location_name'],'addressRegion'=>$p['city'],'addressCountry'=>'NG']]];
-        if($images)$schema['image']=array_map(fn($i)=>(is_https()?'https://':'http://').($_SERVER['HTTP_HOST'] ?? 'localhost').image_url($i['path']),array_slice($images,0,5));
+        // One validated origin for every absolute URL in the structured data. It used
+        // to read HTTP_HOST raw for the images, and ignored APP_URL doing so.
+        $origin=trusted_origin() ?: ((is_https()?'https://':'http://').'localhost');
+        $schema=['@context'=>'https://schema.org','@type'=>'RealEstateListing','name'=>$p['title'],'description'=>excerpt(strip_tags($p['description']),300),'url'=>$origin.url('property/'.$p['slug']),'datePosted'=>substr($p['created_at'],0,10),'mainEntity'=>['@type'=>$p['category_name']==='Land'?'LandForm':'Residence','name'=>$p['title'],'address'=>['@type'=>'PostalAddress','addressLocality'=>$p['location_name'],'addressRegion'=>$p['city'],'addressCountry'=>'NG']]];
+        if($images)$schema['image']=array_map(fn($i)=>$origin.image_url($i['path']),array_slice($images,0,5));
         render('public/property',['title'=>($p['seo_title'] ?: $p['title']).' | '.brand(),'description'=>$p['seo_description'] ?: excerpt($p['description'],160),'p'=>$p,'images'=>$images,'related'=>Properties::related($p),'schema'=>$schema,'page'=>'properties']);
     }
     public static function contact(): void { render('public/contact',['title'=>'Contact Us | '.brand(),'description'=>'Start a conversation with ' . brand() . '. Arrange a property inspection, request a valuation, or speak to a property advisor.','page'=>'contact']); }
@@ -121,11 +124,7 @@ final class PublicController {
         // would publish paths like "/about", which search engines reject, so
         // fall back to the host of the current request and give up cleanly if
         // even that is unknown.
-        $base=rtrim((string)config('app_url'),'/');
-        if($base==='') {
-            $host=(string)($_SERVER['HTTP_HOST'] ?? '');
-            if(preg_match('/^[a-z0-9.\-]+(:\d+)?$/i',$host)) $base=(is_https()?'https://':'http://').$host;
-        }
+        $base=trusted_origin();
         if($base==='') { echo '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>'; return; }
         $pages=[''=>null,'about'=>null,'services'=>null,'properties'=>null,'contact'=>null,'privacy'=>null,'terms'=>null];
         $entries=[];

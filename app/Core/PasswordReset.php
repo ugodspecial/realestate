@@ -62,11 +62,15 @@ final class PasswordReset {
         // member of staff must not be able to get back in this way.
         if (!$user || !$user['active']) return false;
 
-        self::issue((int) $user['id'], $user, $ip);
-        return true;
+        // '' means no trustworthy link could be built and nothing was issued.
+        return self::issue((int) $user['id'], $user, $ip) !== '';
     }
 
-    /** Create a token for a user, invalidating any earlier one, and mail it. */
+    /**
+     * Create a token for a user, invalidating any earlier one, and mail it.
+     * Returns the token, or '' when no trustworthy link could be built (see
+     * link()) and therefore nothing was issued or sent.
+     */
     public static function issue(int $userId, array $user, string $ip = ''): string {
         Database::query('DELETE FROM password_resets WHERE user_id = ?', [$userId]);
         $token = bin2hex(random_bytes(32));
@@ -74,6 +78,18 @@ final class PasswordReset {
             'INSERT INTO password_resets (token_hash, user_id, expires_at, created_at, used_at) VALUES (?,?,?,?,NULL)',
             [self::hash($token), $userId, gmdate('Y-m-d H:i:s', time() + self::TOKEN_TTL_MINUTES * 60), Database::now()]
         );
+        $link = self::link($token);
+        if ($link === '') {
+            // Fail closed. Better that a reset email does not arrive than that
+            // it arrives pointing wherever a stranger asked. The visitor still
+            // gets the same neutral answer (see request()), so nothing is
+            // revealed; the operator gets a log line and an audit entry, and
+            // bin/status.php names the missing setting.
+            Database::query('DELETE FROM password_resets WHERE user_id = ?', [$userId]);
+            error_log('Password reset NOT sent for user ' . $userId . ': APP_URL is not set, and the Host header is not trusted for links that are emailed. Set APP_URL (see docs/DEPLOYMENT.md).');
+            Audit::log('user.reset_unavailable', 'user', $userId, 'Reset link not sent: APP_URL is not configured');
+            return '';
+        }
         $minutes = self::TOKEN_TTL_MINUTES;
         $lines = [
             'Hello ' . $user['name'] . ',',
@@ -81,7 +97,7 @@ final class PasswordReset {
             'Somebody asked to reset the password for your ' . brand() . ' staff account.',
             'If that was you, open the link below to choose a new password:',
             '',
-            self::link($token),
+            $link,
             '',
             'The link stops working in ' . $minutes . ' minutes, and can be used once.',
             'If you did not ask for this, you can ignore this message — your',
@@ -92,16 +108,31 @@ final class PasswordReset {
         return $token;
     }
 
-    /** The absolute URL for a token, honouring a custom base path or host. */
+    /**
+     * The absolute URL for a token, or '' when no trustworthy origin exists.
+     *
+     * This link is EMAILED, so it is the one absolute URL that must never be
+     * built from the Host header. The header is chosen by the sender of the
+     * request: an attacker can ask for a reset for a member of staff with
+     * "Host: evil.example", and the genuine email - from the genuine address,
+     * with a live token - would then point at the attacker's server. That is
+     * password-reset poisoning, and it ends in an account takeover.
+     *
+     * So in production the link comes from APP_URL or not at all. Outside
+     * production (local demos, the test suite) a well-formed Host is accepted
+     * so the flow still works on any port, falling back to localhost for the
+     * command line.
+     */
     public static function link(string $token): string {
         $configured = rtrim((string) config('app_url'), '/');
         if ($configured !== '') {
             $path = ltrim((string) config('base_path', ''), '/');
             return $configured . ($path !== '' ? '/' . $path : '') . '/reset-password?token=' . rawurlencode($token);
         }
-        $scheme = is_https() ? 'https' : 'http';
-        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
-        return $scheme . '://' . $host . url('reset-password', ['token' => $token]);
+        if (config('app_env') === 'production') return '';
+        $origin = trusted_origin();
+        if ($origin === '') $origin = 'http://localhost';
+        return $origin . url('reset-password', ['token' => $token]);
     }
 
     /**

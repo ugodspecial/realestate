@@ -1,7 +1,14 @@
 Options -Indexes
+# Never serve dotfiles (.htaccess, .env, .git). Apache blocks .ht* by default, but
+# not every host keeps that default, and .env / .git are not covered by it.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
 DirectoryIndex index.php
 <IfModule mod_rewrite.c>
 RewriteEngine On
+RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)$ [NC]
+RewriteRule .* - [F,L]
 RewriteRule ^(?:uploads/.*\.php|.*\.sqlite.*)$ - [F,L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
@@ -10,6 +17,16 @@ RewriteRule ^ index.php [QSA,L]
 <IfModule mod_headers.c>
 Header always set X-Content-Type-Options "nosniff"
 Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+# Compress the static files that benefit (text and the uncompressed font formats).
+# HTML is deliberately NOT listed: pages carry CSRF tokens, and compressing a page
+# that both holds a secret and reflects visitor input is what the BREACH attack
+# needs. Selected by file extension so it needs only mod_deflate; WOFF2, images
+# and video are already compressed and stay as they are.
+<IfModule mod_deflate.c>
+<FilesMatch "\.(css|js|svg|json|ttf|otf)$">
+SetOutputFilter DEFLATE
+</FilesMatch>
 </IfModule>
 <FilesMatch "\.(css|js|woff2?|ttf|webp|jpg|png|svg)$">
 <IfModule mod_headers.c>

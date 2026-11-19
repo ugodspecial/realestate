@@ -14,6 +14,11 @@ $config = array_replace([
     'db_user' => getenv('DB_USER') ?: '',
     'db_pass' => getenv('DB_PASS') ?: '',
     'sqlite_path' => ROOT_PATH . '/storage/cedar.sqlite',
+    // SQLite only (local demos and CI: production refuses it). WAL is the default, but it
+    // coordinates processes through shared memory, which a network filesystem or a locked-down
+    // sandbox cannot provide - there each process then sees its own, older copy of the data.
+    // SQLITE_JOURNAL_MODE=delete selects the classic rollback journal for those cases.
+    'sqlite_journal_mode' => getenv('SQLITE_JOURNAL_MODE') ?: 'wal',
     'mail_enabled' => getenv('MAIL_ENABLED') === 'true',
     'mail_from' => getenv('MAIL_FROM') ?: '',
     'agent_portal_enabled' => false,

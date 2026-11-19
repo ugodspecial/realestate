@@ -53,6 +53,20 @@ echo 'First-login password change: ' . ($passwordLifecycle
     ? 'available'
     : 'NOT available (' . ($hasColumn ? 'migration 003 not recorded' : 'migration 003 not applied') . ')') . PHP_EOL;
 
+// Settings that fail closed or degrade quietly. Reported here so the operator
+// learns about them from the status page, not from a member of staff who never
+// received an email.
+if (config('app_env') === 'production') {
+    if ((string) config('app_url') === '') {
+        echo 'WARNING: APP_URL is not set. Password-reset emails are NOT sent: the link would have to' . PHP_EOL;
+        echo '         be built from the request Host header, which a visitor controls. Canonical and' . PHP_EOL;
+        echo '         sitemap URLs also fall back to that header. Set APP_URL=https://your-domain.' . PHP_EOL;
+    }
+    if (!config('mail_enabled')) {
+        echo 'Note: MAIL_ENABLED is not true, so no email (password resets, enquiry alerts) is sent.' . PHP_EOL;
+    }
+}
+
 echo PHP_EOL;
 if ($pending !== []) {
     echo 'The database is behind the code. New features that depend on pending' . PHP_EOL;

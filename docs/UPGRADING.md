@@ -81,7 +81,12 @@ php tests/smoke.php              # verify data and behaviour survived
    `storage/backups/`, then applies each pending migration in order.
 4. Verify: load the homepage, sign in to `/admin`, open a property page,
    and confirm the version in the admin sidebar matches the release.
-5. Keep the backup until the release has soaked for a few days.
+5. Check the configuration: run `php bin/status.php`. **Since 1.8.7,
+   `APP_URL` must be set in production** (e.g. `https://www.example.com`):
+   password-reset emails are built from it and are not sent without it, so
+   a site that was working before can quietly lose self-service password
+   recovery. `status.php` prints a warning when it is missing.
+6. Keep the backup until the release has soaked for a few days.
 
 `--no-backup` exists for CI and throwaway copies only. Never use it on
 production. If `mysqldump` is missing or `exec` is disabled, take a backup

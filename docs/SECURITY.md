@@ -11,6 +11,7 @@ Run the checks:
 php -S 0.0.0.0:8080 -t public public/router.php &
 php tests/security.php  http://127.0.0.1:8080
 php tests/role-matrix.php http://127.0.0.1:8080
+php tests/host-header.php        # no server needed
 ```
 
 ## Roles and permissions
@@ -64,12 +65,29 @@ guessing URL is refused with 403 rather than acting on someone else's record.
   database, so a stolen session dies as soon as the password changes, without
   affecting the device that made the change.
 - Idle sessions expire after two hours.
+- `/health`, `/robots.txt` and `/sitemap.xml` do not start a session
+  (`session_wanted()` in `helpers.php`). Monitors and crawlers call them all day
+  without keeping a cookie, so a session per request would be a file on disk per
+  request, and anyone could do the same on purpose to fill the disk. Anything
+  unusual about the request keeps the session: the check only ever errs towards
+  starting one. Abandoned sessions are collected by PHP itself (1% of requests,
+  after two hours), because some hosts ship with collection switched off.
 
 ## Requests that change state
 
 Every state-changing form carries a CSRF token compared with `hash_equals`.
 A missing or forged token is answered with 419 and the change is not made.
 Tokens are per-session and regenerated on sign-in.
+
+The check lives in each handler (`verify_csrf()`), not in the router, so a
+handler added later could forget it. `tests/security.php` ("CSRF covers every
+state-changing route") therefore sends every POST route, as a signed-in super
+administrator, with no token and with a forged one, and then reads the database
+to prove nothing changed. It also proves that a state-changing URL does nothing
+when requested with GET, and includes positive controls so a wrong field name
+cannot make the negative checks pass by accident. **When you add a route that
+changes data, add it to that list.** Each probe uses a disposable row, so a
+missing check can only ever damage test data.
 
 ## Sign-in
 
@@ -94,6 +112,8 @@ Tokens are per-session and regenerated on sign-in.
 - Only `sha256(token)` is stored. The token itself exists only in the email.
 - One live token per user; requesting again invalidates the previous one.
 - Tokens expire after 60 minutes and are single use.
+- The emailed link is built from `APP_URL`, never from the request's `Host`
+  header (see *The Host header* below).
 - A completed reset bumps `session_version`, ending sessions elsewhere while
   leaving the device that made the change signed in.
 
@@ -112,11 +132,54 @@ Tokens are per-session and regenerated on sign-in.
 
 ## Transport and headers
 
-From `app/bootstrap.php` on every response: `X-Content-Type-Options: nosniff`,
-and a Content-Security-Policy with `default-src 'self'`, `script-src 'self'`
-(no inline script), `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`,
-and `frame-ancestors 'self'`. Asset URLs carry `?v=APP_VERSION`, so a release
-always loads the current stylesheet.
+From `app/bootstrap.php` on every response:
+
+| Header | Value / purpose |
+|---|---|
+| `Content-Security-Policy` | `default-src 'self'`, `script-src 'self'` (no inline script, no `eval`), `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'self'`. `style-src` also allows `'unsafe-inline'` because the templates carry a few inline `style` attributes; nothing executable can be injected that way. |
+| `X-Frame-Options: SAMEORIGIN` | Clickjacking protection for browsers that predate CSP `frame-ancestors`. Sent in every environment; it used to depend on `APP_ENV=production`. |
+| `X-Content-Type-Options: nosniff` | Stops a served file being reinterpreted as script. |
+| `Referrer-Policy: strict-origin-when-cross-origin` | Keeps paths and query strings (including reset tokens) out of the `Referer` sent elsewhere. |
+| `Permissions-Policy` | Camera, microphone, geolocation, payment and USB are off. |
+| `Cross-Origin-Opener-Policy: same-origin` | Isolates the browsing context from pages that open it. |
+| `Strict-Transport-Security` | One year, whenever the request arrived over HTTPS. |
+| `Cache-Control: private, no-store` | Added when `APP_ENV=production`. |
+
+`X-Powered-By` is removed, so the PHP version is not announced. Asset URLs carry
+`?v=APP_VERSION`, so a release always loads the current stylesheet.
+
+## The Host header
+
+The `Host` header is chosen by whoever sends the request, so it is believed only
+where being wrong is harmless. `trusted_origin()` (in `helpers.php`) is the one
+place that decides: `APP_URL` always wins, and a well-formed `Host` (letters,
+digits, dots, hyphens, an optional port; nothing else) stands in only for
+canonical and Open Graph tags, the sitemap and JSON-LD, which are shown to the
+person who asked. A malformed value yields no origin at all rather than a guess.
+
+The link in a **password-reset email** is different, because it is delivered to
+someone else. It is built from `APP_URL` or not at all: in production without
+`APP_URL` the request is answered with the usual neutral message, no token is
+kept and nothing is sent, so a forged `Host` can never put an attacker's address
+into a genuine email. `bin/status.php` warns when this is the case.
+`tests/host-header.php` asserts all of it and needs no web server.
+
+## Request methods and files
+
+- Only `GET`, `HEAD` and `POST` are served. `OPTIONS` answers `204` and every
+  other method `405`, both with an `Allow` header. State changes are protected
+  independently: `verify_csrf()` demands a real `POST` with a valid token.
+- `admin` is matched exactly (`/admin` or `/admin/...`), so `/administrator` or
+  `/admin.php` are ordinary 404s.
+- Apache: `.htaccess` denies `app/ database/ storage/ bin/ docs/ tests/`,
+  `config*.php`, every dotfile, and the `TRACE`/`TRACK` methods; `uploads/`
+  cannot run or serve scripts, HTML or SVG.
+- `public/router.php` (the built-in server used for demos and CI) serves a file
+  only if it resolves, via `realpath`, to something inside `public/`, is not PHP,
+  and has no dot-prefixed path segment (`.well-known/` excepted). It would
+  otherwise hand out `.htaccess` or `.git/*`, which Apache refuses by default.
+- `Database::insert()` and `update()` accept column names only if they match
+  `^[a-z_]+\z` (an anchored `$` would also let a trailing newline through).
 
 ## Redirects
 

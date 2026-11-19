@@ -94,6 +94,27 @@ check('audit details are escaped', !str_contains($auditPage, '<script>alert("' .
 
 Database::query('DELETE FROM properties WHERE id=?', [$propId]);
 
+echo "\n== Reflected input ==\n";
+// Anything a visitor puts in a URL must come back inert. Filters are re-emitted in form
+// fields and in pagination links, and the router echoes nothing of an unknown path.
+$reflect = '"><svg/onload=alert(1)>';
+$enc = rawurlencode($reflect);
+$reflectUrls = [
+    '/properties?q=' . $enc, '/properties?q=' . $enc . '&page=2',
+    '/properties?deal=' . $enc . '&category=' . $enc . '&location=' . $enc . '&sort=' . $enc . '&view=' . $enc,
+    '/properties?min_price=' . $enc . '&max_price=' . $enc . '&beds=' . $enc . '&baths=' . $enc . '&status=' . $enc,
+    '/nope-' . $enc, '/property/' . $enc, '/login?redirect=' . $enc, '/reset-password?token=' . $enc, '/contact?x=' . $enc,
+];
+$reflectedRaw = [];
+foreach ($reflectUrls as $path) {
+    $body = http('GET', $base . $path, jar())['body'];
+    // The payload itself, not "<svg": the site's own icons are inline SVG.
+    if (str_contains($body, '<svg/onload')) { $reflectedRaw[] = substr($path, 0, 40); }
+}
+check('request input is never reflected as live markup', $reflectedRaw === [], implode(', ', $reflectedRaw));
+$searchBody = http('GET', $base . '/properties?q=' . $enc, jar())['body'];
+check('and where it is shown again, it is shown escaped', str_contains($searchBody, '&quot;&gt;&lt;svg/onload=alert(1)&gt;'));
+
 echo "\n== Authorization on objects, not just pages ==\n";
 $sa = signIn($base, (string) $creds['super_admin']['email'], (string) $creds['super_admin']['password']);
 $ce = signIn($base, (string) $creds['content_editor']['email'], (string) $creds['content_editor']['password']);
@@ -172,16 +193,162 @@ if ($made) {
 }
 
 echo "\n== CSRF ==\n";
-$settingsBefore = setting('brand_name');
+// Read the database, not setting(): setting() caches for the life of the process, so
+// comparing it before and after would pass even if the POST had changed the row.
+$dbValue = static fn(string $key): string => (string) Database::value('SELECT value FROM settings WHERE key_name = ?', [$key]);
+$settingsBefore = $dbValue('brand_name');
 $token = csrf($base . '/admin/settings', $sa);
 $r = http('POST', $base . '/admin/settings', $sa, ['brand_name' => 'NoToken']);
 check('a settings POST without a token is refused', $r['code'] === 419, 'got ' . $r['code']);
-check('and changes nothing', setting('brand_name') === $settingsBefore);
+check('and changes nothing', $dbValue('brand_name') === $settingsBefore);
 $r = http('POST', $base . '/admin/settings', $sa, ['_token' => str_repeat('a', 64), 'brand_name' => 'WrongToken']);
 check('a settings POST with a forged token is refused', $r['code'] === 419, 'got ' . $r['code']);
-check('and changes nothing', setting('brand_name') === $settingsBefore);
+check('and changes nothing', $dbValue('brand_name') === $settingsBefore);
 $r = http('POST', $base . '/admin/settings', $sa, ['_token' => $token, 'brand_name' => $settingsBefore]);
 check('the same POST succeeds with the real token', $r['code'] === 303, 'got ' . $r['code']);
+
+echo "\n== CSRF covers every state-changing route ==\n";
+// The checks above prove the token is enforced on ONE route. CSRF is enforced handler
+// by handler, so a handler added later that forgets verify_csrf() is silently open, and
+// nothing above would notice. Here every POST route is sent, as a signed-in super
+// administrator, with no token and then with a forged one. Each uses a disposable row,
+// so a missing check can only damage test data, and that row is what proves nothing happened.
+$tag = 'csrf-probe-' . bin2hex(random_bytes(3));
+$now = Database::now();
+$probePassword = 'Probe-' . bin2hex(random_bytes(8)) . '-Aa1';
+$catAny = (int) Database::value('SELECT id FROM categories ORDER BY id LIMIT 1');
+$locAny = (int) Database::value('SELECT id FROM locations ORDER BY id LIMIT 1');
+$cpProp = Database::insert('properties', [
+    'listing_id' => 'CSRF-' . strtoupper(bin2hex(random_bytes(3))), 'slug' => $tag, 'title' => 'CSRF probe property',
+    'category_id' => $catAny, 'location_id' => $locAny, 'price' => 1000, 'deal' => 'sale', 'status' => 'available',
+    'publish_status' => 'published', 'featured' => 0, 'beds' => 1, 'baths' => 1, 'parking' => 0, 'area_sqm' => 10,
+    'address' => 'Test', 'description' => str_repeat('Description text. ', 4), 'amenities' => '',
+    'created_at' => $now, 'updated_at' => $now,
+]);
+// A second property exists only so the delete route can be tested without a token: if the
+// check were missing, the first would vanish and every route below it would report 404.
+$cpPropDel = Database::insert('properties', [
+    'listing_id' => 'CSRF-' . strtoupper(bin2hex(random_bytes(3))), 'slug' => $tag . '-del', 'title' => 'CSRF probe property (delete)',
+    'category_id' => $catAny, 'location_id' => $locAny, 'price' => 1000, 'deal' => 'sale', 'status' => 'available',
+    'publish_status' => 'published', 'featured' => 0, 'beds' => 1, 'baths' => 1, 'parking' => 0, 'area_sqm' => 10,
+    'address' => 'Test', 'description' => str_repeat('Description text. ', 4), 'amenities' => '',
+    'created_at' => $now, 'updated_at' => $now,
+]);
+$cpImg = Database::insert('property_images', ['property_id' => $cpProp, 'path' => 'uploads/properties/' . $tag . '.jpg', 'alt' => 'probe', 'sort_order' => 0, 'is_cover' => 0]);
+$cpEnq = Database::insert('enquiries', [
+    'reference' => 'CSRF-' . strtoupper(bin2hex(random_bytes(3))), 'property_id' => null, 'name' => 'CSRF Probe',
+    'email' => $tag . '@example.test', 'phone' => '+2340000000', 'message' => 'probe message text', 'type' => 'enquiry',
+    'preferred_date' => '', 'status' => 'new', 'admin_notes' => '', 'created_at' => $now, 'updated_at' => $now,
+]);
+$cpCat = Database::insert('categories', ['name' => 'CSRF Probe', 'slug' => $tag, 'description' => 'probe', 'icon' => 'home']);
+$cpLoc = Database::insert('locations', ['name' => 'CSRF Probe', 'slug' => $tag, 'city' => 'Probe', 'description' => 'probe']);
+$cpTst = Database::insert('testimonials', ['name' => 'CSRF Probe', 'location' => 'Probe', 'quote' => 'probe quote', 'rating' => 5, 'approved' => 0, 'created_at' => $now]);
+$cpUser = Database::insert('users', [
+    'name' => 'CSRF Probe', 'email' => $tag . '@example.test', 'password_hash' => password_hash($probePassword, PASSWORD_DEFAULT),
+    'role' => 'listing_manager', 'active' => 1, 'must_change_password' => 1, 'created_at' => $now,
+]);
+$count = static fn(string $table): Closure => static fn(): string => (string) Database::value("SELECT COUNT(*) FROM {$table}");
+$cell = static fn(string $sql, array $args = []): Closure => static fn(): string => (string) Database::value($sql, $args);
+// Several columns of one row, joined here rather than in SQL: "||" concatenates in SQLite but is a logical OR in MySQL.
+$row = static fn(string $sql, array $args = []): Closure => static fn(): string => implode('|', array_map('strval', Database::one($sql, $args) ?? []));
+$newPassword = 'Long-Enough-Pass-' . bin2hex(random_bytes(4)) . '!';
+
+// [path under /admin, fields a real submission would carry, what to read to prove nothing changed]
+$adminPosts = [
+    'properties/new'                  => [['title' => 'CSRF probe created', 'price' => '1000', 'category_id' => $catAny, 'location_id' => $locAny, 'description' => str_repeat('x', 60)], $count('properties')],
+    "properties/{$cpProp}/edit"       => [['title' => 'CSRF probe EDITED', 'price' => '1', 'category_id' => $catAny, 'location_id' => $locAny], $cell('SELECT title FROM properties WHERE id=?', [$cpProp])],
+    "properties/{$cpProp}/approve"    => [['decision' => 'reject', 'status' => 'draft'], $cell('SELECT publish_status FROM properties WHERE id=?', [$cpProp])],
+    "properties/{$cpPropDel}/delete"  => [[], $cell('SELECT COUNT(*) FROM properties WHERE id=?', [$cpPropDel])],
+    "properties/{$cpProp}/images"     => [[], $count('property_images')],
+    "images/{$cpImg}/cover"           => [[], $cell('SELECT is_cover FROM property_images WHERE id=?', [$cpImg])],
+    "images/{$cpImg}/caption"         => [['alt' => 'EDITED'], $cell('SELECT alt FROM property_images WHERE id=?', [$cpImg])],
+    "images/{$cpImg}/delete"          => [[], $cell('SELECT COUNT(*) FROM property_images WHERE id=?', [$cpImg])],
+    "enquiries/{$cpEnq}"              => [['status' => 'closed', 'admin_notes' => 'EDITED'], $row('SELECT status, admin_notes FROM enquiries WHERE id=?', [$cpEnq])],
+    'categories/save'                 => [['name' => 'CSRF Probe Two', 'description' => 'x', 'icon' => 'home'], $count('categories')],
+    "categories/delete/{$cpCat}"      => [[], $cell('SELECT COUNT(*) FROM categories WHERE id=?', [$cpCat])],
+    'locations/save'                  => [['name' => 'CSRF Probe Two', 'city' => 'Lagos', 'description' => 'x'], $count('locations')],
+    "locations/delete/{$cpLoc}"       => [[], $cell('SELECT COUNT(*) FROM locations WHERE id=?', [$cpLoc])],
+    'testimonials/save'               => [['name' => 'CSRF Probe Two', 'location' => 'x', 'quote' => 'A quote that is long enough to pass.', 'rating' => '5'], $count('testimonials')],
+    "testimonials/delete/{$cpTst}"    => [[], $cell('SELECT COUNT(*) FROM testimonials WHERE id=?', [$cpTst])],
+    'users/create'                    => [['name' => 'CSRF Created', 'email' => 'created-' . $tag . '@example.test', 'role' => 'super_admin', 'password' => $newPassword], $count('users')],
+    "users/{$cpUser}/edit"            => [['name' => 'EDITED', 'role' => 'super_admin', 'active' => '1'], $row('SELECT role, name FROM users WHERE id=?', [$cpUser])],
+    "users/{$cpUser}/reset-password"  => [[], $cell('SELECT password_hash FROM users WHERE id=?', [$cpUser])],
+    'settings'                        => [['brand_name' => 'CSRF EDITED'], $cell("SELECT value FROM settings WHERE key_name='brand_name'")],
+    'account'                         => [['current_password' => 'x', 'password' => $newPassword, 'password_confirm' => $newPassword, 'name' => 'EDITED'], $cell('SELECT password_hash FROM users WHERE email=?', [(string) $creds['super_admin']['email']])],
+];
+foreach ($adminPosts as $path => [$fields, $probe]) {
+    $before = $probe();
+    $none = http('POST', $base . '/admin/' . $path, $sa, $fields);
+    $forged = http('POST', $base . '/admin/' . $path, $sa, ['_token' => str_repeat('a', 64)] + $fields);
+    check("POST /admin/{$path} needs a valid token, and changes nothing without one",
+        $none['code'] === 419 && $forged['code'] === 419 && $probe() === $before,
+        "no token: {$none['code']}, forged: {$forged['code']}, state " . ($probe() === $before ? 'unchanged' : 'CHANGED'));
+}
+
+// The public forms. Each gets its own jar: a refused logout must not end the session used below.
+$loggedIn = signIn($base, (string) $creds['super_admin']['email'], (string) $creds['super_admin']['password']);
+$probeJar = signIn($base, $tag . '@example.test', $probePassword);
+check('the force-password-change probe account can sign in', $probeJar !== null);
+$publicPosts = [
+    'enquiry'               => [jar(), ['name' => 'CSRF Probe', 'email' => $tag . '@example.test', 'phone' => '+2348000000000', 'message' => 'A message that is long enough to be valid.', 'consent' => '1', 'type' => 'enquiry'], $count('enquiries')],
+    'login'                 => [jar(), ['email' => (string) $creds['super_admin']['email'], 'password' => 'not-the-password'], $count('rate_limits')],
+    'forgot-password'       => [jar(), ['email' => (string) $creds['super_admin']['email']], $count('password_resets')],
+    'reset-password'        => [jar(), ['token' => str_repeat('b', 64), 'password' => $newPassword, 'password_confirm' => $newPassword], $count('password_resets')],
+    'logout'                => [$loggedIn ?? jar(), [], static fn(): string => (string) http('GET', $base . '/admin', $loggedIn ?? jar())['code']],
+    'force-password-change' => [$probeJar ?? jar(), ['password' => $newPassword, 'password_confirm' => $newPassword], $cell('SELECT password_hash FROM users WHERE id=?', [$cpUser])],
+];
+foreach ($publicPosts as $path => [$jarFile, $fields, $probe]) {
+    $before = $probe();
+    $none = http('POST', $base . '/' . $path, $jarFile, $fields);
+    $forged = http('POST', $base . '/' . $path, $jarFile, ['_token' => str_repeat('a', 64)] + $fields);
+    check("POST /{$path} needs a valid token, and changes nothing without one",
+        $none['code'] === 419 && $forged['code'] === 419 && $probe() === $before,
+        "no token: {$none['code']}, forged: {$forged['code']}, state " . ($probe() === $before ? 'unchanged' : 'CHANGED'));
+}
+
+// A link or an image tag on another site can issue a GET. No state-changing URL may act on one.
+$getTargets = [
+    "properties/{$cpProp}/delete" => $cell('SELECT COUNT(*) FROM properties WHERE id=?', [$cpProp]),
+    "properties/{$cpProp}/approve" => $cell('SELECT publish_status FROM properties WHERE id=?', [$cpProp]),
+    "images/{$cpImg}/delete" => $cell('SELECT COUNT(*) FROM property_images WHERE id=?', [$cpImg]),
+    "categories/delete/{$cpCat}" => $cell('SELECT COUNT(*) FROM categories WHERE id=?', [$cpCat]),
+    "locations/delete/{$cpLoc}" => $cell('SELECT COUNT(*) FROM locations WHERE id=?', [$cpLoc]),
+    "testimonials/delete/{$cpTst}" => $cell('SELECT COUNT(*) FROM testimonials WHERE id=?', [$cpTst]),
+    "users/{$cpUser}/reset-password" => $cell('SELECT password_hash FROM users WHERE id=?', [$cpUser]),
+];
+foreach ($getTargets as $path => $probe) {
+    $before = $probe();
+    $r = http('GET', $base . '/admin/' . $path, $sa);
+    check("GET /admin/{$path} does not act", $r['code'] < 500 && $probe() === $before, "code {$r['code']}, state " . ($probe() === $before ? 'unchanged' : 'CHANGED'));
+}
+$r = http('GET', $base . '/logout', $loggedIn ?? jar());
+check('GET /logout does not sign anyone out', http('GET', $base . '/admin', $loggedIn ?? jar())['code'] === 200, 'logout GET gave ' . $r['code']);
+
+// Positive controls: the same requests DO act when the token is genuine. Without this,
+// every "changes nothing" above could be passing only because the fields were wrong.
+$goodToken = csrf($base . '/admin', $sa);
+$r = http('POST', $base . "/admin/enquiries/{$cpEnq}", $sa, ['_token' => $goodToken, 'status' => 'closed', 'admin_notes' => 'EDITED']);
+check('control: an enquiry update with a genuine token is applied',
+    $r['code'] === 303 && (string) Database::value('SELECT status FROM enquiries WHERE id=?', [$cpEnq]) === 'closed', 'got ' . $r['code']);
+$catsBefore = (int) Database::value('SELECT COUNT(*) FROM categories');
+$r = http('POST', $base . '/admin/categories/save', $sa, ['_token' => $goodToken, 'name' => 'CSRF Probe Control', 'description' => 'x', 'icon' => 'home']);
+check('control: a category save with a genuine token is applied',
+    $r['code'] === 303 && (int) Database::value('SELECT COUNT(*) FROM categories') === $catsBefore + 1, 'got ' . $r['code']);
+$r = http('POST', $base . "/admin/properties/{$cpProp}/delete", $sa, ['_token' => $goodToken]);
+check('control: a property delete with a genuine token is applied',
+    $r['code'] === 303 && (int) Database::value('SELECT COUNT(*) FROM properties WHERE id=?', [$cpProp]) === 0, 'got ' . $r['code']);
+
+// Remove every probe row (the final Cleanup section sweeps by marker too, in case this stopped early).
+foreach ([['property_images', $cpImg], ['enquiries', $cpEnq], ['categories', $cpCat], ['locations', $cpLoc], ['testimonials', $cpTst], ['users', $cpUser]] as [$table, $id]) {
+    Database::query("DELETE FROM {$table} WHERE id = ?", [$id]);
+}
+Database::query("DELETE FROM categories WHERE name LIKE 'CSRF Probe%'");
+Database::query("DELETE FROM locations WHERE name LIKE 'CSRF Probe%'");
+Database::query("DELETE FROM testimonials WHERE name LIKE 'CSRF Probe%'");
+Database::query("DELETE FROM enquiries WHERE name = 'CSRF Probe'");
+Database::query("DELETE FROM users WHERE email LIKE 'csrf-probe-%' OR email LIKE 'created-csrf-probe-%'");
+Database::query("DELETE FROM properties WHERE slug LIKE 'csrf-probe-%'");
+clearThrottle();
 
 echo "\n== Session handling ==\n";
 // A signed-out request must not reach an admin page.
@@ -198,6 +365,75 @@ check('the session cookie is SameSite', stripos($head, 'SameSite') !== false);
 check('X-Content-Type-Options is nosniff', stripos($head, 'X-Content-Type-Options: nosniff') !== false);
 check('a Content-Security-Policy is sent', stripos($head, 'Content-Security-Policy:') !== false);
 check('the frame policy is present', stripos($head, 'frame-ancestors') !== false);
+
+echo "\n== Request surface ==\n";
+/** A bare request: any method, optional headers, and the response head kept apart from the body. */
+function raw(string $method, string $url, array $headers = []): array {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CUSTOMREQUEST => $method, CURLOPT_NOBODY => $method === 'HEAD', CURLOPT_TIMEOUT => 20, CURLOPT_HTTPHEADER => $headers]);
+    // Send "/a/../b" exactly as written; curl would otherwise tidy it before the server saw it.
+    if (defined('CURLOPT_PATH_AS_IS')) curl_setopt($ch, CURLOPT_PATH_AS_IS, true);
+    $out = (string) curl_exec($ch);
+    $size = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ['code' => $code, 'head' => substr($out, 0, $size), 'body' => substr($out, $size)];
+}
+// Methods. Only GET, HEAD and POST mean anything; the rest used to receive the page.
+check('GET is served', raw('GET', $base . '/')['code'] === 200);
+check('HEAD is served', raw('HEAD', $base . '/')['code'] === 200);
+foreach (['PUT', 'DELETE', 'PATCH', 'TRACE'] as $verb) {
+    $r = raw($verb, $base . '/');
+    check("{$verb} is refused with 405", $r['code'] === 405, (string) $r['code']);
+}
+$r = raw('DELETE', $base . '/');
+check('a refused method says which are allowed', stripos($r['head'], 'Allow: GET, HEAD, POST') !== false);
+check('a refused method does not render the page', stripos($r['body'], '<html') === false);
+check('OPTIONS answers without a body', raw('OPTIONS', $base . '/')['code'] === 204);
+// Response headers beyond the CSP.
+$r = raw('GET', $base . '/');
+check('clickjacking is blocked for old browsers too (X-Frame-Options)', stripos($r['head'], 'X-Frame-Options: SAMEORIGIN') !== false);
+check('Cross-Origin-Opener-Policy is same-origin', stripos($r['head'], 'Cross-Origin-Opener-Policy: same-origin') !== false);
+check('Referrer-Policy is sent', stripos($r['head'], 'Referrer-Policy:') !== false);
+check('Permissions-Policy is sent', stripos($r['head'], 'Permissions-Policy:') !== false);
+check('the PHP version is not announced', stripos($r['head'], 'X-Powered-By') === false);
+check('no inline script is allowed by the CSP', !preg_match("/script-src[^;]*'unsafe-inline'/i", $r['head']));
+check('no eval is allowed by the CSP', !preg_match("/script-src[^;]*'unsafe-eval'/i", $r['head']));
+// Files that must never be reachable over HTTP. Apache answers 403 and the
+// built-in server 404; either is fine, a 200 is not.
+$private = ['/storage/cedar.sqlite', '/storage/demo-credentials.json', '/storage/logs/php-error.log', '/database/schema.php',
+    '/app/config.php', '/app/bootstrap.php', '/bin/install.php', '/tests/smoke.php', '/docs/SECURITY.md',
+    '/.git/config', '/.env', '/.htaccess', '/uploads/.htaccess', '/config.local.php'];
+foreach ($private as $path) {
+    $r = raw('GET', $base . $path);
+    $leaks = $r['code'] === 200 || preg_match('/<\?php|CREATE TABLE|RewriteEngine|SQLite format|\[core\]/', $r['body']);
+    check("{$path} is not served", !$leaks, (string) $r['code']);
+}
+// Path traversal toward the database, written the ways a scanner writes it.
+foreach (['/assets/../../storage/cedar.sqlite', '/assets/%2e%2e/%2e%2e/storage/cedar.sqlite',
+          '/assets/css/..%5c..%5cstorage%5ccedar.sqlite', '/assets/css/site.css%00.png'] as $path) {
+    $r = raw('GET', $base . $path);
+    check("traversal {$path} is refused", $r['code'] !== 200 && !str_starts_with($r['body'], 'SQLite format'), (string) $r['code']);
+}
+// ...and the files that SHOULD be served still are.
+check('the stylesheet is served', raw('GET', $base . '/assets/css/site.css')['code'] === 200);
+check('a bracketed font file is served', raw('GET', $base . '/assets/fonts/Roboto%5Bwdth,wght%5D.ttf')['code'] === 200);
+// Routing is exact: "admin" is a section, not a prefix.
+foreach (['/admin.php', '/administrator', '/adminfoo'] as $path) {
+    check("{$path} is not an admin page", raw('GET', $base . $path)['code'] === 404);
+}
+check('/admin itself still asks for a sign-in', raw('GET', $base . '/admin')['code'] === 303);
+
+// Health checks and crawler files must not start a session. A session is a file on disk,
+// and these are the endpoints that clients which never keep a cookie hit all day (or that
+// someone can hit on purpose to fill the disk). None of them reads session data.
+foreach (['/health', '/robots.txt', '/sitemap.xml'] as $path) {
+    $r = raw('GET', $base . $path);
+    check("{$path} answers, and does not start a session", $r['code'] === 200 && stripos($r['head'], 'Set-Cookie:') === false, 'code ' . $r['code']);
+}
+check('/health still reports ok', trim(raw('GET', $base . '/health')['body']) === '{"status":"ok"}');
+check('an ordinary page still starts a session (its forms need a CSRF token)', stripos(raw('GET', $base . '/contact')['head'], 'Set-Cookie:') !== false);
 
 echo "\n== Enumeration and disclosure ==\n";
 // Sign-in must not reveal whether an address exists.
@@ -364,9 +600,17 @@ Database::query('DELETE FROM rate_limits WHERE key_hash = ?', [hash('sha256', 'l
 
 echo "\n== Cleanup ==\n";
 Database::query("DELETE FROM properties WHERE title LIKE 'Manager Self Publish Test'");
+// Anything the CSRF coverage section created, if it stopped part-way.
+Database::query("DELETE FROM properties WHERE slug LIKE 'csrf-probe-%'");
+Database::query("DELETE FROM users WHERE email LIKE '%csrf-probe-%'");
+Database::query("DELETE FROM enquiries WHERE name = 'CSRF Probe'");
+Database::query("DELETE FROM categories WHERE name LIKE 'CSRF Probe%'");
+Database::query("DELETE FROM locations WHERE name LIKE 'CSRF Probe%'");
+Database::query("DELETE FROM testimonials WHERE name LIKE 'CSRF Probe%'");
 clearThrottle();
 foreach ($creds as $c) Database::query('UPDATE users SET must_change_password = 0 WHERE email = ?', [$c['email']]);
 check('test data removed', (int) Database::value("SELECT COUNT(*) FROM properties WHERE title LIKE 'Manager Self Publish Test'") === 0);
+check('no CSRF probe rows are left behind', (int) Database::value("SELECT (SELECT COUNT(*) FROM properties WHERE slug LIKE 'csrf-probe-%') + (SELECT COUNT(*) FROM users WHERE email LIKE '%csrf-probe-%') + (SELECT COUNT(*) FROM enquiries WHERE name='CSRF Probe') + (SELECT COUNT(*) FROM categories WHERE name LIKE 'CSRF Probe%') + (SELECT COUNT(*) FROM locations WHERE name LIKE 'CSRF Probe%') + (SELECT COUNT(*) FROM testimonials WHERE name LIKE 'CSRF Probe%')") === 0);
 
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

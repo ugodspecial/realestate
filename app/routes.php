@@ -8,6 +8,14 @@ $_SESSION['form_started'] ??= time();
 // that was actually requested.
 $GLOBALS['route']=$route;
 $method=request_method();
+// Only these methods mean anything here. Anything else used to be answered with
+// the page and a 200, which is wrong and gives a scanner something to probe.
+// (State changes are protected independently: verify_csrf() demands a real POST.)
+if(!in_array($method,['GET','HEAD','POST'],true)){
+    header('Allow: GET, HEAD, POST');
+    http_response_code($method==='OPTIONS' ? 204 : 405);
+    exit;
+}
 try {
     if($route==='' || $route==='home') { PublicController::home(); }
     elseif($route==='about')PublicController::about();
@@ -29,7 +37,7 @@ try {
     elseif($route==='robots.txt')require ROOT_PATH.'/public/robots.php';
     elseif($route==='sitemap.xml')PublicController::sitemap();
     elseif($route==='health') { Database::value('SELECT 1');header('Content-Type: application/json');echo '{"status":"ok"}'; }
-    elseif(str_starts_with($route,'admin')) { $user=Auth::require();AdminController::dispatch($route,$method,$user); }
+    elseif($route==='admin' || str_starts_with($route,'admin/')) { $user=Auth::require();AdminController::dispatch($route,$method,$user); }
     else abort_page(404,'We couldn’t find that page. Let’s get you back to a place worth exploring.');
 } catch(PDOException $e) {
     error_log($e->getMessage());

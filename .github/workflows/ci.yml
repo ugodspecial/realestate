@@ -46,6 +46,8 @@ jobs:
       - run: php tests/responsive-regression.php
       - run: php tests/accounts.php
       - run: php tests/password-reset.php
+      # A forged Host header must never decide where an emailed link points.
+      - run: php tests/host-header.php
       - run: |
           php -S 127.0.0.1:8080 -t public public/router.php >/tmp/php-server.log 2>&1 &
           echo $! >/tmp/php-server.pid
