@@ -3910,3 +3910,206 @@ summary,
   .trust-strip .container{grid-template-columns:1fr}
   .trust-strip span{font-size:11px}
 }
+
+/* ===========================================================================
+   MASK REVEAL — make the image unable to stay hidden
+   ---------------------------------------------------------------------------
+   Reported: the about image on the home page was not visible. The About page
+   uses the same file and the same class and was fine, so the difference was the
+   `mask` reveal on the home copy.
+
+   `mask` starts at `clip-path:inset(0 0 100% 0)` — fully clipped, i.e. invisible
+   — and only `.is-in` removes it. The shared reveal transition listed opacity,
+   transform and filter but not clip-path, while `will-change:opacity,transform`
+   promoted the element to its own composited layer. Clipping a promoted layer
+   that also carries `overflow:clip` on an ancestor is exactly the combination
+   that leaves an element painted clipped after the class has been applied.
+
+   Two changes make the failure impossible rather than unlikely:
+     · clip-path joins the transition list, so the reveal is animated rather
+       than snapped and the browser cannot paint a stale clip.
+     · the mask variant additionally clears its clip on the resolved state, and
+       a no-JS/no-observer fallback reveals anything still hidden.
+
+   The image no longer depends on a single class landing in time.
+   =========================================================================== */
+@media(prefers-reduced-motion:no-preference){
+  .js [data-reveal="mask"]{
+    transition:
+      opacity var(--dur-4) var(--ease-out),
+      transform var(--dur-4) var(--ease-out),
+      clip-path var(--dur-4) var(--ease-out);
+    will-change:opacity,transform,clip-path;
+  }
+}
+
+/* Belt and braces: once revealed, nothing may reintroduce a clip. */
+.js [data-reveal="mask"].is-in,
+.js [data-reveal="mask"].is-in>*{
+  clip-path:none!important;
+  opacity:1;
+}
+
+/* If the reveal never runs — script blocked, observer unsupported, or the
+   element was already on screen at load — the fallback shows the content. The
+   animation is an enhancement, never a precondition for visibility. */
+.js.no-reveal [data-reveal],
+.js [data-reveal].reveal-fallback{
+  opacity:1!important;
+  transform:none!important;
+  filter:none!important;
+  clip-path:none!important;
+}
+
+/* ===========================================================================
+   CATEGORY STRIP — five across, then stacking
+   ---------------------------------------------------------------------------
+   The five property types are the site's primary taxonomy, so they read as one
+   band of five rather than as a wrapped grid. That works from 1024 up; below it
+   the arithmetic stops working, and the numbers are worth recording because they
+   set every value here.
+
+   The longest label is APARTMENTS, which advances 5.406em in Rajdhani Bold. In a
+   five-column row each card has:
+
+     1440px viewport -> 248px card -> 208px of text -> 37.8px type
+     1024px viewport -> 188px card -> 158px of text -> 28.7px type
+      768px viewport -> 141px card -> 119px of text -> 21.6px type
+      360px viewport ->  66px card ->  46px of text ->  8.4px type
+
+   8px type is not a design decision, it is a failure. So the row holds five at
+   desktop, four on tablet, three at small-tablet, two on large phones and one on
+   the narrowest — the point at which each label still has room to be read.
+
+   Padding, tracking and type all scale with the card so the label never touches
+   the tile edge at any of the five counts.
+   =========================================================================== */
+.category-grid{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+}
+.category-card{
+  padding:clamp(14px,1.7vw,24px) clamp(12px,1.6vw,25px) clamp(14px,1.7vw,23px);
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+.category-card h3{
+  font-size:clamp(15px,2.5vw,37px);
+  line-height:1.1;
+  letter-spacing:var(--tracking-snug);
+  margin-top:clamp(10px,1.6vw,25px);
+  /* A single long label must not push the tile wider than its track. */
+  overflow-wrap:anywhere;
+  hyphens:auto;
+}
+.category-number{
+  font-size:clamp(10px,1vw,13px);
+}
+.category-bottom{
+  font-size:clamp(9px,.85vw,12px);
+  margin-top:auto;
+}
+
+/* --- the ladder ---------------------------------------------------------- */
+@media(max-width:1023px){
+  .category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .category-card h3{font-size:clamp(15px,2.9vw,24px)}
+}
+
+@media(max-width:860px){
+  .category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .category-card h3{font-size:clamp(16px,3.4vw,22px)}
+}
+
+@media(max-width:640px){
+  .category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .category-card{
+    padding:16px 16px 15px;
+    border-right:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .category-card h3{font-size:clamp(17px,4.6vw,21px);margin-top:10px}
+  /* Restore the tile edges the old single-column rule removed. */
+  .category-card:nth-child(3){border-right:1px solid var(--line)}
+  .category-card:nth-child(2n){border-right:0}
+  .category-card:nth-last-child(-n+1){border-bottom:0}
+}
+
+@media(max-width:400px){
+  /* Below 400 two columns leaves 46px of text per card: go to one and give the
+     label the full width of the tile. */
+  .category-grid{grid-template-columns:1fr}
+  .category-card{border-right:0;border-bottom:1px solid var(--line);padding:16px 18px}
+  .category-card:last-child{border-bottom:0}
+  .category-card h3{font-size:20px;margin-top:8px}
+}
+
+/* ===========================================================================
+   ABOUT FIGURES — even padding against the dividers
+   ---------------------------------------------------------------------------
+   The three figures (live listings / locations covered / property types) sit in
+   a divided row, but their padding was `18px 14px 18px 0`: zero on the left, 14
+   on the right. So each number crowded the rule on its left while sitting well
+   clear of the rule on its right, and the first column started flush against the
+   text above it. On two columns the same asymmetry repeated, with the third
+   figure spanning both and inheriting a right padding of zero.
+
+   Every cell now has equal padding on both sides, scaled to the viewport so the
+   figures stay generous on desktop without squeezing the labels on a phone. The
+   rules between cells are drawn with a pseudo-element rather than a border so
+   the padding is genuinely symmetric — a border sits outside the box and always
+   pushed the right-hand cell off-centre.
+   =========================================================================== */
+.about-figures{
+  margin:clamp(22px,2.6vw,30px) 0 clamp(24px,2.8vw,32px);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
+.about-figures>div{
+  position:relative;
+  padding:clamp(14px,1.5vw,18px) clamp(12px,1.4vw,20px);
+  border-right:0;
+}
+/* The divider, drawn inside the gap rather than as a border. */
+.about-figures>div+div::before{
+  content:'';
+  position:absolute;
+  left:0;top:clamp(10px,1.2vw,14px);bottom:clamp(10px,1.2vw,14px);
+  width:1px;background:var(--line);
+}
+.about-figures b{font-size:clamp(22px,2.4vw,32px);line-height:1.1}
+.about-figures span{
+  margin-top:6px;
+  font-size:clamp(9px,.82vw,11px);
+  letter-spacing:var(--tracking-wide);
+  line-height:1.45;
+}
+
+/* Three across wherever there is room; the label lengths decide when to drop. */
+@media(max-width:860px){
+  .about-figures{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .about-figures>div{padding:16px 12px}
+  .about-figures b{font-size:24px}
+  .about-figures span{font-size:10px;letter-spacing:.08em}
+}
+@media(max-width:640px){
+  /* Two columns on phones: the third figure spans the row, so it needs no
+     divider above it and keeps the same symmetric padding. */
+  .about-figures{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .about-figures>div{padding:14px 12px;border-right:0}
+  .about-figures>div:nth-child(2n){padding-right:12px}
+  .about-figures>div:nth-child(odd){padding-right:12px}
+  .about-figures>div:nth-child(3){
+    grid-column:span 2;
+    padding-top:14px;
+    border-top:1px solid var(--line);
+  }
+  .about-figures>div:nth-child(3)::before{display:none}
+  .about-figures b{font-size:23px}
+  .about-figures span{font-size:10px}
+}
+@media(max-width:400px){
+  .about-figures>div{padding:13px 10px}
+  .about-figures b{font-size:21px}
+  .about-figures span{font-size:9.5px;letter-spacing:.06em}
+}

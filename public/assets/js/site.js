@@ -289,6 +289,27 @@ open();
     revealItems.forEach(showNow);
   }
 
+  /* Safety net. A reveal is an enhancement: content must never depend on an
+     observer callback arriving. If any element is still hidden a moment after
+     load - a missed intersection, a zero-height measurement, a thrown callback -
+     it is revealed outright. This is what keeps the home page's about image from
+     staying clipped when the mask animation does not run. */
+  function revealStragglers() {
+    revealItems.forEach(function (el) {
+      if (el.classList.contains('is-in')) return;
+      var box = el.getBoundingClientRect();
+      var style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+      var hidden = style && (parseFloat(style.opacity) === 0 ||
+        (style.clipPath && style.clipPath !== 'none'));
+      /* Above the fold, or hidden longer than it should be: show it. */
+      if (box.top < window.innerHeight * 1.15 || hidden) showNow(el);
+    });
+  }
+  window.addEventListener('load', function () { setTimeout(revealStragglers, 700); });
+  setTimeout(revealStragglers, 1800);
+  /* Last resort: if the script itself failed somewhere above, strip the gate. */
+  window.addEventListener('error', function () { d.documentElement.classList.add('no-reveal'); });
+
   /* --------------------------------------------------- Reading progress bar */
   var progress = d.querySelector('.read-progress > span');
   var progressWrap = d.querySelector('.read-progress');

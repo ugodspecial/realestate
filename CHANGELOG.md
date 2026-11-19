@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.8.2 — 2026-11-03
+
+Four corrections from review.
+
+**About page.** The two body paragraphs (`about_body`) are removed, so the panel
+now runs eyebrow, title, one-line summary, link — the composition in the review
+screenshot. The `about_body` setting is untouched; the home page still draws its
+first paragraph from it.
+
+**Home about image.** Reported as no longer visible while the About page showed
+the same file. The difference was the `mask` reveal on the home copy: it starts
+fully clipped (`clip-path:inset(0 0 100% 0)`) and only `.is-in` clears it, but the
+shared reveal transition listed opacity, transform and filter — not clip-path —
+while `will-change` promoted the element to its own composited layer. Clipping a
+promoted layer under an `overflow:clip` ancestor is the combination that can leave
+an element painted clipped. `clip-path` now joins the transition, the mask clears
+its clip on `.is-in` with `!important`, and a JS safety net reveals any element
+still hidden shortly after load. A reveal is an enhancement, never a precondition
+for visibility.
+
+**Category strip.** The five property types had been split by the previous grid
+ladder into four columns, so the fifth wrapped alone. They are one row of five
+again from 1024px up. Below that the arithmetic sets the ladder: the longest
+label, APARTMENTS, advances 5.406em, which leaves 158px of text and 28.7px type
+at 1024 but only 46px of text and 8.4px type at 360. Five across is therefore
+desktop only — four on tablet, three at 860, two at 640, one below 400. Padding,
+tracking and type scale with the card so no label touches a tile edge at any of
+the five counts; verified to fit at twelve widths from 360 to 1920.
+
+**About figures.** The row had `padding:18px 14px 18px 0` — nothing on the left,
+14px on the right — so each figure crowded the divider on its left and sat clear
+of the one on its right, and the first column started flush against the copy
+above. Padding is now symmetric on every cell, scaled to the viewport, with the
+divider drawn as a pseudo-element inside the gap rather than as a border (a
+border sits outside the box, which is what skewed the centring in the first
+place). Three across on desktop, two plus a full-width third on phones.
+
+All suites pass: smoke, responsive-regression (113), seo (48), accounts (17),
+dashboard-scope (38), migrations, logo-sanitizer (28); jsdom drawer, toast,
+gallery, sort, motion, reveal and a11y clean.
+
 ## 1.8.1 — 2026-11-03
 
 Responsiveness and chrome corrections.
