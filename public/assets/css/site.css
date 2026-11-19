@@ -4113,3 +4113,248 @@ summary,
   .about-figures b{font-size:21px}
   .about-figures span{font-size:9.5px;letter-spacing:.06em}
 }
+
+/* ===========================================================================
+   SPLIT LAYOUTS — restore the stacking that was being overridden
+   ---------------------------------------------------------------------------
+   The mobile stacking for every two-column split was dead.
+
+   An early rule declared `.split-layout,.contact-split,.contact-page-grid,
+   .faq-section .split-layout,.property-enquiry-section{grid-template-columns:1fr}`
+   inside `@media(max-width:1024px)`. Two later passes then restated
+   `.split-layout` unconditionally — once to give the about panel a 1.02/0.98
+   ratio, once to set `align-items:start`. An unconditional rule beats an earlier
+   media rule of equal specificity, so from 1024px down the grid stayed at two
+   columns.
+
+   At 390px that left each column about 160px wide: the eyebrow ran into the
+   headline, the headline broke to one word per line, the checklist sat in a
+   ragged column, and the figures row was squeezed to two 80px cells. On the home
+   page the same bug hit the about panel *and* the services "Cedar difference"
+   panel, whose copy overlapped the floating buttons.
+
+   The fix is to state the stacking after those rules, at the breakpoint where a
+   single column is actually right, and to keep each panel's own gap.
+   =========================================================================== */
+
+@media(max-width:1024px){
+  .split-layout,
+  .contact-split,
+  .contact-page-grid,
+  .faq-section .split-layout,
+  .property-enquiry-section{
+    grid-template-columns:minmax(0,1fr);
+    align-items:start;
+    gap:clamp(28px,5vw,45px);
+  }
+  /* The visual leads the copy when stacked: the image introduces the section,
+     then the text follows. */
+  .about-section .split-layout>.about-visual{order:1}
+  .about-section .split-layout>.about-copy{order:2}
+}
+
+@media(max-width:640px){
+  .split-layout,
+  .contact-split,
+  .contact-page-grid,
+  .faq-section .split-layout,
+  .property-enquiry-section{gap:clamp(24px,6vw,34px)}
+}
+
+/* ===========================================================================
+   ABOUT VISUAL — fits when the panel is one column
+   ---------------------------------------------------------------------------
+   The offset frame (`.about-visual::before`, 55% wide, inset 28px from the top)
+   and the floating image note were drawn for a tall half-width column. Stacked
+   at full width with a fixed 515px image they spilled: the note hung over the
+   image edge and the decorative frame poked past the right gutter.
+
+   Both now scale with the panel and the note is clamped inside it.
+   =========================================================================== */
+.about-visual{
+  padding-right:clamp(0px,2vw,23px);
+  padding-bottom:clamp(0px,2vw,24px);
+  max-width:100%;
+}
+.about-visual>img{
+  height:clamp(280px,42vw,515px);
+  max-width:100%;
+}
+.about-image-note{
+  /* Stays within the visual at every width instead of hanging off the edge. */
+  right:clamp(8px,1.6vw,10px);
+  left:auto;
+  max-width:calc(100% - 16px);
+}
+.about-visual>:where(.image-caption,.about-image-note){max-width:100%}
+
+@media(max-width:1024px){
+  .about-visual{padding-right:0;padding-bottom:0}
+  /* Short and wide reads better than tall and narrow once it is full width. */
+  .about-visual>img{height:clamp(260px,46vw,400px);aspect-ratio:auto}
+  .about-visual::before{display:none}
+  .about-image-note{position:static;margin-top:14px;max-width:100%}
+}
+
+/* ===========================================================================
+   FLOATING CONTROLS — never sit on top of body copy
+   ---------------------------------------------------------------------------
+   The WhatsApp bubble and the back-to-top button overlay whatever is behind
+   them. On a phone the last lines of a long paragraph could sit underneath, and
+   on the services panel the copy ran behind both. The page now reserves room at
+   the end of the content and the two controls keep a clear gap between them.
+   =========================================================================== */
+@media(max-width:1024px){
+  body{padding-bottom:0}
+  .site-footer{padding-bottom:84px}
+  .whatsapp-float{right:14px;bottom:16px}
+  .back-top{right:16px;bottom:76px}
+}
+
+/* ===========================================================================
+   CATEGORY TILES — one row, one height, icons on a common line
+   ---------------------------------------------------------------------------
+   The five tiles were not height-aligned. Three separate causes, all of them in
+   the same 40 lines of CSS:
+
+   1. `.category-grid` had no `align-items`, so each tile stretched only to its
+      own content. A label that wrapped to two lines made that tile taller than
+      its neighbours, and the bottom row of "0 properties ↗" sat at a different
+      height in every tile.
+
+   2. `.category-icon` was absolutely positioned at `top:34px; right:24px` —
+      fixed pixel offsets against a padding that now scales with `clamp()`. At
+      1440 the padding is 24px so the icon cleared the edge; at 900 it is 15px,
+      and at that point the fixed 24px inset no longer matched the number or the
+      label above it, so the icon drifted out of the tile's own rhythm.
+
+   3. `h3` had a `margin-top` but nothing reserved space for the wrapped second
+      line, so a two-line label pushed the footer down instead of the tile
+      growing evenly.
+
+   The icon becomes a positioned element tied to the tile's padding box rather
+   than to magic numbers, the grid stretches its rows, and the label is given a
+   two-line minimum so every tile in the row is the same height whatever its
+   label length.
+   =========================================================================== */
+.category-grid{
+  align-items:stretch;
+  grid-auto-rows:1fr;
+}
+.category-card{
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  align-content:start;
+  height:100%;
+}
+.category-icon{
+  /* Anchored to the padding box, so it tracks the same inset as the number and
+     the label at every breakpoint instead of sitting at a fixed 24px. */
+  position:absolute;
+  top:clamp(12px,1.7vw,24px);
+  right:clamp(12px,1.6vw,24px);
+  line-height:0;
+  pointer-events:none;
+}
+.category-icon .icon{
+  width:clamp(20px,2vw,29px);
+  height:clamp(20px,2vw,29px);
+}
+.category-card h3{
+  /* Reserve two lines so a wrapped label cannot make one tile taller than its
+     neighbours; single-line labels simply have room beneath them. */
+  min-height:2.2em;
+  display:flex;
+  align-items:flex-end;
+}
+.category-bottom{
+  align-self:end;
+}
+
+@media(max-width:640px){
+  .category-card h3{min-height:0}
+  .category-icon{top:12px;right:14px}
+  .category-icon .icon{width:20px;height:20px}
+}
+@media(max-width:400px){
+  .category-card h3{min-height:0}
+}
+
+/* ===========================================================================
+   CATEGORY TILES — icon and label must not occupy the same space
+   ---------------------------------------------------------------------------
+   The icon used to be absolutely positioned in the top-right corner while the
+   label was free to run the full width of the content box. Measured against the
+   real Rajdhani advance widths, the two collided at every desktop size:
+
+     viewport   card   label   icon starts   overlap
+       1025px   189px   139px     134px         4px
+       1200px   221px   162px     157px         5px
+       1440px   248px   195px     172px        22px
+       1920px   248px   200px     171px        29px
+
+   APARTMENTS and COMMERCIAL ran underneath their own icons.
+
+   Now the label and icon are two tracks of the same row, so the label takes
+   every pixel the icon does not need and can never slide behind it. With the
+   icon supplying the right-hand inset, the tile's own right padding is trimmed,
+   which is what keeps the longest label on a single line — a wrapped label would
+   make one tile taller than its neighbours and break the row.
+
+   Tiles are equal height by construction: the grid stretches them, each card is
+   a grid of number / label row / flexible spacer / footer, and the spacer absorbs
+   the difference so footers align on a common baseline.
+   =========================================================================== */
+.category-card{
+  --cat-icon:clamp(20px,2vw,29px);
+  display:grid;
+  grid-template-rows:auto auto 1fr auto;
+  height:100%;
+  padding-right:clamp(10px,1vw,14px);
+}
+.category-number{
+  grid-row:1;
+  font-size:clamp(9px,.8vw,12px);
+}
+/* One row, two tracks: label takes all remaining width, icon a fixed column. */
+.category-label-row{
+  grid-row:2;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:6px;
+}
+.category-card h3{
+  grid-column:1;
+  /* One line at every width: measured against the 5.406em advance of the longest
+     label, this tops out exactly where the label still clears the icon track. */
+  font-size:clamp(15px,1.85vw,30px);
+  min-height:0;
+  margin:0;
+  display:block;
+  overflow-wrap:anywhere;
+}
+.category-icon{
+  grid-column:2;
+  position:static;
+  justify-self:end;
+  align-self:center;
+  line-height:0;
+  pointer-events:none;
+}
+.category-icon .icon{width:var(--cat-icon);height:var(--cat-icon)}
+.category-bottom{grid-row:4;align-self:end}
+
+@media(max-width:1023px){
+  .category-card h3{font-size:clamp(15px,2.6vw,21px)}
+}
+@media(max-width:860px){
+  .category-card h3{font-size:clamp(16px,3.2vw,20px)}
+}
+@media(max-width:640px){
+  .category-card h3{font-size:clamp(16px,4.2vw,19px)}
+  .category-card{padding-right:12px}
+}
+@media(max-width:400px){
+  .category-card h3{font-size:19px}
+}

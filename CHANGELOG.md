@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.8.4 — 2026-11-03
+
+**Stack the split panels, clear the floats, align the category tiles.** Three
+layout faults reported from screenshots, all of them cases of an element being
+laid out for a width it was not being shown at.
+
+*Split panels stacked only in theory.* `.split-layout` had a `@media
+(max-width:1024px)` rule that turned it into a single column, but two later
+unconditional rules set two columns again, so the media rule never took effect.
+The About panel (eyebrow over headline, one word per line, a ragged checklist,
+figures crushed to ~80px cells) and the "Cedar difference" panel on the home page
+were both two columns at every width down to 360px. The stack rule now sits at
+the end of the stylesheet where nothing overrides it, and the copy is ordered
+above the image on narrow screens so the panel opens with the words.
+
+*Text ran under the floating controls.* The WhatsApp and back-to-top buttons are
+fixed to the bottom-right, and on a narrow screen the last lines of a section
+passed underneath them. Below 1024px the footer reserves room for them and both
+buttons sit closer to the edge, so no content can be trapped behind one.
+
+*Category tiles were not one height.* The icon was absolutely positioned in the
+top-right while the label ran the full width of the card, so the two collided —
+APARTMENTS and COMMERCIAL overlapped their own icons by 4px at 1025px and 29px at
+1920px, which is the collision in the screenshot. The icon is now a grid track
+in the label's own row, so the label takes every pixel the icon does not need and
+can never slide beneath it; the card is a four-row grid whose flexible spacer
+makes all five tiles share one height, with the footers on a common baseline.
+
 ## 1.8.3 — 2026-11-03
 
 **Restore the About page body copy.** The previous release removed the two
