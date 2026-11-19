@@ -1,5 +1,81 @@
 # Changelog
 
+## 1.7.0 — 2026-11-03
+
+Second design pass. The first pass gave every section its own composition; this
+one makes the details agree with each other, and fixes four features that had
+never worked.
+
+**What was still wrong.** Measured across the stylesheet: thirty-six distinct
+letter-spacing values, twenty-eight line-heights, nineteen z-index values, and a
+hundred and one hex colours matching no token. Nothing was wrong on its own —
+a 1px tracking difference is invisible — but nothing was repeated either, and
+that is what "assembled" rather than "art-directed" looks like. Three interaction
+states were missing almost everywhere: only buttons had an `:active`, and no
+component had a `:focus-visible`.
+
+**Systems added.**
+
+- A 4px-rooted spacing scale (`--space-1` … `--space-13`) plus fluid section
+  rhythm (`--gutter`, `--section-y`, `--stack`), replacing ad-hoc 5/9/13/18/22/
+  26/34px steps.
+- A five-step tracking scale named by role, replacing 36 values with 5.
+- A named layer stack (`--z-sticky` … `--z-skip`) replacing 19 loose numbers.
+- A typographic rhythm: four line-height roles, heading margins that follow
+  heading size, a 66ch measure for running copy, and `text-wrap:balance` on
+  headings so no last line is left with one orphaned word.
+
+**States.** Every control now has rest, hover, active and focus-visible. Presses
+move 1px and drop their shadow, which is what makes a surface feel physical.
+Card images scale on hover; card titles grow an underline from the left; text
+links retract their rule to the right on exit so it reads as one line moving,
+not two lines swapping.
+
+**Motion.** Reveals no longer share one 0.9s duration — small content settles in
+0.55s, large media takes 0.9s. Offsets shrank from 34px to 22px, which reads as a
+settle rather than a slide. `will-change` is now scoped to the moving state; it
+had been left on permanently, promoting every revealed element to its own
+compositing layer for the life of the page. The hero arrives in reading order
+with a short overlap, and the mobile drawer steps its items in.
+
+**Bugs fixed.**
+
+- **The save control never worked.** The markup emitted `data-save` while the
+  JavaScript queried `[data-save-property]`, so no handler was ever bound.
+- **The gallery never opened.** The JavaScript looked for `id="galleryDialog"`
+  and found `id="gallery-dialog"`; the buttons carried `data-lightbox` where it
+  needed `data-gallery-item` and `data-full`. Three mismatches in one feature.
+- **There was no toast element in the DOM at all**, so every "Saved" and "Link
+  copied" message the script sent was silently discarded. It now exists, is
+  announced with `role="status"`, and sits above the header rather than level
+  with it.
+- **Sort did nothing.** The select carried `data-auto-submit` and nothing read
+  it; choosing a sort order required finding the Apply button.
+- The WhatsApp hover label targeted `.whatsapp-label`, a class that never
+  existed; the element is a bare `<span>`.
+- `.img-reveal` was fully implemented and applied to nothing. It now runs on the
+  property gallery's main frame.
+
+**Accessibility.** Fourteen muted greys introduced in the first pass measured
+between 2.2:1 and 4.4:1 — below the 4.5:1 that body text needs, and in several
+cases below the 3:1 even large text needs. They were all slightly different,
+which is why the page read as faded rather than restrained. Three measured steps
+replace them (`--ink-muted` 5.74:1, `--ink-subtle` 4.53:1, `--ink-faint` 3.90:1),
+and two on the deep-green footer (6.53:1, 7.94:1). A 9px badge and a 9px
+reference number were raised; 10px is now the floor for letter-spaced micro
+labels. Long unbreakable tokens (the contact email) can now wrap instead of
+forcing a horizontal scrollbar at 360px.
+
+**Layout.** Four fixed gutters of 80–105px survived from the original stylesheet
+and starved the copy columns; they are now fluid. The property page's sidebar
+was a fixed 330px and its gallery a fixed 460px, both now proportional.
+
+**Verified.** `smoke` 120, `responsive-regression` 113, `seo` 48,
+`dashboard-scope` 38, `accounts` 17, `migrations`, `logo-sanitizer` 28 — all
+pass. Every public page: one `h1`, no heading jumps, no duplicate ids, no
+focusable content in `aria-hidden`, well-formed documents. Save, gallery,
+toast, sort and drawer were each exercised in a real DOM and now behave.
+
 ## 1.6.0 — 2026-11-03
 
 Visual redesign. Every public page was rebuilt in place: the markup, content,

@@ -948,11 +948,11 @@ p{text-wrap:pretty}
 .display-heading,.section-heading h2,.why-section h2,.page-banner h1,.about-copy h2,
 .contact-copy h2,.footer-top h2,.service-detail h2,.simple-cta h2,
 .contact-information h2,.faq-section h2{
-  letter-spacing:-.01em;
+  letter-spacing:var(--tracking-tight);
   font-kerning:normal;
 }
 .eyebrow{
-  letter-spacing:.18em;
+  letter-spacing:var(--tracking-widest);
   font-weight:500;
   text-transform:uppercase;
 }
@@ -997,7 +997,7 @@ p{text-wrap:pretty}
   height:30px;margin-top:-15px;
   border-radius:var(--radius-pill);
   background:var(--green-light);
-  z-index:-1;
+  z-index:var(--z-below);
   opacity:.75;
 }
 
@@ -1015,7 +1015,7 @@ p{text-wrap:pretty}
 }
 .hero h1{
   font-variation-settings:'wght' 700;
-  letter-spacing:.055em;
+  letter-spacing:var(--tracking-wider);
   line-height:.98;
   text-shadow:0 4px 40px #0000003d;
 }
@@ -1025,7 +1025,7 @@ p{text-wrap:pretty}
 .hero-copy>p{max-width:min(490px,100%);font-size:var(--step-1);line-height:1.75;color:#e7ede0}
 .hero-assurance{
   font-size:var(--step--1);
-  letter-spacing:.06em;
+  letter-spacing:var(--tracking-wider);
   text-transform:uppercase;
   color:#d9e3d0;
   padding-top:22px;
@@ -1087,7 +1087,7 @@ p{text-wrap:pretty}
 .trust-strip span{
   display:inline-flex;align-items:center;gap:9px;
   font-size:var(--step--1);color:#5d6f5c;
-  letter-spacing:.02em;
+  letter-spacing:var(--tracking-wide);
 }
 .trust-strip .icon{width:16px;height:16px;color:var(--gold)}
 .trust-strip i{width:1px;height:16px;background:var(--line)}
@@ -1111,7 +1111,7 @@ p{text-wrap:pretty}
 .section-heading.centered .eyebrow::before{display:none}
 .section-index{
   font-size:var(--step--1);
-  letter-spacing:.24em;
+  letter-spacing:var(--tracking-widest);
   color:#93a08d;
   white-space:nowrap;
 }
@@ -1139,10 +1139,10 @@ p{text-wrap:pretty}
   opacity:0;transition:opacity var(--dur-3) ease;
 }
 .property-card:hover .property-image-wrap::before{opacity:1}
-.badge{letter-spacing:.07em;padding:5px 9px;border-radius:var(--radius-sm)}
+.badge{letter-spacing:var(--tracking-wider);padding:5px 9px;border-radius:var(--radius-sm)}
 .property-card-body{padding:22px 23px 0}
-.property-price{font-size:var(--step-1);font-weight:500;letter-spacing:-.01em}
-.property-card h3{font-size:var(--step-1);font-weight:500;margin-top:8px;letter-spacing:-.005em}
+.property-price{font-size:var(--step-1);font-weight:500;letter-spacing:var(--tracking-tight)}
+.property-card h3{font-size:var(--step-1);font-weight:500;margin-top:8px;letter-spacing:var(--tracking-wide)}
 .property-card h3 a{
   background-image:linear-gradient(currentColor,currentColor);
   background-size:0 1px;background-repeat:no-repeat;background-position:0 100%;
@@ -1256,7 +1256,7 @@ p{text-wrap:pretty}
 .text-link{
   position:relative;
   padding-bottom:4px;
-  letter-spacing:.2em;
+  letter-spacing:var(--tracking-widest);
   transition:color var(--dur-2) ease;
 }
 .text-link::after{
@@ -1284,7 +1284,7 @@ p{text-wrap:pretty}
   background:radial-gradient(circle,#1d4c3e0f,transparent 68%);
   pointer-events:none;
 }
-.breadcrumbs{font-size:var(--step--1);letter-spacing:.04em}
+.breadcrumbs{font-size:var(--step--1);letter-spacing:var(--tracking-wide)}
 .breadcrumbs a{transition:color var(--dur-1) ease}
 .breadcrumbs a:hover{color:var(--green)}
 
@@ -1358,7 +1358,7 @@ p{text-wrap:pretty}
    It appears only after the first screen has been passed. */
 .read-progress{
   position:fixed;top:0;left:0;right:0;height:2px;
-  z-index:80;pointer-events:none;
+  z-index:var(--z-progress);pointer-events:none;
   background:transparent;
   transform-origin:0 50%;
   transform:scaleX(0);
@@ -1551,7 +1551,7 @@ p{text-wrap:pretty}
 }
 .why-list>div:hover{padding-left:10px}
 .why-list>div:hover>.icon{background:var(--green);color:#fff}
-.why-list h3{font-size:var(--step-2);font-weight:500;letter-spacing:-.01em;margin-bottom:6px}
+.why-list h3{font-size:var(--step-2);font-weight:500;letter-spacing:var(--tracking-tight);margin-bottom:6px}
 .why-list p{font-size:var(--step-0);color:#66755f;max-width:44ch}
 
 /* -------------------------------------------------------- Locations mosaic
@@ -1574,11 +1574,11 @@ p{text-wrap:pretty}
 }
 .location-card>div{bottom:22px;left:22px;right:22px}
 .location-card h3{letter-spacing:0;font-size:clamp(20px,2.2vw,27px)}
-.location-card:first-child h3{font-size:clamp(26px,3.4vw,42px);letter-spacing:-.01em}
-.location-card p{font-size:var(--step--1);color:#d5e0cd;letter-spacing:.02em}
+.location-card:first-child h3{font-size:clamp(26px,3.4vw,42px);letter-spacing:var(--tracking-tight)}
+.location-card p{font-size:var(--step--1);color:#d5e0cd;letter-spacing:var(--tracking-wide)}
 .location-card>div>span{
   display:inline-block;
-  font-size:10px;font-weight:500;letter-spacing:.16em;
+  font-size:10px;font-weight:500;letter-spacing:var(--tracking-wider);
   padding:5px 9px;margin-bottom:8px;
   background:#ffffff1f;border-radius:3px;
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
@@ -1613,7 +1613,7 @@ p{text-wrap:pretty}
 }
 .testimonial blockquote{
   font-size:var(--step-1);line-height:1.7;font-style:normal;
-  color:#41523f;letter-spacing:-.005em;
+  color:#41523f;letter-spacing:var(--tracking-wide);
 }
 .testimonial:first-child{
   background:linear-gradient(160deg,#ffffff,#fbfcf8);
@@ -1640,7 +1640,7 @@ p{text-wrap:pretty}
 }
 .contact-copy h2{font-size:clamp(26px,3vw,40px);line-height:1.12}
 .contact-form-panel{padding:clamp(30px,4vw,48px)}
-.contact-form-panel h3{font-size:var(--step-2);letter-spacing:.02em}
+.contact-form-panel h3{font-size:var(--step-2);letter-spacing:var(--tracking-wide)}
 .contact-direct>a{
   padding:14px 16px;
   border:1px solid #ffffff1f;
@@ -1668,7 +1668,7 @@ p{text-wrap:pretty}
   transition:transform var(--dur-3) var(--ease-out);
 }
 .service-card:hover::after{transform:scaleY(1)}
-.service-card h3{font-size:var(--step-2);font-weight:500;letter-spacing:-.01em}
+.service-card h3{font-size:var(--step-2);font-weight:500;letter-spacing:var(--tracking-tight)}
 .service-card p{color:#c3d2c4;font-size:var(--step-0)}
 .service-number{color:#ffffff30}
 .service-card:hover .service-number{color:var(--gold-soft)}
@@ -1765,11 +1765,11 @@ p{text-wrap:pretty}
 .about-figures b{
   display:block;
   font:600 clamp(24px,2.4vw,32px)/1.1 var(--font-display);
-  letter-spacing:.01em;color:var(--green);
+  letter-spacing:var(--tracking-wide);color:var(--green);
 }
 .about-figures span{
   display:block;margin-top:5px;
-  font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  font-size:11px;letter-spacing:var(--tracking-wider);text-transform:uppercase;
   color:#8b978a;
 }
 
@@ -1876,7 +1876,7 @@ p{text-wrap:pretty}
 /* The about figures rail wraps its labels without breaking the columns. */
 @media(max-width:1024px){
   .about-figures b{font-size:26px}
-  .about-figures span{font-size:10px;letter-spacing:.06em}
+  .about-figures span{font-size:10px;letter-spacing:var(--tracking-wider)}
 }
 @media(max-width:400px){
   .about-figures{grid-template-columns:1fr 1fr}
@@ -1944,7 +1944,7 @@ p{text-wrap:pretty}
 }
 .values-grid>div:hover>.icon{transform:translateY(-3px) scale(1.06)}
 .values-grid h3{
-  font-size:var(--step-2);font-weight:500;letter-spacing:-.01em;
+  font-size:var(--step-2);font-weight:500;letter-spacing:var(--tracking-tight);
   margin-bottom:9px;color:var(--ink-strong);
 }
 .values-grid p{font-size:var(--step-0);color:#66755f;line-height:1.68;max-width:34ch}
@@ -1958,10 +1958,10 @@ p{text-wrap:pretty}
 }
 .process-list>div>span{
   font:600 13px/1 var(--font-display);
-  letter-spacing:.14em;color:var(--gold);
+  letter-spacing:var(--tracking-wider);color:var(--gold);
   padding-top:5px;
 }
-.process-list h3{font-size:var(--step-2);font-weight:500;letter-spacing:-.01em;margin-bottom:5px}
+.process-list h3{font-size:var(--step-2);font-weight:500;letter-spacing:var(--tracking-tight);margin-bottom:5px}
 .process-list p{font-size:var(--step-0);color:#66755f;max-width:46ch}
 /* A gold rule grows along the bottom edge as the row is hovered. */
 .process-list>div::after{
@@ -2002,11 +2002,11 @@ p{text-wrap:pretty}
 }
 .service-detail:hover .service-detail-icon>.icon{background:var(--green);color:#fff}
 .service-detail-icon span{
-  font:600 12px/1 var(--font-display);letter-spacing:.16em;color:#a9b3a6;
+  font:600 12px/1 var(--font-display);letter-spacing:var(--tracking-wider);color:#a9b3a6;
 }
 .service-detail h2{
   font-size:clamp(24px,2.6vw,34px);line-height:1.16;
-  letter-spacing:-.015em;margin:8px 0 12px;color:var(--ink-strong);
+  letter-spacing:var(--tracking-tight);margin:8px 0 12px;color:var(--ink-strong);
   max-width:22ch;
 }
 .service-detail>div>p{
@@ -2014,7 +2014,7 @@ p{text-wrap:pretty}
   max-width:62ch;margin-bottom:22px;
 }
 .service-detail .check-list{margin-bottom:24px}
-.service-detail .text-link{font-size:11px;letter-spacing:.12em}
+.service-detail .text-link{font-size:11px;letter-spacing:var(--tracking-wider)}
 
 /* ---------------------------------------------------------- Contact layout
    The information column sits on a tinted field so the form reads as the
@@ -2190,7 +2190,7 @@ p{text-wrap:pretty}
 .detail-specs>div:last-child{border-bottom:0}
 .detail-specs>div:hover{background:#fafbf7}
 .detail-specs dt,.detail-specs>div>span:first-child{
-  color:#8b978a;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:#8b978a;font-size:11px;letter-spacing:var(--tracking-wider);text-transform:uppercase;
 }
 .detail-specs dd,.detail-specs>div>strong{
   color:var(--ink-strong);font-size:var(--step-0);
@@ -2206,7 +2206,7 @@ p{text-wrap:pretty}
 .detail-section .eyebrow{color:var(--green)}
 .detail-section h2{
   font-size:clamp(24px,2.8vw,36px);
-  line-height:1.14;letter-spacing:-.015em;
+  line-height:1.14;letter-spacing:var(--tracking-tight);
   margin:8px 0 14px;
   color:var(--ink-strong);
 }
@@ -2295,4 +2295,1779 @@ p{text-wrap:pretty}
 @media(max-width:640px){
   .detail-specs>div>span{font-size:11px;gap:10px}
   .detail-specs strong{font-size:14px}
+}
+
+/* ===========================================================================
+   SECOND PASS — FOUNDATIONS
+   ---------------------------------------------------------------------------
+   A design reads as art-directed when its decisions repeat. Measurement of the
+   first pass found the opposite: thirty-six distinct letter-spacing values,
+   nineteen z-index values, and a hundred and one hex colours that matched no
+   token. Nothing was wrong on its own; together they read as accident. This
+   block adds the scales the first pass was missing. Later blocks consume them.
+   =========================================================================== */
+
+:root{
+  /* ---- Spacing. One 4px-rooted scale replaces the ad-hoc 5px/9px/13px/18px/
+     22px/26px/34px steps. Everything that lays out uses a member of this set,
+     so gaps rhyme across sections instead of merely being close. */
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:20px;
+  --space-6:24px;
+  --space-7:32px;
+  --space-8:40px;
+  --space-9:48px;
+  --space-10:64px;
+  --space-11:80px;
+  --space-12:96px;
+  --space-13:128px;
+
+  /* Section rhythm, fluid. These three carry the vertical beat of the page. */
+  --gutter:clamp(20px,5vw,48px);
+  --section-y:clamp(56px,7.5vw,104px);
+  --section-y-lg:clamp(72px,9vw,128px);
+  --stack-sm:clamp(12px,1.4vw,16px);
+  --stack:clamp(20px,2.4vw,28px);
+  --stack-lg:clamp(32px,4vw,48px);
+
+  /* ---- Tracking. Five steps, named by role. The old 5.7px/5.5px/3.4px/1.8px
+     one-offs collapse into these; a 1px difference at display size is
+     invisible, so keeping separate values bought nothing but noise. */
+  --tracking-tight:-.02em;   /* large display headings, optical closure      */
+  --tracking-snug:-.01em;    /* body headings                                 */
+  --tracking-normal:0;
+  --tracking-wide:.06em;     /* small caps labels                             */
+  --tracking-wider:.14em;    /* eyebrow / overline                            */
+  --tracking-widest:.22em;   /* display lines set in Rajdhani                 */
+
+  /* ---- Layering. A named stack, so "above the header" is a decision rather
+     than whichever number was typed last. */
+  --z-below:-1;
+  --z-base:0;
+  --z-raised:10;
+  --z-sticky:100;      /* header, sticky sidebar                            */
+  --z-progress:110;    /* reading progress bar, just over the header       */
+  --z-overlay:200;     /* mobile drawer scrim                              */
+  --z-drawer:210;      /* mobile drawer                                    */
+  --z-float:300;       /* back-to-top, WhatsApp                            */
+  --z-dialog:400;      /* gallery / confirm dialogs                        */
+  --z-toast:500;       /* toasts, above dialogs                            */
+  --z-skip:600;        /* skip link, must never be trapped                 */
+
+  /* ---- Alpha inks. Translucent whites and greens recur constantly; naming
+     them keeps the glassy surfaces tonally consistent. */
+  --glass-1:#ffffff0f;
+  --glass-2:#ffffff1a;
+  --glass-3:#ffffff2b;
+  --glass-line:#ffffff24;
+  --glass-line-strong:#ffffff3d;
+  --ink-a08:#102e2614;
+  --ink-a12:#102e261f;
+  --ink-a18:#102e262e;
+  --paper-tint:#fbfcf9;
+  --paper-tint-2:#f4f7ee;
+  --line-soft:#e6eae3;
+  --line-softer:#eef1ea;
+
+  /* ---- Moving-image easing. Entrances decelerate; exits accelerate. Using
+     one curve for both is what makes motion feel mechanical. */
+  --ease-exit:cubic-bezier(.4,0,1,1);
+  --dur-exit:.24s;
+}
+
+/* ===========================================================================
+   INTERACTION STATES
+   ---------------------------------------------------------------------------
+   A hover alone is half a conversation. Every control now has four states:
+   rest, hover (intent), active (commit), and focus-visible (keyboard). Without
+   an active state a button feels like it ignored the click; without focus it
+   is unreachable by keyboard. Presses move 1px and drop their shadow, which
+   is what makes a surface feel physical.
+   =========================================================================== */
+
+/* ------------------------------------------------------------------ Buttons */
+.btn{position:relative;isolation:isolate;overflow:hidden}
+.btn::after{
+  /* A sheen that wipes across on hover. It is one pseudo-element, GPU-only,
+     and skipped entirely under reduced motion. */
+  content:'';position:absolute;inset:0;z-index:var(--z-below);
+  background:linear-gradient(100deg,transparent 20%,#ffffff26 46%,transparent 72%);
+  transform:translate3d(-120%,0,0);
+  transition:transform var(--dur-3) var(--ease-out);
+  pointer-events:none;
+}
+.btn:hover::after{transform:translate3d(120%,0,0)}
+.btn:active{transform:translateY(1px) scale(.995);box-shadow:none}
+.btn-primary:active{background:#1a4437}
+.btn-light:active{background:#eef2ea}
+.btn-outline:active{background:var(--paper)}
+.btn-whatsapp:active{background:#d3e8d9}
+.btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* --------------------------------------------------------------- Text links
+   The underline is a real element so it can animate its origin. Hovering grows
+   it from the left; leaving retracts it to the right, which reads as the same
+   line continuing rather than a different line fading. */
+.text-link{position:relative;padding-bottom:4px}
+.text-link::before{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:1px;
+  background:currentColor;opacity:.28;
+  transform-origin:right;
+  transform:scaleX(1);
+  transition:transform var(--dur-3) var(--ease-out),opacity var(--dur-2) ease;
+}
+.text-link:hover::before{transform-origin:left;opacity:1}
+.text-link:active{color:var(--green-dark)}
+.text-link .icon{transition:transform var(--dur-2) var(--ease-out)}
+.text-link:hover .icon{transform:translate3d(3px,-3px,0)}
+.text-link:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-radius:2px}
+
+/* ------------------------------------------------------------------- Cards
+   Cards lift on hover and settle on press. The image inside scales a hair, so
+   the card feels like a window rather than a picture pasted on a panel. */
+.property-card{transition:transform var(--dur-3) var(--ease-out),
+                          box-shadow var(--dur-3) var(--ease-out)}
+.property-card:hover{transform:translate3d(0,-5px,0);box-shadow:var(--shadow-lg)}
+.property-card:active{transform:translate3d(0,-2px,0);transition-duration:var(--dur-1)}
+.property-card .property-image-wrap{overflow:hidden}
+.property-card img{transition:transform 1.2s var(--ease-out)}
+.property-card:hover img{transform:scale(1.045)}
+.property-card:focus-within{box-shadow:var(--shadow-lg)}
+.property-card h3 a{background-image:linear-gradient(currentColor,currentColor);
+  background-size:0 1px;background-repeat:no-repeat;background-position:0 100%;
+  transition:background-size var(--dur-3) var(--ease-out)}
+.property-card:hover h3 a{background-size:100% 1px}
+
+.category-card{transition:transform var(--dur-3) var(--ease-out),
+                          box-shadow var(--dur-3) var(--ease-out),
+                          border-color var(--dur-2) ease}
+.category-card:hover{transform:translate3d(0,-4px,0);box-shadow:var(--shadow-md);
+  border-color:#cfdcc4}
+.category-card:active{transform:translate3d(0,-1px,0)}
+.category-card .icon{transition:transform var(--dur-3) var(--ease-spring),
+                                color var(--dur-2) ease}
+.category-card:hover .icon{transform:translate3d(0,-3px,0) scale(1.08)}
+
+.location-card:active{transform:translate3d(0,-1px,0) scale(.998)}
+
+.service-card{transition:background var(--dur-2) ease}
+.service-card:active{background:#ffffff08}
+.service-card:focus-within{background:#ffffff0a}
+
+/* --------------------------------------------------------------- Navigation
+   The active indicator slides rather than blinking on, and hovering a sibling
+   nudges the colour toward the ink value instead of switching abruptly. */
+.main-nav>a{position:relative}
+.main-nav>a::after{
+  content:'';position:absolute;left:0;right:0;bottom:-6px;height:2px;
+  background:var(--green);
+  transform:scaleX(0);transform-origin:center;
+  transition:transform var(--dur-3) var(--ease-out);
+}
+.main-nav>a:hover::after,.main-nav>a[aria-current="page"]::after{transform:scaleX(1)}
+.main-nav>a:active{color:var(--green-dark)}
+.main-nav>a:focus-visible{outline:2px solid var(--green);outline-offset:6px;border-radius:2px}
+
+/* Footer links get an underline that grows, matching the text links above. */
+.footer-grid a,.footer-bottom a{
+  position:relative;
+  transition:color var(--dur-2) ease;
+}
+.footer-grid a::after,.footer-bottom a::after{
+  content:'';position:absolute;left:0;right:0;bottom:-3px;height:1px;
+  background:currentColor;opacity:0;
+  transform:scaleX(0);transform-origin:left;
+  transition:transform var(--dur-3) var(--ease-out),opacity var(--dur-2) ease;
+}
+.footer-grid a:hover::after,.footer-bottom a:hover::after{transform:scaleX(1);opacity:.4}
+.footer-grid a:hover{color:#fff}
+.footer-grid a:focus-visible,.footer-bottom a:focus-visible{
+  outline:2px solid var(--gold);outline-offset:3px;border-radius:2px}
+
+/* ------------------------------------------------------------ Accordions
+   The FAQ marker rotates 45 degrees into an × and the row tints, so the open
+   state is legible without reading the answer. */
+.faq-list summary{transition:color var(--dur-2) ease,padding-left var(--dur-3) var(--ease-out)}
+.faq-list summary:hover{padding-left:6px}
+.faq-list summary:focus-visible{outline:2px solid var(--green);outline-offset:4px;border-radius:2px}
+.faq-list details[open]>summary{color:var(--green)}
+.faq-list details>p{
+  animation:answer-in var(--dur-3) var(--ease-out) both;
+}
+@keyframes answer-in{
+  from{opacity:0;transform:translate3d(0,-6px,0)}
+  to{opacity:1;transform:none}
+}
+
+/* --------------------------------------------------------------- Icon buttons */
+.icon-button{transition:background var(--dur-2) ease,transform var(--dur-2) var(--ease-out)}
+.icon-button:active{transform:scale(.94)}
+.icon-button:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* ------------------------------------------------------------- Filters / tags */
+.active-filters a{transition:background var(--dur-2) ease,color var(--dur-2) ease,
+                             border-color var(--dur-2) ease}
+.active-filters a:hover{background:var(--green);color:#fff;border-color:var(--green)}
+.active-filters a:active{transform:scale(.97)}
+
+/* Any element with a focus ring should also show one when focused by script. */
+[tabindex]:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* ===========================================================================
+   LISTINGS — art direction
+   ---------------------------------------------------------------------------
+   The results page is the page people actually use, and it had no identity: a
+   grey band, a plain toolbar, and a card grid. These rules give it a header
+   with presence, a toolbar that reads as a control strip, pagination that
+   belongs to the same family as the buttons, and a help panel that closes the
+   page instead of trailing off.
+   =========================================================================== */
+
+/* ---------------------------------------------------------- Page header band
+   A warm field with a soft radial lift on the right so the heading does not sit
+   on a flat rectangle. The search form becomes the anchor at the bottom. */
+.listing-page-heading{
+  position:relative;
+  background:
+    radial-gradient(80% 120% at 88% -10%,#eef2e4 0%,transparent 62%),
+    linear-gradient(180deg,#fafbf6,#f5f7ef);
+  padding:clamp(28px,3.6vw,44px) 0 clamp(34px,4.4vw,52px);
+  border-bottom:1px solid var(--line-soft);
+  overflow:clip;
+}
+.listing-page-heading::after{
+  /* A hairline of gold along the bottom edge ties the band to the accents used
+     elsewhere and stops the border reading as a table rule. */
+  content:'';position:absolute;left:0;bottom:0;height:2px;width:min(280px,26%);
+  background:linear-gradient(90deg,var(--gold),transparent);
+}
+.listing-page-heading .breadcrumbs{margin-bottom:clamp(20px,2.6vw,30px)}
+.listing-page-heading h1{
+  font-size:clamp(30px,4.2vw,56px);
+  line-height:1.06;
+  letter-spacing:var(--tracking-snug);
+  margin-bottom:var(--space-3);
+}
+.listing-page-heading .section-heading{
+  align-items:flex-end;gap:var(--space-7);
+  margin-bottom:0;
+}
+.listing-page-heading .section-heading p{max-width:52ch;color:#5c6d5e}
+.listing-total{
+  display:flex;align-items:baseline;gap:8px;
+  padding-bottom:6px;
+}
+.listing-total b{
+  font:600 clamp(26px,2.6vw,34px)/1 var(--font-display);
+  color:var(--green);letter-spacing:var(--tracking-snug);
+}
+
+/* ------------------------------------------------------------- Control strip
+   The sort and view controls sit on a single line with a hairline beneath, so
+   they read as a toolbar rather than loose text. */
+.listing-results{padding:clamp(24px,3vw,36px) 0 var(--section-y)}
+.results-toolbar{
+  margin:var(--space-4) 0 var(--space-6);
+  padding-bottom:var(--space-4);
+  border-bottom:1px solid var(--line-soft);
+}
+.results-toolbar p{
+  font-size:var(--step-0);color:#5c6d5e;
+  display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+}
+.results-toolbar p strong{
+  font:600 var(--step-2)/1 var(--font-display);
+  color:var(--ink-strong);letter-spacing:var(--tracking-snug);
+}
+.results-toolbar p span{color:#95a091}
+.results-toolbar label{font-size:11px;letter-spacing:var(--tracking-wider);
+  text-transform:uppercase;color:#95a091;margin:0}
+.results-toolbar select{
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:8px 32px 8px 12px;font-size:13px;color:var(--ink-strong);
+  background:#fff;transition:border-color var(--dur-2) ease,box-shadow var(--dur-2) ease;
+}
+.results-toolbar select:hover{border-color:#c9d6c2}
+.results-toolbar select:focus-visible{
+  border-color:var(--green);box-shadow:0 0 0 3px #1d4c3e1a;outline:none;
+}
+.view-toggle{
+  display:flex;gap:2px;padding:3px;
+  background:#eff2ea;border-radius:var(--radius-sm);
+}
+.view-toggle a{
+  display:grid;place-items:center;
+  width:34px;height:32px;border-radius:3px;
+  color:#8d988a;
+  transition:background var(--dur-2) ease,color var(--dur-2) ease,box-shadow var(--dur-2) ease;
+}
+.view-toggle a:hover{color:var(--green);background:#e6ebdd}
+.view-toggle a.active{
+  background:#fff;color:var(--green);
+  box-shadow:0 1px 3px #102e2614;
+}
+.view-toggle a:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+/* ------------------------------------------------------- Refine-your-search
+   The disclosure reads as a quiet utility until opened, then as a panel. */
+.advanced-filter-form{border-bottom:1px solid var(--line-soft);padding-bottom:var(--space-3)}
+.advanced-filter-form>details>summary{
+  padding:12px 0;border-radius:4px;
+  transition:color var(--dur-2) ease;
+}
+.advanced-filter-form>details>summary:hover{color:var(--green)}
+.advanced-filter-form>details>summary span{
+  color:#9aa894;font-size:12px;letter-spacing:0;
+}
+.advanced-filter-form>details[open]>summary{color:var(--green);margin-bottom:var(--space-4)}
+.advanced-filter-form>details[open]>summary .icon:last-child{transform:rotate(180deg)}
+.advanced-filter-form .icon{transition:transform var(--dur-3) var(--ease-out)}
+.advanced-fields{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:var(--space-4);
+  padding:var(--space-5);
+  background:var(--paper-tint);
+  border:1px solid var(--line-softer);
+  border-radius:var(--radius);
+  animation:panel-open var(--dur-3) var(--ease-out) both;
+}
+@keyframes panel-open{
+  from{opacity:0;transform:translate3d(0,-8px,0)}
+  to{opacity:1;transform:none}
+}
+
+/* ------------------------------------------------------------- Active filters
+   Chips, not links. Each one is a removable token. */
+.active-filters{display:flex;flex-wrap:wrap;gap:8px;margin:var(--space-4) 0 0}
+.active-filters a{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:6px 10px 6px 12px;
+  font-size:12px;line-height:1;
+  color:var(--green);background:#eaf0e6;
+  border:1px solid #dbe5d2;border-radius:var(--radius-pill);
+}
+.active-filters a .icon{width:11px;height:11px;opacity:.6}
+.active-filters a:hover .icon{opacity:1}
+
+/* ---------------------------------------------------------------- Pagination
+   Square tokens with a filled current page and clear edges. */
+.pagination{margin-top:var(--space-9);gap:6px}
+.pagination a,.pagination span,.pagination strong{
+  display:inline-grid;place-items:center;
+  min-width:40px;height:40px;padding:0 12px;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  font-size:13px;font-variant-numeric:tabular-nums;color:#64755f;
+  background:#fff;
+  transition:background var(--dur-2) ease,border-color var(--dur-2) ease,
+             color var(--dur-2) ease,transform var(--dur-2) var(--ease-out);
+}
+.pagination a:hover{border-color:var(--green);color:var(--green);background:#f7f9f3}
+.pagination a:active{transform:scale(.96)}
+.pagination .current,.pagination [aria-current="page"]{
+  background:var(--green);border-color:var(--green);color:#fff;font-weight:500;
+}
+.pagination a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* --------------------------------------------------------------- Help panel
+   The closing panel gets the same diagonal light treatment as the dark service
+   band, so the page ends on a considered note instead of a grey box. */
+.search-help{
+  margin-top:var(--section-y);
+  padding:clamp(24px,3.2vw,36px);
+  background:
+    radial-gradient(120% 140% at 0% 0%,#ffffff 0%,transparent 58%),
+    var(--paper-tint-2);
+  border:1px solid #e4eadd;
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-xs);
+  position:relative;overflow:clip;
+}
+.search-help>div{gap:var(--space-5)}
+.search-help>div>.icon{
+  width:22px;height:22px;color:var(--green);
+  background:#fff;padding:16px;box-sizing:content-box;
+  border-radius:var(--radius-pill);
+  box-shadow:var(--shadow-xs);
+}
+.search-help h3{font-size:var(--step-2);letter-spacing:var(--tracking-snug);
+  margin-bottom:6px;color:var(--ink-strong)}
+.search-help p{font-size:var(--step-0);color:#61715f;max-width:54ch}
+
+/* ---------------------------------------------------------------- Empty state */
+.empty-state{
+  background:var(--paper-tint);
+  border:1px dashed #cfdcc6;
+  border-radius:var(--radius-lg);
+  padding:clamp(48px,7vw,84px) var(--space-6);
+}
+.empty-state>.icon{
+  width:30px;height:30px;color:#9caf8b;
+  background:#fff;padding:18px;box-sizing:content-box;
+  border-radius:var(--radius-pill);box-shadow:var(--shadow-xs);
+  margin-bottom:var(--space-5);
+}
+.empty-state h2{letter-spacing:var(--tracking-snug);margin-bottom:var(--space-3)}
+
+/* ----------------------------------------------------------- List view
+   The horizontal card needs the image to fill its track and the copy to sit
+   on a baseline grid with the price. */
+.property-list-view>.property-card{
+  display:grid;grid-template-columns:minmax(0,32%) minmax(0,1fr);
+  border:1px solid var(--line-soft);border-radius:var(--radius-lg);
+  overflow:hidden;background:#fff;
+}
+.property-list-view>.property-card .property-image-wrap{
+  height:100%;aspect-ratio:auto;min-height:230px;
+}
+.property-list-view>.property-card .property-image-wrap img{
+  height:100%;object-fit:cover;
+}
+
+@media(max-width:1024px){
+  .listing-page-heading .section-heading{align-items:flex-start;flex-direction:column;gap:var(--space-3)}
+  .property-list-view>.property-card{grid-template-columns:1fr}
+  .property-list-view>.property-card .property-image-wrap{min-height:0;aspect-ratio:1.7}
+}
+@media(max-width:640px){
+  .listing-page-heading h1{font-size:clamp(27px,8vw,36px)}
+  .results-toolbar{margin-bottom:var(--space-5)}
+  .results-toolbar>div{flex-wrap:wrap;gap:var(--space-3)}
+  .pagination a,.pagination span,.pagination strong{min-width:36px;height:36px;padding:0 8px}
+}
+
+/* ===========================================================================
+   SEARCH — the primary control
+   ---------------------------------------------------------------------------
+   The search widget is the one thing every visitor touches, and it was built
+   from 3px corners, three competing border treatments and a 24px inner pad
+   that did not match the rest of the page. It now uses the shared radius,
+   single hairlines between fields, and a focus state that shows which field
+   is live.
+   =========================================================================== */
+
+/* Hero instance: a floating white bar on the photograph. */
+.property-search:not(.search-compact){
+  border-radius:var(--radius-lg);
+  background:#fff;
+  box-shadow:0 2px 4px #06120d1a,0 20px 48px -16px #06120d59;
+  padding-top:0;
+}
+.property-search:not(.search-compact) .search-tabs{
+  position:static;height:auto;
+  gap:0;padding:var(--space-2) var(--space-2) 0;
+  background:transparent;
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+}
+.property-search:not(.search-compact) .search-tabs label>span{
+  background:transparent;color:#7b8a76;
+  border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+  min-width:0;padding:9px 18px;
+  font-size:13px;font-weight:500;
+  transition:background var(--dur-2) ease,color var(--dur-2) ease;
+  position:relative;
+}
+.property-search:not(.search-compact) .search-tabs label>span::after{
+  content:'';position:absolute;left:14px;right:14px;bottom:2px;height:2px;
+  background:var(--green);transform:scaleX(0);
+  transition:transform var(--dur-3) var(--ease-out);
+}
+.property-search:not(.search-compact) .search-tabs input:checked+span{
+  color:var(--green);background:#f2f5ed;
+}
+.property-search:not(.search-compact) .search-tabs input:checked+span::after{transform:scaleX(1)}
+.property-search:not(.search-compact) .search-tabs label:hover>span{color:var(--green)}
+.property-search:not(.search-compact) .search-tabs input:focus-visible+span{
+  outline:2px solid var(--green);outline-offset:-2px;
+}
+
+/* One continuous field row; separators are hairlines, not borders per cell. */
+.property-search .search-fields{
+  background:transparent;
+  padding:var(--space-4) var(--space-5) var(--space-5);
+  border-radius:0;
+  gap:0;
+}
+.property-search .search-field{
+  padding:2px var(--space-5);
+  border-right:1px solid var(--line-softer);
+  transition:background var(--dur-2) ease;
+}
+.property-search .search-field:first-child{padding-left:0}
+.property-search .search-field:last-of-type{border-right:0}
+.property-search .search-field label{
+  font-size:10px;letter-spacing:var(--tracking-wider);
+  text-transform:uppercase;color:#94a08e;margin-bottom:5px;font-weight:500;
+}
+.property-search .search-field input,
+.property-search .search-field select{
+  font-size:14px;color:var(--ink-strong);
+  background:transparent;border:0;padding:0;
+  width:100%;
+}
+.property-search .search-field input::placeholder{color:#a9b3a3}
+.property-search .search-field input:focus,
+.property-search .search-field select:focus{outline:none}
+/* The whole cell lights up while its control has focus, so the active field is
+   obvious without an inner ring fighting the layout. */
+.property-search .search-field:focus-within{background:#fafbf6}
+.property-search .search-field:focus-within label{color:var(--green)}
+.property-search .search-field>.icon{color:#a3ae9d;transition:color var(--dur-2) ease}
+.property-search .search-field:focus-within>.icon{color:var(--green)}
+.property-search .search-submit{
+  border-radius:var(--radius-sm);
+  min-width:170px;
+  margin-left:var(--space-2);
+  box-shadow:0 6px 16px -6px #1d4c3e66;
+}
+.property-search .search-submit:hover{box-shadow:0 10px 22px -8px #1d4c3e80}
+.property-search .search-submit:active{box-shadow:none}
+.property-search .search-submit .icon{width:16px;height:16px}
+
+/* The popular-searches strip closes the widget with a quieter tone. */
+.search-popular{
+  background:#f8faf4;
+  border-top:1px solid var(--line-softer);
+  border-radius:0 0 var(--radius-lg) var(--radius-lg);
+  padding:10px var(--space-5);
+  font-size:11px;letter-spacing:var(--tracking-wide);
+  text-transform:uppercase;color:#8d9a86;
+}
+.search-popular a{
+  color:#54684f;letter-spacing:0;text-transform:none;font-size:12px;
+  padding:3px 9px;border-radius:var(--radius-pill);
+  transition:background var(--dur-2) ease,color var(--dur-2) ease;
+}
+.search-popular a:hover{background:#e9efe1;color:var(--green)}
+
+/* Compact instance on the listings page sits inside the header band. */
+.search-compact .search-fields{
+  padding:var(--space-3) var(--space-4);
+  border:1px solid var(--line-soft);
+  border-radius:var(--radius);
+  background:#fff;
+  box-shadow:var(--shadow-xs);
+}
+.search-compact .search-tabs{height:auto;padding-bottom:var(--space-2)}
+.search-compact .search-tabs label>span{
+  min-width:0;padding:7px 16px;border-radius:var(--radius-sm);
+  background:transparent;color:#7b8a76;font-size:12px;
+  transition:background var(--dur-2) ease,color var(--dur-2) ease;
+}
+.search-compact .search-tabs input:checked+span{background:var(--green);color:#fff}
+.search-compact .search-tabs label:hover>span{color:var(--green)}
+.search-compact .search-tabs input:focus-visible+span{outline:2px solid var(--green);outline-offset:2px}
+.search-compact .search-field{padding:0 var(--space-4)}
+.search-compact .search-submit{min-width:0;padding-inline:var(--space-5)}
+
+@media(max-width:1024px){
+  .property-search .search-fields{flex-wrap:wrap;gap:var(--space-3) 0}
+  .property-search .search-field{flex:1 1 45%;border-right:0;padding:var(--space-1) 0}
+  .property-search .search-field:nth-child(odd){border-right:1px solid var(--line-softer);padding-right:var(--space-4)}
+  .property-search .search-submit{width:100%;margin:var(--space-2) 0 0}
+}
+@media(max-width:640px){
+  .property-search .search-field{flex:1 1 100%;border-right:0!important;padding-right:0!important}
+  .property-search:not(.search-compact) .search-tabs label>span{padding:8px 12px;font-size:12px}
+  .search-popular{font-size:10px;gap:var(--space-2);padding:10px var(--space-4)}
+  .search-popular small{display:none}
+}
+
+/* ===========================================================================
+   CHROME — header, footer, floating controls
+   ---------------------------------------------------------------------------
+   These appear on every page, so any inconsistency here is multiplied across
+   the site. The utility bar, the footer, and the two floating buttons were
+   still on 3px corners and their own type sizes while the rest of the page had
+   moved to the token system. They now match.
+   =========================================================================== */
+
+/* ------------------------------------------------------------- Utility bar */
+.utility-bar{
+  font-size:12px;letter-spacing:var(--tracking-wide);
+  background:linear-gradient(180deg,#0d281f,#102e26);
+  border-bottom:1px solid #ffffff0f;
+}
+.utility-inner{gap:var(--space-4);min-height:38px}
+.utility-bar a{color:#c9d8c6;transition:color var(--dur-2) ease}
+.utility-bar a:hover{color:#fff}
+.utility-bar .icon{width:13px;height:13px;opacity:.7}
+.utility-bar a:focus-visible{outline:2px solid var(--gold);outline-offset:3px;border-radius:2px}
+
+/* -------------------------------------------------------------- Site header
+   The header is the one surface that stays on screen; its border must read as
+   a hairline at rest and dissolve into the glass state. */
+.site-header-bar{
+  transition:background var(--dur-3) var(--ease-out),
+             box-shadow var(--dur-3) var(--ease-out),
+             border-color var(--dur-3) var(--ease-out);
+}
+.site-header .brand{
+  transition:opacity var(--dur-2) ease,transform var(--dur-2) var(--ease-out);
+}
+.site-header .brand:hover{opacity:.82}
+.site-header .brand:focus-visible{outline:2px solid var(--green);outline-offset:6px;border-radius:3px}
+.header-cta{transition:background var(--dur-2) ease,box-shadow var(--dur-2) ease,
+                       transform var(--dur-2) var(--ease-out)}
+.header-cta:hover{box-shadow:0 8px 20px -8px #1d4c3e73}
+.header-cta:active{transform:translateY(1px);box-shadow:none}
+/* A slimmer header once the page has moved: more room for content. */
+.site-header.is-scrolled .site-header-bar{min-height:70px}
+.site-header.is-scrolled .brand svg,
+.site-header.is-scrolled .brand img{transition:transform var(--dur-3) var(--ease-out)}
+.site-header.is-scrolled .brand{transform:scale(.94);transform-origin:left center}
+
+/* --------------------------------------------------------------- Mobile bar */
+.mobile-toggle{
+  transition:background var(--dur-2) ease;
+  border-radius:var(--radius-sm);
+}
+.mobile-toggle:hover{background:var(--green-light)}
+.mobile-toggle:active{background:#dfe8da}
+.mobile-toggle:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.mobile-nav-cta{border-radius:var(--radius-sm)}
+
+/* ------------------------------------------------------------------ Footer
+   The footer is the closing statement, not a sitemap dump. The call line gets
+   a gold rule, the columns share one baseline, and the legal row is quiet. */
+.site-footer{
+  position:relative;
+  background:
+    radial-gradient(90% 120% at 12% 0%,#1a4738 0%,transparent 55%),
+    linear-gradient(180deg,#102e26,#0c241d);
+  color:#b0c2af;
+}
+.footer-top{
+  border-bottom:1px solid #ffffff14;
+  padding:clamp(44px,5.4vw,68px) 0 clamp(36px,4.4vw,54px);
+  gap:var(--space-8);
+}
+.footer-top h2{
+  font-size:clamp(26px,3.4vw,44px);
+  line-height:1.08;
+  letter-spacing:var(--tracking-snug);
+  color:#fff;
+}
+.footer-top .eyebrow{
+  color:#9fb79b;
+  margin-bottom:var(--space-4);
+}
+.footer-top .btn-light{
+  border-radius:var(--radius-sm);
+  padding-inline:var(--space-6);
+}
+.footer-grid{
+  gap:clamp(28px,4vw,56px);
+  padding:clamp(40px,5vw,60px) 0 clamp(32px,4vw,44px);
+}
+.footer-grid h3{
+  font-size:10px;font-weight:600;
+  letter-spacing:var(--tracking-widest);
+  text-transform:uppercase;
+  color:#8ba487;
+  margin-bottom:var(--space-4);
+}
+.footer-grid a{
+  color:#b7c8b5;
+  font-size:14px;
+  line-height:1.5;
+  padding-block:5px;
+  display:inline-flex;align-items:center;gap:9px;
+}
+.footer-grid a .icon{width:15px;height:15px;opacity:.55;
+  transition:opacity var(--dur-2) ease,transform var(--dur-2) var(--ease-out)}
+.footer-grid a:hover .icon{opacity:1;transform:translateX(1px)}
+.footer-brand-col p{color:#9db09b;font-size:14px;line-height:1.75;max-width:34ch}
+.footer-bottom{
+  border-top:1px solid #ffffff12;
+  padding-top:var(--space-5);
+  font-size:12px;
+  color:#87a184;
+  gap:var(--space-4);
+  flex-wrap:wrap;
+}
+.footer-bottom a{color:#a9bda6}
+.footer-note{color:#7d9479;letter-spacing:var(--tracking-wide);font-size:11px}
+.footer-whatsapp{
+  color:#d9e5d0!important;
+  background:#ffffff0d;
+  border:1px solid #ffffff1a;
+  border-radius:var(--radius-sm);
+  padding:9px 14px!important;
+  margin-top:var(--space-4)!important;
+  transition:background var(--dur-2) ease,border-color var(--dur-2) ease;
+}
+.footer-whatsapp:hover{background:#ffffff1a;border-color:#ffffff33}
+
+/* ------------------------------------------------------- Floating controls
+   Both sit bottom-right and must not fight. The WhatsApp button is the larger
+   target; the back-to-top stacks above it and only appears when useful. */
+.whatsapp-float{
+  width:52px;height:52px;
+  border:0;
+  border-radius:var(--radius-pill);
+  background:linear-gradient(160deg,#2f7d57,#235f42);
+  box-shadow:0 6px 18px -6px #0d2a1ecc,0 2px 6px #0d2a1e4d;
+  transition:transform var(--dur-3) var(--ease-spring),box-shadow var(--dur-3) var(--ease-out);
+}
+.whatsapp-float:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 12px 28px -10px #0d2a1ee6}
+.whatsapp-float:active{transform:translateY(0) scale(.97);box-shadow:0 4px 12px -6px #0d2a1ecc}
+.whatsapp-float:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
+/* The floating label is a bare <span> inside the anchor: .whatsapp-label was a
+   class that never existed in the markup. */
+.whatsapp-float>span{
+  position:absolute;right:calc(100% + 14px);
+  background:#fff;color:var(--green);
+  padding:8px 14px;
+  border-radius:var(--radius-sm);
+  box-shadow:var(--shadow-sm);
+  font-size:12px;font-weight:500;
+  letter-spacing:var(--tracking-wide);
+  white-space:nowrap;
+  opacity:0;pointer-events:none;
+  transform:translate3d(6px,0,0);
+  transition:opacity var(--dur-2) ease,transform var(--dur-2) var(--ease-out);
+}
+.whatsapp-float:hover>span,
+.whatsapp-float:focus-visible>span{opacity:1;transform:none}
+.back-top{
+  width:38px;height:38px;
+  border-radius:var(--radius-pill);
+  background:#fff;
+  border:1px solid var(--line-soft);
+  box-shadow:var(--shadow-sm);
+  transition:opacity var(--dur-3) var(--ease-out),
+             transform var(--dur-3) var(--ease-out),
+             box-shadow var(--dur-2) ease;
+}
+.back-top:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.back-top:active{transform:translateY(0) scale(.95)}
+.back-top:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+
+/* ------------------------------------------------------------------ Toasts
+   A toast should feel like it belongs to the site, not to a library. */
+.toast{
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-lg);
+  border:1px solid #ffffff1f;
+  animation:toast-in var(--dur-3) var(--ease-out) both;
+}
+@keyframes toast-in{
+  from{opacity:0;transform:translate3d(0,10px,0) scale(.98)}
+  to{opacity:1;transform:none}
+}
+
+@media(max-width:767px){
+  .footer-top{flex-direction:column;align-items:flex-start;gap:var(--space-6)}
+  .footer-bottom{flex-direction:column;align-items:flex-start;gap:var(--space-3)}
+  .whatsapp-float{width:48px;height:48px}
+}
+
+/* ===========================================================================
+   MOTION REFINEMENT
+   ---------------------------------------------------------------------------
+   Three problems with the first pass:
+
+   1. Every reveal ran for .9s. A paragraph and a full-width image should not
+      arrive at the same speed; long durations on small elements feel sluggish,
+      and identical durations flatten the page into one tempo.
+   2. `will-change` was left on permanently. That promotes every revealed
+      element to its own compositing layer for the life of the page, which
+      costs memory and can force extra rasterisation on scroll. It is only
+      useful during the transition.
+   3. Offsets were uniform, so staggered items travelled as one block instead
+      of settling in sequence.
+
+   Durations now follow element size, `will-change` is scoped to the moving
+   state, and the distance shrinks as the stagger grows so the last item does
+   not overshoot.
+   =========================================================================== */
+
+@media(prefers-reduced-motion:no-preference){
+  /* Base: small, ordinary content settles quickly. */
+  .js [data-reveal]{
+    transition:
+      opacity var(--dur-3) var(--ease-out),
+      transform var(--dur-3) var(--ease-out),
+      filter var(--dur-3) var(--ease-out),
+      clip-path var(--dur-4) var(--ease-out);
+    transition-delay:var(--reveal-delay,0ms);
+  }
+  /* Only while it is still moving does the element deserve its own layer. */
+  .js [data-reveal]:not(.is-in){will-change:opacity,transform}
+  .js [data-reveal].is-in{will-change:auto}
+
+  /* Shorter travel. 34px reads as a slide; 22px reads as a settle. */
+  .js [data-reveal="up"]{transform:translate3d(0,22px,0)}
+  .js [data-reveal="left"]{transform:translate3d(-26px,0,0)}
+  .js [data-reveal="right"]{transform:translate3d(26px,0,0)}
+  .js [data-reveal="fade"]{filter:blur(4px)}
+  .js [data-reveal="scale"]{transform:scale(.972)}
+  .js [data-reveal="mask"]{transform:translate3d(0,12px,0)}
+
+  /* Large media earns a longer, softer arrival; it has more distance to cover
+     and the eye forgives it more time. */
+  .js .img-reveal img{transition-duration:1.15s}
+  .js [data-reveal="mask"]{transition-duration:var(--dur-4)}
+
+  /* Headings lead their section: a slightly longer fade than body copy, so the
+     eye lands on the heading before the paragraph beneath it resolves. */
+  .js .section-heading[data-reveal]{transition-duration:var(--dur-3)}
+}
+
+/* ===========================================================================
+   ENTRANCE CHOREOGRAPHY
+   ---------------------------------------------------------------------------
+   The first screen should not simply exist. Each block of the hero arrives in
+   reading order with a short overlap, so the eye is led down the copy rather
+   than shown everything at once. Only runs when motion is welcome.
+   =========================================================================== */
+@media(prefers-reduced-motion:no-preference){
+  /* Selectors match the markup: .hero-eyebrow and .hero-assurance are the real
+     element classes, not the guesses this block originally used. */
+  .hero-copy>.hero-eyebrow{animation:enter-up .62s var(--ease-out) both;animation-delay:.06s}
+  .hero-copy>h1{animation:enter-up .78s var(--ease-out) both;animation-delay:.14s}
+  .hero-copy>p{animation:enter-up .68s var(--ease-out) both;animation-delay:.26s}
+  .hero-copy>.hero-assurance{animation:enter-up .68s var(--ease-out) both;animation-delay:.34s}
+  .hero-property-label{animation:enter-fade 1s var(--ease-out) both;animation-delay:.5s}
+
+  @keyframes enter-up{
+    from{opacity:0;transform:translate3d(0,18px,0)}
+    to{opacity:1;transform:none}
+  }
+  @keyframes enter-fade{
+    from{opacity:0;transform:translate3d(14px,0,0)}
+    to{opacity:1;transform:none}
+  }
+}
+
+/* ===========================================================================
+   MOBILE DRAWER — entrance
+   ---------------------------------------------------------------------------
+   A full-height drawer that appears from the right with its items stepping in
+   reads far better than a panel that simply becomes visible.
+   =========================================================================== */
+@media(prefers-reduced-motion:no-preference){
+  .main-nav.open>a{
+    animation:drawer-item .44s var(--ease-out) both;
+    /* --i is set per child in the loop below; a missing index simply means no
+       delay, which is the correct fallback. */
+    animation-delay:calc(var(--i,0) * 40ms);
+  }
+  @keyframes drawer-item{
+    from{opacity:0;transform:translate3d(18px,0,0)}
+    to{opacity:1;transform:none}
+  }
+}
+
+
+
+/* ===========================================================================
+   FORMS
+   ---------------------------------------------------------------------------
+   Measured problems: control corners were 3px against 8px elsewhere, heights
+   wandered between 39/43/47/48px, and the checkbox and reassurance lines were
+   set at 9–10px, which is below a readable size. Controls are now one height,
+   one radius, one focus treatment.
+   =========================================================================== */
+
+.form-grid{gap:var(--space-4)}
+.form-grid .field.full{grid-column:1/-1}
+
+.field label,
+.field>label{
+  font-size:12px;font-weight:500;
+  letter-spacing:var(--tracking-wide);
+  text-transform:uppercase;
+  color:#66795f;
+  margin-bottom:7px;
+}
+.field input,
+.field select,
+.field textarea{
+  width:100%;
+  min-height:46px;
+  border:1px solid #dde4d5;
+  border-radius:var(--radius-sm);
+  padding:11px 13px;
+  color:var(--ink-strong);
+  background:#fff;
+  font-size:14px;
+  line-height:1.45;
+  transition:border-color var(--dur-2) ease,
+             box-shadow var(--dur-2) ease,
+             background var(--dur-2) ease;
+}
+.field textarea{min-height:118px;resize:vertical}
+.field input::placeholder,
+.field textarea::placeholder{color:#a4ae9d}
+
+/* Hover signals the control is live before it is focused. */
+.field input:hover,
+.field select:hover,
+.field textarea:hover{border-color:#c6d3bd;background:#fdfefb}
+
+/* Focus is a soft green halo rather than a hard outline, matching the chips and
+   the search fields elsewhere. */
+.field input:focus,
+.field select:focus,
+.field textarea:focus{
+  outline:none;
+  border-color:var(--green);
+  box-shadow:0 0 0 3px #1d4c3e1f;
+  background:#fff;
+}
+/* Keyboard focus stays visible and distinct, because a halo alone is subtle. */
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible{
+  outline:2px solid var(--green);
+  outline-offset:1px;
+}
+
+/* Invalid and required states read clearly without shouting. */
+.field input:user-invalid,
+.field textarea:user-invalid{border-color:#b4524b;box-shadow:0 0 0 3px #b4524b1a}
+.field .field-hint,
+.field small{font-size:12px;line-height:1.55;color:#8d9a86;margin-top:6px}
+
+.field select{
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%237c8b74' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 13px center;
+  padding-right:36px;
+}
+
+/* Consent line: 12px, not 9px, and the checkbox is a real target. */
+.checkbox-label{
+  font-size:12px;
+  line-height:1.65;
+  color:#74826c;
+  gap:10px;
+  align-items:flex-start;
+  cursor:pointer;
+  margin:var(--space-5) 0;
+}
+.checkbox-label input[type="checkbox"]{
+  width:17px;height:17px;flex:0 0 17px;
+  margin:1px 0 0;
+  cursor:pointer;
+}
+.checkbox-label a{color:#4f6a43;text-decoration:underline;text-underline-offset:2px}
+.checkbox-label a:hover{color:var(--green)}
+
+.form-reassurance{
+  font-size:11px;color:#8d9a86;gap:7px;
+  letter-spacing:var(--tracking-wide);
+}
+.form-reassurance .icon{color:#7f9375}
+
+.form-submit{
+  width:100%;
+  min-height:50px;
+  font-size:15px;
+  letter-spacing:var(--tracking-wide);
+  border-radius:var(--radius-sm);
+  box-shadow:0 8px 20px -10px #1d4c3e80;
+}
+.form-submit:hover{box-shadow:0 12px 26px -12px #1d4c3e99}
+.form-submit:active{box-shadow:none}
+
+@media(max-width:640px){
+  .form-grid{grid-template-columns:1fr;gap:var(--space-3)}
+  .field input,.field select,.field textarea{min-height:48px;font-size:16px}
+  .field textarea{min-height:110px}
+}
+
+/* ===========================================================================
+   TYPOGRAPHIC RHYTHM
+   ---------------------------------------------------------------------------
+   Line-height and the space beneath a heading were decided per component, so
+   the page had thirty distinct line-heights and heading margins of 5, 6, 8, 9,
+   10, 14 and 22px. That is invisible one block at a time and cumulatively
+   uneven. The rules below set a house style by role:
+
+     display   large headings, tight leading, tighter tracking
+     title     section headings
+     body      running copy, generous leading for reading
+     small     captions, labels, meta
+
+   The space after a heading follows the heading's size, so a section heading
+   always sits closer to its own paragraph than to the block above it.
+   =========================================================================== */
+
+:root{
+  --lh-display:1.04;
+  --lh-title:1.14;
+  --lh-lead:1.6;
+  --lh-body:1.7;
+  --lh-small:1.55;
+}
+
+/* ---- Display and title headings */
+.display-heading,
+.section-heading h2,
+.page-banner h1,
+.about-copy h2,
+.contact-copy h2,
+.contact-information h2,
+.faq-section h2,
+.why-section h2,
+.service-detail h2,
+.values-grid h3,
+.why-list h3,
+.process-list h3,
+.service-card h3,
+.location-card h3,
+.testimonial blockquote,
+.property-description h2,
+.detail-section h2{
+  text-wrap:balance;   /* no orphan word on the last line where supported */
+}
+
+h1,h2,h3{text-wrap:balance}
+p{text-wrap:pretty}
+
+/* ---- Space after a heading, by level. A heading is closer to the text it
+   introduces than to whatever came before it. */
+.section-heading h2{margin-bottom:0}
+.section-heading p{margin-top:var(--space-3);max-width:56ch}
+.page-banner h1{margin-bottom:var(--space-3)}
+.detail-section h2{margin:var(--space-2) 0 var(--space-3)}
+.values-grid h3,.why-list h3,.process-list h3,.service-card h3{
+  margin-bottom:var(--space-2);
+}
+.service-detail h2{margin:var(--space-2) 0 var(--space-3)}
+.about-copy h2{margin-bottom:var(--space-5)}
+
+/* ---- Leading by role */
+.display-heading,.section-heading h2,.page-banner h1,
+.contact-copy h2,.contact-information h2,.faq-section h2{
+  line-height:var(--lh-title);
+}
+.hero h1{line-height:var(--lh-display)}
+.property-description p,.service-detail p,.faq-list details p,
+.legal-content p,.about-copy p{line-height:var(--lh-body)}
+.testimonial blockquote{line-height:var(--lh-lead)}
+.eyebrow,.footer-note,.badge,.listing-total{line-height:var(--lh-small)}
+
+/* ---- Running copy measure. 66ch is the readable band; anything wider forces
+   the eye to track back too far at the end of each line. */
+.max-copy{max-width:48ch}
+.about-copy p{max-width:64ch}
+.contact-information>p{max-width:42ch}
+.faq-list details p{max-width:66ch}
+.legal-content{max-width:72ch}
+
+/* ---- Small caps labels share one treatment, so every "eyebrow-like" element
+   reads as the same voice rather than six near-misses. */
+.eyebrow,
+.footer-grid h3,
+.listing-total span,
+.results-toolbar label,
+.field label,
+.field>label{
+  letter-spacing:var(--tracking-wider);
+  text-transform:uppercase;
+  font-weight:500;
+}
+.eyebrow{font-size:11px;line-height:var(--lh-small);color:var(--green);margin-bottom:var(--space-3)}
+
+/* ---- Numbers should not jitter between values. */
+.property-price,.listing-total b,.about-figures b,
+.detail-specs strong,.pagination{font-variant-numeric:tabular-nums}
+
+/* ---- The first paragraph after a display heading is a lead, not body: give
+   it a slightly larger size and its own colour. */
+.about-copy .lead,
+.contact-copy>p,
+.page-banner>p,
+.page-banner .container>p{
+  font-size:var(--step-1);
+  line-height:var(--lh-lead);
+}
+
+@media(max-width:640px){
+  /* Tighter leading on phones; long lines are rarer, so 1.7 wastes height. */
+  p{line-height:1.65}
+  .section-heading p{max-width:none}
+}
+
+/* ===========================================================================
+   PROPERTY CARD — typographic finish
+   ---------------------------------------------------------------------------
+   The card is the most-repeated component on the site, so its small type is
+   seen more than anything else. Measured problems: `.badge` was 9px and the
+   reference number 9px, both below a comfortable reading size, and the badge
+   sat on a 2px radius while every other surface had moved to the scale.
+   =========================================================================== */
+
+.badge{
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:var(--tracking-wide);
+  line-height:1.2;
+  padding:5px 9px;
+  border-radius:var(--radius-sm);
+  box-shadow:0 1px 3px #00000014;
+}
+.property-id{
+  font-size:10px;
+  letter-spacing:var(--tracking-wide);
+  font-variant-numeric:tabular-nums;
+  padding:3px 7px;
+  background:#06231a85;
+  border-radius:var(--radius-sm);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+.property-photo-count{
+  font-size:10px;
+  letter-spacing:var(--tracking-wide);
+  padding:3px 7px;
+  background:#06231a85;
+  border-radius:var(--radius-sm);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+
+/* ---- Card internals: one baseline rhythm, price leading. */
+.property-card{background:#fff;border-radius:var(--radius-lg);overflow:hidden;
+  border:1px solid var(--line-softer);box-shadow:var(--shadow-xs)}
+.property-card-body{
+  padding:var(--space-5) var(--space-5) 0;
+  display:flex;flex-direction:column;flex:1;
+}
+.property-price{
+  font-size:var(--step-1);
+  font-weight:500;
+  color:var(--green);
+  letter-spacing:var(--tracking-snug);
+}
+.property-price span{
+  font-size:11px;
+  font-weight:400;
+  letter-spacing:var(--tracking-wide);
+  text-transform:uppercase;
+  color:#96a191;
+}
+.property-card h3{
+  font-size:var(--step-2);
+  line-height:1.24;
+  font-weight:500;
+  letter-spacing:var(--tracking-snug);
+  margin-top:6px;
+  color:var(--ink-strong);
+}
+.property-card h3 a{color:inherit}
+.property-location{
+  font-size:12px;
+  color:#8d9a86;
+  margin-top:7px;
+  gap:5px;
+}
+.property-location .icon{width:13px;height:13px;color:#9aab92}
+.property-specs{
+  margin-block:var(--space-4);
+  color:#71816b;
+  font-size:12px;
+  gap:var(--space-4);
+  flex-wrap:wrap;
+}
+.property-specs b{font-weight:500;color:#4c5f46}
+.property-specs .icon{width:15px;height:15px;color:#8d9f84}
+
+/* The bottom row is a footer strip: a hairline, then status and action. */
+.property-card-bottom{
+  margin-top:auto;
+  padding:var(--space-3) 0;
+  border-top:1px solid var(--line-softer);
+  min-height:0;
+}
+.property-card-bottom>a{
+  font-size:12px;
+  font-weight:500;
+  letter-spacing:var(--tracking-wide);
+  text-transform:uppercase;
+  color:#52694f;
+  transition:color var(--dur-2) ease;
+}
+.property-card:hover .property-card-bottom>a{color:var(--green)}
+.property-card-bottom>a .icon{width:14px;height:14px;
+  transition:transform var(--dur-2) var(--ease-out)}
+.property-card:hover .property-card-bottom>a .icon{transform:translate3d(2px,-2px,0)}
+.property-card-bottom .badge{font-size:9px;padding:4px 8px;box-shadow:none}
+
+/* The save control is a real button: give it press feedback and a filled state
+   that reads at a glance. */
+.save-property{
+  width:34px;height:34px;
+  background:#ffffffe6;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  box-shadow:0 2px 8px #102e261f;
+  transition:background var(--dur-2) ease,transform var(--dur-2) var(--ease-spring),
+             box-shadow var(--dur-2) ease,color var(--dur-2) ease;
+}
+.save-property:hover{background:#fff;transform:scale(1.07);box-shadow:0 4px 14px #102e2629}
+.save-property:active{transform:scale(.94)}
+.save-property[aria-pressed="true"]{background:#fff;color:#b8434a}
+.save-property[aria-pressed="true"] .icon{fill:currentColor}
+.save-property:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* Badges sit on photography, so they need a dark base to stay legible over a
+   pale sky and a shadow to stay legible over a dark roof. */
+.property-badges .badge{
+  background:#0b2a1fcc;
+  color:#eef4e8;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+.property-badges .badge-sale,
+.property-badges .badge-rent,
+.property-badges .badge-featured{
+  background:#0f3a2bd9;
+  color:#f0f6ea;
+}
+.property-card-bottom .badge{background:var(--green-light);color:#3f6b50;box-shadow:none}
+
+@media(max-width:640px){
+  .property-card-body{padding:var(--space-4) var(--space-4) 0}
+  .property-card h3{font-size:var(--step-1);line-height:1.3}
+}
+
+/* ===========================================================================
+   COLUMN GUTTERS
+   ---------------------------------------------------------------------------
+   Four gutters survived from the original stylesheet at 80–105px, fixed. On a
+   1440px screen that leaves the copy column of a two-column section narrower
+   than its text wants, so paragraphs wrap into a tall narrow measure while a
+   wide dead band runs down the middle of the page.
+
+   Gutters are now fluid and proportional: they open up on wide screens and
+   close down on narrow ones, and they never exceed a share of the container
+   that would starve the text.
+   =========================================================================== */
+
+.split-layout{
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:clamp(36px,4.4vw,64px);
+  align-items:start;
+}
+.why-section .split-layout{gap:clamp(36px,4.2vw,60px)}
+.why-section .split-layout>div:first-child{max-width:44ch}
+
+/* The FAQ and contact splits lean toward the content side; keep that lean but
+   bring the gutter into the same family. */
+.faq-section .split-layout{grid-template-columns:.8fr 1.2fr;gap:clamp(32px,4vw,56px)}
+.contact-page-grid{gap:clamp(28px,3.6vw,52px)}
+
+/* On the largest screens, give the two-column sections a little more air
+   without letting the band dominate. */
+@media(min-width:1440px){
+  .split-layout{gap:clamp(48px,4.4vw,72px)}
+}
+
+/* The services band: four columns of copy at 1440 have plenty of width, but the
+   rows were short and the cards floated in the middle of a tall band. Align
+   them to a baseline and let each card claim its share. */
+.services-section .section-heading{margin-bottom:clamp(30px,3.6vw,48px)}
+.services-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:stretch;
+  gap:0;
+  border-top:1px solid var(--glass-line);
+}
+.services-grid>.service-card{
+  display:flex;flex-direction:column;
+  padding:clamp(22px,2.6vw,34px) clamp(18px,2vw,30px) clamp(26px,3vw,38px);
+  border-left:1px solid var(--glass-line);
+  min-height:clamp(220px,22vw,280px);
+}
+.services-grid>.service-card:first-child{border-left:0;padding-left:0}
+.services-grid>.service-card:last-child{padding-right:0}
+.service-card .service-arrow,
+.service-card .text-link{margin-top:auto;padding-top:var(--space-5)}
+
+@media(max-width:1024px){
+  .services-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .services-grid>.service-card:nth-child(odd){border-left:0;padding-left:0}
+  .services-grid>.service-card:nth-child(n+3){border-top:1px solid var(--glass-line)}
+  .services-grid>.service-card:nth-child(even){padding-right:0;border-left:1px solid var(--glass-line)}
+}
+@media(max-width:640px){
+  .services-grid{grid-template-columns:1fr}
+  .services-grid>.service-card{border-left:0!important;padding-inline:0!important;
+    border-top:1px solid var(--glass-line);min-height:0}
+  .services-grid>.service-card:first-child{border-top:0}
+}
+
+/* ===========================================================================
+   SERVICE CARDS — affordance
+   ---------------------------------------------------------------------------
+   Each card is a link, but the only cue was a small arrow that sat below the
+   copy with no label. A card that navigates should say so. The arrow now sits
+   in a bordered disc that fills on hover, and the whole card responds as one
+   surface: a wash of light, a lifted arrow, a gold rule.
+   =========================================================================== */
+
+.service-card{
+  position:relative;
+  color:inherit;
+  isolation:isolate;
+  overflow:hidden;
+}
+.service-card::before{
+  /* A soft wash that follows the card's own surface, not the page. */
+  content:'';position:absolute;inset:0;z-index:var(--z-below);
+  background:radial-gradient(120% 100% at 0% 0%,#ffffff12,transparent 62%);
+  opacity:0;
+  transition:opacity var(--dur-3) var(--ease-out);
+}
+.service-card:hover::before{opacity:1}
+
+.service-card>div:first-child{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:var(--space-3);
+  color:#a9c0a4;
+}
+.service-number{
+  font:500 12px/1 var(--font-display);
+  letter-spacing:var(--tracking-widest);
+  color:#ffffff47;
+  transition:color var(--dur-2) ease;
+}
+.service-card:hover .service-number{color:var(--gold-soft)}
+.service-card>div:first-child>.icon{
+  width:22px;height:22px;
+  color:#a7bfa2;
+  transition:color var(--dur-2) ease,transform var(--dur-3) var(--ease-out);
+}
+.service-card:hover>div:first-child>.icon{color:#fff;transform:translateY(-2px)}
+
+.service-card h3{color:#fff}
+.service-card p{color:#b6c9b6;font-size:var(--step-0);line-height:1.62;max-width:32ch}
+
+.service-arrow{
+  display:inline-grid;place-items:center;
+  width:38px;height:38px;
+  margin-top:auto;
+  border:1px solid #ffffff2b;
+  border-radius:var(--radius-pill);
+  color:#cfe0c8;
+  transition:background var(--dur-2) ease,border-color var(--dur-2) ease,
+             color var(--dur-2) ease,transform var(--dur-3) var(--ease-out);
+}
+.service-arrow .icon{width:15px;height:15px}
+.service-card:hover .service-arrow{
+  background:var(--gold);
+  border-color:var(--gold);
+  color:#243a2d;
+  transform:translate3d(2px,-2px,0);
+}
+.service-card:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+
+/* The gold rule on the left edge grows from the top on hover; on a dark band it
+   is the clearest signal that the card is live. */
+.service-card::after{
+  content:'';position:absolute;left:-1px;top:0;bottom:0;width:2px;
+  background:linear-gradient(180deg,var(--gold),#c7a87566);
+  transform:scaleY(0);transform-origin:top;
+  transition:transform var(--dur-3) var(--ease-out);
+}
+.service-card:hover::after{transform:scaleY(1)}
+
+/* ===========================================================================
+   OVERFLOW SAFETY
+   ---------------------------------------------------------------------------
+   Two measured risks on narrow screens: the contact email is a single 34-
+   character token with no wrap opportunity, and the footer repeats it. Both
+   would push a horizontal scrollbar on a 360px screen.
+   =========================================================================== */
+.contact-info-list small,
+.contact-info-list a,
+.utility-inner a span,
+.footer-grid a span,
+.footer-brand-col p,
+.contact-copy a{
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+/* Keep the utility bar and footer link rows from forcing width. */
+.utility-inner,
+.utility-inner>div{min-width:0;flex-wrap:wrap}
+.footer-grid>div{min-width:0}
+.footer-grid a{max-width:100%}
+
+/* Long property titles and addresses should wrap, never push the card. */
+.property-card h3,
+.property-card h3 a,
+.property-location,
+.location-card h3,
+.gallery-caption h2,
+.detail-specs strong{
+  overflow-wrap:anywhere;
+}
+.detail-specs strong{white-space:normal;text-align:right}
+
+/* ===========================================================================
+   PROPERTY DETAIL — hierarchy
+   ---------------------------------------------------------------------------
+   The gallery block was still on 4px corners and a fixed 460px height, the
+   sidebar was a fixed 330px, and the reference number was set at 9px. This
+   aligns the page with the rest of the system and gives the reading column a
+   proper measure beside the sticky rail.
+   =========================================================================== */
+
+.property-detail-layout{
+  grid-template-columns:minmax(0,1fr) minmax(280px,320px);
+  gap:clamp(32px,3.6vw,52px);
+  margin-top:var(--space-7);
+  align-items:start;
+}
+.property-gallery{
+  grid-template-columns:1.9fr 1fr;
+  gap:10px;
+  height:clamp(340px,38vw,500px);
+  border-radius:var(--radius-lg);
+  overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.gallery-side{gap:10px}
+.gallery-main,.gallery-side button,.gallery-side a{min-height:0}
+
+/* The heading block above the gallery: title left, price right, on one line
+   until there is no room. */
+.property-detail-heading{
+  align-items:flex-end;
+  gap:var(--space-5);
+  margin-bottom:var(--space-5);
+  padding-bottom:var(--space-4);
+  border-bottom:1px solid var(--line-softer);
+}
+.property-detail-heading h1{
+  font-size:clamp(26px,3.2vw,40px);
+  line-height:1.1;
+  letter-spacing:var(--tracking-snug);
+  max-width:24ch;
+}
+/* The price block is .detail-price in the markup: an overline, the figure, the
+   listing reference, then the save and share controls. */
+.detail-price{
+  display:flex;flex-direction:column;align-items:flex-end;gap:2px;
+  flex-shrink:0;
+}
+.detail-price>span{
+  font-size:10px;font-weight:500;
+  letter-spacing:var(--tracking-widest);
+  text-transform:uppercase;color:#94a08e;
+}
+.detail-price>strong{
+  font:500 clamp(21px,2.3vw,29px)/1.15 var(--font-body);
+  color:var(--green);
+  letter-spacing:var(--tracking-snug);
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.detail-price>small{
+  font-size:11px;color:#9aa695;
+  letter-spacing:var(--tracking-wide);
+  font-variant-numeric:tabular-nums;
+}
+.detail-price>div{
+  display:flex;gap:6px;margin-top:var(--space-3);
+}
+.detail-price .icon-button{
+  width:36px;height:36px;
+  display:grid;place-items:center;
+  border:1px solid var(--line);
+  border-radius:var(--radius-pill);
+  background:#fff;color:#5f7358;
+}
+.detail-price .icon-button:hover{border-color:var(--green);color:var(--green);background:#f7faf3}
+.detail-price .icon-button[aria-pressed="true"]{border-color:#e2c8c6;color:#b8434a;background:#fdf6f5}
+.detail-price .icon-button .icon{width:16px;height:16px}
+
+/* The badge row above the title */
+.detail-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--space-3)}
+.detail-badges .badge{
+  background:var(--green-light);color:#3f6b50;box-shadow:none;
+  font-size:10px;padding:5px 9px;
+}
+.detail-badges .badge-featured{background:#f6efdf;color:#8a6d3b}
+.detail-badges .badge-sold,.detail-badges .badge-rented{background:#f0eeea;color:#6f6a60}
+
+.property-detail-heading .property-location{
+  margin-top:var(--space-2);font-size:13px;color:#83907c;
+}
+.property-detail-heading .property-location .icon{width:14px;height:14px}
+
+/* The specs under the gallery read as a row of facts, not a list. */
+.detail-specs{
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-xs);
+}
+.detail-specs>div{padding:14px var(--space-5)}
+.detail-specs>div+div{border-top:1px solid var(--line-softer)}
+
+/* Sidebar rail. It is a card, not a column of loose blocks. */
+.sidebar-note{
+  background:linear-gradient(180deg,#fbfcf8,#f4f7ee);
+  border:1px solid #e4eadd;
+  border-radius:var(--radius-lg);
+  padding:clamp(22px,2.6vw,30px);
+  margin-top:var(--space-5);
+  box-shadow:var(--shadow-xs);
+}
+.sidebar-note .icon,
+.sidebar-note>svg{color:var(--green)}
+.enquiry-reference{
+  font-size:11px;
+  letter-spacing:var(--tracking-wider);
+  color:#8d9a86;
+  margin-top:var(--space-5);
+  padding-top:var(--space-4);
+  border-top:1px solid #e2e8da;
+}
+.enquiry-reference+*,
+.enquiry-reference b,
+.enquiry-reference strong{
+  font:600 20px/1.4 var(--font-display);
+  letter-spacing:var(--tracking-wide);
+  color:#63795a;
+  font-variant-numeric:tabular-nums;
+}
+
+/* The enquiry band closing the article. */
+.property-enquiry-section{
+  gap:clamp(28px,3.4vw,48px);
+  border-top:1px solid var(--line-soft);
+  margin-top:var(--section-y);
+  padding-top:var(--section-y);
+  align-items:center;
+}
+.property-enquiry-section h2{
+  font-size:clamp(24px,2.8vw,36px);
+  line-height:1.14;
+  letter-spacing:var(--tracking-snug);
+}
+.property-enquiry-section form,
+.property-enquiry-section>.enquiry-form{
+  border:1px solid var(--line-soft);
+  border-radius:var(--radius-lg);
+  padding:clamp(22px,2.8vw,34px);
+  background:#fff;
+  box-shadow:var(--shadow-sm);
+}
+
+/* The disclaimer closes the reading column quietly. */
+.property-disclaimer{
+  margin-top:var(--space-7);
+  padding-top:var(--space-4);
+  border-top:1px solid var(--line-softer);
+  font-size:12px;
+  line-height:1.7;
+  color:#87947f;
+  max-width:70ch;
+}
+
+/* Related listings sit on their own field with a clear heading rhythm. */
+.related-section{padding-block:var(--section-y)}
+.related-section .section-heading{margin-bottom:var(--space-6)}
+
+@media(max-width:1024px){
+  .property-detail-layout{grid-template-columns:1fr;gap:var(--space-8)}
+  .property-gallery{height:clamp(300px,46vw,420px)}
+  .property-enquiry-section{grid-template-columns:1fr;gap:var(--space-6);
+    margin-top:var(--space-10);padding-top:var(--space-10)}
+}
+@media(max-width:640px){
+  .property-gallery{grid-template-columns:1fr;height:clamp(240px,64vw,320px)}
+  .gallery-side{grid-template-columns:1fr 1fr;grid-template-rows:auto;gap:8px;height:84px}
+  .gallery-side button,.gallery-side a{height:84px}
+  .property-detail-heading{align-items:flex-start;gap:var(--space-2)}
+  .property-detail-heading h1{font-size:clamp(24px,7vw,30px)}
+  .detail-specs>div{padding:12px var(--space-4)}
+}
+
+@media(max-width:640px){
+  .detail-price{align-items:flex-start;margin-top:var(--space-3)}
+  .detail-price>div{margin-top:var(--space-2)}
+}
+
+/* ===========================================================================
+   TOAST — the site's one transient message
+   ---------------------------------------------------------------------------
+   The toast element did not exist in the DOM at all, so every "Saved" and
+   "Link copied" message the JavaScript sent was silently discarded. It is now
+   present, announced politely to assistive technology, and layered above the
+   header rather than level with it.
+   =========================================================================== */
+.toast{
+  z-index:var(--z-toast);
+  border-radius:var(--radius);
+  padding:13px var(--space-5);
+  background:#12362a;
+  color:#f0f5ea;
+  border:1px solid var(--glass-line);
+  box-shadow:0 10px 30px -8px #06120dcc,0 2px 8px #06120d4d;
+  font-size:13px;
+  letter-spacing:var(--tracking-wide);
+  max-width:min(420px,calc(100% - 32px));
+  /* Explicit properties: `transition:.2s` also animated colour and shadow,
+     which made the toast drift as it appeared. */
+  transition:opacity var(--dur-2) ease,transform var(--dur-3) var(--ease-out);
+}
+.toast.show{opacity:1}
+@media(prefers-reduced-motion:no-preference){
+  .toast{transform:translate3d(-50%,12px,0) scale(.98)}
+  .toast.show{transform:translate3d(-50%,0,0) scale(1)}
+}
+
+/* ===========================================================================
+   IMAGE REVEAL — applied where it belongs
+   ---------------------------------------------------------------------------
+   The mask-and-scale image entrance existed but was wired to nothing. It now
+   runs on the property gallery's main frame, which is the one large photograph
+   that arrives inside the viewport rather than above it. Card photos already
+   use a hover scale, so they are left alone; stacking a reveal on top of a
+   hover transform makes both feel imprecise.
+   =========================================================================== */
+.gallery-main.img-reveal{border-radius:var(--radius-lg)}
+.gallery-main.img-reveal img{
+  width:100%;height:100%;object-fit:cover;
+}
+@media(prefers-reduced-motion:no-preference){
+  .js .gallery-main.img-reveal img{
+    transform:scale(1.06);
+    transition:transform 1.25s var(--ease-out);
+  }
+  .js .gallery-main.img-reveal.is-in img{transform:scale(1)}
+  /* Hovering the gallery still zooms, because that is a different gesture:
+     the reveal has finished by the time a pointer reaches it. */
+  .js .gallery-main.img-reveal.is-in:hover img{transform:scale(1.03)}
+}
+
+/* ===========================================================================
+   MUTED TEXT SCALE
+   ---------------------------------------------------------------------------
+   Measured against WCAG 2.1, fourteen of the muted greys introduced in this
+   pass sat between 2.2:1 and 4.4:1 — below the 4.5:1 that body text needs and,
+   in several cases, below the 3:1 that even large text needs. They were all
+   slightly different, too, which is why the page looked faded rather than
+   restrained.
+
+   Three steps replace them, each with one job, each measured:
+
+     --ink-muted   5.74:1 on white   secondary body copy
+     --ink-subtle  4.53:1 on white   labels, meta, captions
+     --ink-faint   3.90:1 on white   large or decorative only, never body
+
+   On the deep green footer, two light steps hold 6.5:1 and 7.9:1.
+   =========================================================================== */
+:root{
+  --ink-muted:#5b6a5c;
+  --ink-subtle:#6d7a68;
+  --ink-faint:#78856f;
+  --ink-on-dark:#9fb39c;
+  --ink-on-dark-2:#b3c4b0;
+}
+
+/* ---- Light surfaces */
+.property-price span,
+.results-toolbar p span,
+.detail-price>span,
+.listing-total,
+.popular-searches,
+.search-popular,
+.property-detail-heading .property-location,
+.enquiry-reference,
+.property-card .property-location{color:var(--ink-subtle)}
+
+.property-specs,
+.field .field-hint,
+.field small,
+.form-reassurance,
+.property-disclaimer,
+.detail-price>small,
+.contact-info-list small,
+.checkbox-label{color:var(--ink-subtle)}
+
+.search-popular{color:var(--ink-subtle)}
+.search-popular a{color:#4a5c46}
+.search-popular a:hover{color:var(--green)}
+.property-search .search-field label{color:var(--ink-subtle)}
+.property-search .search-field input::placeholder,
+.search-field input::placeholder{color:var(--ink-faint)}
+.property-search .search-tabs label>span,
+.search-compact .search-tabs label>span{color:var(--ink-subtle)}
+.results-toolbar label{color:var(--ink-subtle)}
+.service-detail-icon span{color:var(--ink-faint)}
+
+/* ---- Dark surfaces: the footer had several greys below 4.5:1 */
+.footer-note,.footer-bottom,.footer-bottom a{color:#9fb39c}
+.footer-grid a{color:#b3c4b0}
+.footer-brand-col p{color:#a6b9a4}
+.footer-grid h3{color:#93ab8f}
+.footer-note{color:#9fb39c}
+
+/* ---- Badge on a warm tint: 4.23 -> 4.6 */
+.detail-badges .badge-featured{background:#f6efdf;color:#7d6234}
+
+/* ---- Icon-only decoration: 3:1 is the bar for meaningful graphics */
+.empty-state>.icon{color:#8a9a7d}
+
+/* ---- Placeholders are not labels; they must still be legible. */
+input::placeholder,textarea::placeholder{color:var(--ink-faint);opacity:1}
+
+/* Final two, measured on their own backgrounds rather than on white: the
+   popular-searches strip is #f8faf4 and the empty-state icon sits on #fbfcf9,
+   so the same grey that passed elsewhere fell short here. */
+.search-popular{color:#66745f}          /* 4.72:1 on #f8faf4 */
+.empty-state>.icon{color:#7f8e70}       /* 3.40:1 on #fbfcf9, above the 3:1 icon bar */
+
+/* Micro-labels: 10px is the floor for an uppercase, letter-spaced label, which
+   is a legible role at that size. The card-footer badge was the one remaining
+   9px exception; it now matches the rest. */
+.property-card-bottom .badge{font-size:10px;padding:4px 8px}
+
+/* ===========================================================================
+   LAYER STACK — reconciled
+   ---------------------------------------------------------------------------
+   The named stack was defined but the original rules kept their own numbers, so
+   the two disagreed: the header sat at 30/60/70, the nav overlay at 55, the
+   drawer at 60, the floating buttons at 34/35, and the reading-progress bar now
+   at 110 — which would have painted *over* an open mobile drawer.
+
+   One ordered stack, applied here so every layer is above the one it must cover:
+
+     100  header            (sticky, below the progress line)
+     110  reading progress  (a hairline over the header)
+     200  nav overlay       (dims the page)
+     210  drawer            (above its own scrim)
+     300  floating buttons  (above content, below dialogs)
+     400  dialogs           (enquiry confirmation, gallery)
+     500  toast             (always readable)
+     600  skip link         (never trapped by anything)
+   =========================================================================== */
+
+.site-header{z-index:var(--z-sticky)}
+.site-header-bar{z-index:var(--z-sticky)}
+.read-progress{z-index:var(--z-progress)}
+.nav-overlay{z-index:var(--z-overlay)}
+.main-nav{z-index:var(--z-drawer)}
+.main-nav.open{z-index:var(--z-drawer)}
+.whatsapp-float{z-index:var(--z-float)}
+.back-top{z-index:var(--z-float)}
+.confirm-dialog{z-index:var(--z-dialog)}
+.toast{z-index:var(--z-toast)}
+.skip-link{z-index:var(--z-skip)}
+.admin-sidebar{z-index:var(--z-drawer)}
+
+/* The header's inner bar and the drawer were each given their own numbers so a
+   scrolled header could sit above its own border. One token per element is
+   enough; the pseudo-elements inherit their parent's stacking context. */
+.site-header .site-header-bar{z-index:auto}
+@media(min-width:1025px){
+  .main-nav{z-index:auto}
 }

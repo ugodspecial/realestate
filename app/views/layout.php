@@ -46,6 +46,7 @@ if (empty($noindex) && !config('demo_mode')): ?>
 <button class="mobile-toggle" aria-label="Open navigation" aria-controls="main-nav" aria-expanded="false"><span class="toggle-icon-open"><?= icon('menu') ?></span><span class="toggle-icon-close" aria-hidden="true"><?= icon('close') ?></span></button>
 </div></div></header>
 <div class="nav-overlay" aria-hidden="true"></div>
+<div class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 <main id="main">
 <?php
 $flashes = take_flashes();

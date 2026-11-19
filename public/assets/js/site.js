@@ -36,6 +36,13 @@ on(overlay,'click',closeNav);
 /* The panel carries its own close button, so it works even when the panel
    covers the header toggle. */
 on(nav?nav.querySelector('.main-nav-close'):null,'click',function(e){e.stopPropagation();closeNav()});
+/* Number the drawer links so the CSS stagger can use one rule instead of eight
+   nth-child delays that break whenever the menu gains an entry. */
+if(nav){
+  Array.prototype.forEach.call(nav.children,function(child,i){
+    if(child.tagName==='A') child.style.setProperty('--i',String(i));
+  });
+}
 /* Close the menu when a destination is chosen. */
 if(nav)nav.addEventListener('click',function(e){if(e.target.closest('a'))closeNav()});
 /* Returning to a desktop width should not leave the page scroll-locked. */
@@ -58,6 +65,15 @@ on(btn,'click',function(){var active=btn.getAttribute('aria-pressed')==='true';b
 d.querySelectorAll('.notice-close').forEach(function(btn){on(btn,'click',function(){var n=btn.closest('.notice');if(n)n.remove()})});
 /* Share + copy link */
 d.querySelectorAll('[data-copy-link]').forEach(function(btn){on(btn,'click',function(){var url=btn.getAttribute('data-copy-link');function done(){toast('Property link copied.')}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(done,function(){fallback()})}else fallback();function fallback(){var i=d.createElement('input');i.value=url;d.body.appendChild(i);i.select();try{d.execCommand('copy');done()}catch(e){toast('Copy this link: '+url)}i.remove()}})});
+/* Sort / filter selects marked data-auto-submit submit their form on change,
+   so choosing "Price: low to high" applies immediately instead of silently
+   doing nothing until the visitor finds a button. */
+d.querySelectorAll('[data-auto-submit]').forEach(function(sel){
+  on(sel,'change',function(){
+    var form=sel.form||sel.closest('form');
+    if(form) form.submit();
+  });
+});
 /* Carousels */
 d.querySelectorAll('[data-carousel]').forEach(function(wrap){var track=wrap.querySelector('.property-track');if(!track)return;var step=function(){var card=track.querySelector('.property-card');return card?card.getBoundingClientRect().width+27:320};
 wrap.querySelectorAll('[data-scroll]').forEach(function(btn){on(btn,'click',function(){track.scrollBy({left:(btn.getAttribute('data-scroll')==='next'?1:-1)*step(),behavior:'smooth'})})})});
