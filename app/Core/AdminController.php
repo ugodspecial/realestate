@@ -315,8 +315,8 @@ final class AdminController {
             $data = ['name' => $name, 'slug' => $slug, 'description' => $description];
             if ($table === 'categories') $data['icon'] = preg_match('/^[a-z]+$/', input('icon')) ? input('icon') : 'home';
             else $data['city'] = mb_substr(input('city') ?: $name, 0, 80);
-            if ($id) { Database::update($table, $data, $id); Audit::log('taxonomy.update', $table, $id, "Updated $label “$name”"); flash('success', "$label updated."); }
-            else { $id = Database::insert($table, $data); Audit::log('taxonomy.create', $table, $id, "Created $label “$name”"); flash('success', "$label created."); }
+            if ($id) { Database::update($table, $data, $id); Audit::log('taxonomy.update', $table, $id, "Updated $label “{$name}”"); flash('success', "$label updated."); }
+            else { $id = Database::insert($table, $data); Audit::log('taxonomy.create', $table, $id, "Created $label “{$name}”"); flash('success', "$label created."); }
             redirect('admin/' . $table);
         }
         if ($action === 'delete' && $method === 'POST' && ctype_digit($segments[2] ?? '')) {

@@ -16,7 +16,6 @@ function check(string $label, bool $ok): void {
 
 /** Invoke the private sanitizer through reflection. */
 $method = new ReflectionMethod('Uploads', 'sanitizeSvg');
-$method->setAccessible(true);
 $sanitize = static function (string $svg) use ($method): ?string {
     return $method->invoke(null, $svg);
 };

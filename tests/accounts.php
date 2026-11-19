@@ -102,7 +102,6 @@ echo "\n== Session rotation never warns ==\n";
 $hasHelper = method_exists('Auth', 'regenerateSession');
 ok('Auth exposes a guarded session-rotation helper', $hasHelper);
 $regenerate = $hasHelper ? new ReflectionMethod('Auth', 'regenerateSession') : null;
-if ($regenerate) $regenerate->setAccessible(true);
 $warnings = [];
 set_error_handler(static function (int $no, string $str) use (&$warnings): bool {
     $warnings[] = $str;

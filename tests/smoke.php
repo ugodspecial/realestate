@@ -216,6 +216,24 @@ check('the asset helper uses the application version', str_contains($helpersSrc,
 $htaccess = (string) file_get_contents(ROOT_PATH . '/.htaccess');
 check('static assets send cache headers', str_contains($htaccess, 'Cache-Control'));
 
+// PHP reads every byte above 0x7F as part of a variable name, so a variable written directly
+// in front of a curly quote inside a double-quoted string is looked up under a longer, undefined
+// name: a warning in the log, and the value silently missing. It sat in the audit messages for
+// category and location saves. Wrap such variables in braces.
+$gluedVariables = [];
+foreach (['app', 'bin', 'database', 'public', 'tests'] as $sourceDir) {
+    $sourceIterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(ROOT_PATH . '/' . $sourceDir, FilesystemIterator::SKIP_DOTS));
+    foreach ($sourceIterator as $sourceFile) {
+        if ($sourceFile->getExtension() !== 'php' || str_contains($sourceFile->getPathname(), '/uploads/')) { continue; }
+        foreach (preg_split('/\R/', (string) file_get_contents($sourceFile->getPathname())) as $lineNo => $sourceLine) {
+            if (preg_match('/\$[A-Za-z_][A-Za-z0-9_]*[\x80-\xff]/', $sourceLine)) {
+                $gluedVariables[] = str_replace(ROOT_PATH . '/', '', $sourceFile->getPathname()) . ':' . ($lineNo + 1);
+            }
+        }
+    }
+}
+check('no variable is interpolated directly before a non-ASCII character', $gluedVariables === [], implode(', ', array_slice($gluedVariables, 0, 4)));
+
 // Reflected XSS is the easy one to introduce: a template that echoes request data
 // without e(). No template may print anything read from the request unescaped. (Echoes
 // of values that merely came from the database are covered by the live tests in

@@ -91,6 +91,15 @@ was reviewed, what was wrong, and what is now enforced by tests.
   call wrote a file to `storage/sessions`, and anyone could do it on purpose to
   fill the disk. Session garbage collection is switched on explicitly, and
   `session.use_trans_sid` is off.
+- **The activity log lost the name on every category and location save.** The
+  messages were written `“$name”`, and PHP reads a byte above 0x7F as part of a
+  variable's name, so it looked up a variable called `name”`: the audit entry
+  said "Created Category “" with no name and an unclosed quote, and each save
+  wrote a PHP warning to the error log. They now use `{$name}`. It had never been
+  noticed because no test completed a category save; the new route-coverage
+  test did, and CI's own "fail on logged warnings" guard caught it. A source scan
+  now fails on the pattern anywhere in the code, and a live check reads the audit
+  entry back.
 - **Smaller fixes.** `Database::identifier()` used `$`, which also matches before
   a trailing newline (now `\z`). The enquiry notification email contained the
   literal text `brand() . ' dashboard.` instead of the site name. `robots.txt`
@@ -119,6 +128,10 @@ deliberately breaking the code and watching the right check go red:
   echoes request data unescaped, the session-policy table, font preload parity,
   `.htaccess` structure and compression rules. `tests/responsive-regression.php`
   pins the footer, the logo hit area and the centred band.
+- The tests no longer call `curl_close()` and `setAccessible()`, which have done
+  nothing since PHP 8.0 and 8.1 and which PHP 8.5 reports as deprecated. They
+  were the only noise in the error log, so CI's guard against logged warnings now
+  means something even on a runner that shows deprecations.
 - **`SQLITE_JOURNAL_MODE`** (`wal` by default; `delete`, `truncate` or `persist`
   also accepted, anything else falls back to `wal`) lets a demo or CI database
   run where WAL's shared memory is unavailable. In such a place the test process

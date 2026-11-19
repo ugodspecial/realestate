@@ -42,7 +42,6 @@ function renderDashboard(array $creds, string $role): string {
     ob_start();
     try {
         $m = new ReflectionMethod('AdminController', 'dashboard');
-        $m->setAccessible(true);
         $m->invoke(null, $user);
     } catch (Throwable $e) {
         ob_end_clean();

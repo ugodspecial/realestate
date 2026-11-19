@@ -49,7 +49,6 @@ function http(string $method, string $url, string $jarFile, array $post = []): a
     $body = (string) curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $location = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
-    curl_close($ch);
     return ['code' => $code, 'body' => $body, 'location' => $location];
 }
 

@@ -138,7 +138,7 @@ $curl = function(string $url, ?array $post = null) use ($jar) {
   $ch = curl_init($url);
   curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $jar, CURLOPT_COOKIEFILE => $jar]);
   if ($post !== null) { curl_setopt($ch, CURLOPT_POST, true); curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post)); }
-  $body = curl_exec($ch); curl_close($ch); return (string)$body;
+  $body = curl_exec($ch); return (string)$body;
 };
 require "app/bootstrap.php";
 $settings = array_column(Database::all("SELECT key_name,value FROM settings"), "value", "key_name");
@@ -164,7 +164,7 @@ foreach (["brand_name","brand_tagline","tagline","phone","whatsapp","email","not
   $post[$k] = (string)($settings[$k] ?? "");
 }
 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($post));
-curl_exec($ch); curl_close($ch);
+curl_exec($ch);
 ' "$JAR" "$RESTORE_TOKEN" "$BASE" "$(printf '%s' "$ORIGINAL_HOURS" | tr '|' '\n')"
 RESTORED_HOURS="$(php -r 'require "app/bootstrap.php"; echo (string)setting("office_hours");')"
 [ "$RESTORED_HOURS" = "$ORIGINAL_HOURS" ] && pass "office hours restore to the original value" || fail "office hours restore to the original value (got: $RESTORED_HOURS)"

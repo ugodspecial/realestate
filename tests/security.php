@@ -31,7 +31,6 @@ function http(string $method, string $url, string $jarFile, array $post = []): a
     $body = (string) curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $loc = (string) curl_getinfo($ch, CURLINFO_REDIRECT_URL);
-    curl_close($ch);
     return ['code' => $code, 'body' => $body, 'location' => $loc];
 }
 function csrf(string $url, string $jarFile): string {
@@ -334,6 +333,11 @@ $catsBefore = (int) Database::value('SELECT COUNT(*) FROM categories');
 $r = http('POST', $base . '/admin/categories/save', $sa, ['_token' => $goodToken, 'name' => 'CSRF Probe Control', 'description' => 'x', 'icon' => 'home']);
 check('control: a category save with a genuine token is applied',
     $r['code'] === 303 && (int) Database::value('SELECT COUNT(*) FROM categories') === $catsBefore + 1, 'got ' . $r['code']);
+// The audit trail must name what was changed. It once recorded "Created Category “" (name lost,
+// quote unclosed, and a PHP warning in the log) because the variable sat directly against the
+// closing curly quote, which PHP read as part of the variable's name.
+check('the audit entry for that save names the category, with its quotes closed',
+    (string) Database::value("SELECT details FROM audit_logs WHERE action = 'taxonomy.create' ORDER BY id DESC LIMIT 1") === 'Created Category “CSRF Probe Control”');
 $r = http('POST', $base . "/admin/properties/{$cpProp}/delete", $sa, ['_token' => $goodToken]);
 check('control: a property delete with a genuine token is applied',
     $r['code'] === 303 && (int) Database::value('SELECT COUNT(*) FROM properties WHERE id=?', [$cpProp]) === 0, 'got ' . $r['code']);
@@ -358,7 +362,6 @@ check('signed-out admin request redirects',
 $ch = curl_init($base . '/login');
 curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true]);
 $head = (string) curl_exec($ch);
-curl_close($ch);
 check('the session cookie is HttpOnly', stripos($head, 'HttpOnly') !== false);
 check('the session cookie is SameSite', stripos($head, 'SameSite') !== false);
 // Security headers.
@@ -377,7 +380,6 @@ function raw(string $method, string $url, array $headers = []): array {
     $out = (string) curl_exec($ch);
     $size = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
     return ['code' => $code, 'head' => substr($out, 0, $size), 'body' => substr($out, $size)];
 }
 // Methods. Only GET, HEAD and POST mean anything; the rest used to receive the page.
@@ -463,7 +465,6 @@ curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CU
     CURLOPT_COOKIEJAR => $sa, CURLOPT_COOKIEFILE => $sa]);
 curl_setopt($ch, CURLOPT_POSTFIELDS, ['_token' => $token, 'images[]' => new CURLFile($tmp, 'image/png', 'evil.png')]);
 $out = (string) curl_exec($ch);
-curl_close($ch);
 @unlink($tmp);
 $uploadDir = $root . '/public/uploads';
 $found = [];
