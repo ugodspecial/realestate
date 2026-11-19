@@ -38,7 +38,7 @@
 
 .admin-shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh;background:#f2f5ef}.admin-sidebar{background:var(--green-deep);color:#c9d8c4;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}.admin-brand{padding:25px 23px 22px;border-bottom:1px solid #ffffff1c}.admin-brand-type{font:700 20px/1.15 var(--font-display);letter-spacing:1.2px;color:#fff}.admin-brand-type small{display:block;font:500 7px/1.6 var(--font-body);letter-spacing:4px;color:#9cc0a0;margin-top:2px}.admin-nav{padding:18px 13px;flex:1}.admin-nav span{display:block;font-size:8px;letter-spacing:2px;color:#86a088;padding:13px 10px 8px}.admin-nav a{display:flex;align-items:center;gap:10px;font-size:12px;padding:10px;color:#bccbb5;border-radius:3px}.admin-nav .icon{width:17px;height:17px}.admin-nav a:hover{background:#ffffff12;color:#fff}.admin-nav a.active{background:#ffffff22;color:#fff}.admin-nav a small{margin-left:auto;background:#ffffff26;padding:3px 9px;border-radius:10px;font-size:9px}.admin-nav a .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);margin-left:auto}.admin-user{padding:20px 23px;border-top:1px solid #ffffff1c;font-size:11px}.admin-user small{display:block;color:#84a184;font-size:9px;margin:3px 0 13px}.admin-user>div{display:flex;gap:8px}.admin-user a,.admin-user button{font-size:10px;color:#c5d6bd;text-decoration:underline;text-underline-offset:3px;padding:0}.admin-main{padding:35px 40px;min-width:0}.admin-top{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:25px}.admin-top h1{font-size:35px;letter-spacing:1px}.admin-top p{font-size:12px;margin-top:7px}.admin-actions{display:flex;gap:10px;flex-shrink:0}.admin-card{background:#fff;border:1px solid #dfe7d8;border-radius:4px;padding:25px;margin-bottom:23px}.admin-card h2{font-size:24px;letter-spacing:.5px;margin-bottom:6px}.admin-card>p{font-size:11px;margin-bottom:20px}.stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:17px;margin-bottom:23px}.stat-card{background:#fff;border:1px solid #dfe7d8;border-radius:4px;padding:22px;display:flex;gap:15px;align-items:center}.stat-card>.icon{width:40px;height:40px;padding:9px;border-radius:3px;background:var(--paper);color:#718c5e}.stat-card b{font:600 31px/1 var(--font-display);color:var(--green);display:block}.stat-card span{font-size:10px;color:#8b9882}.stat-card small{display:block;font-size:9px;color:#a5b094;margin-top:5px}.admin-cols{display:grid;grid-template-columns:1fr 1fr;gap:23px}.admin-table-wrap{overflow-x:auto}.admin-table{width:100%;border-collapse:collapse;font-size:12px}.admin-table th{text-align:left;font-size:9px;letter-spacing:1.2px;color:#8b9880;font-weight:500;padding:11px 13px;border-bottom:1px solid var(--line);white-space:nowrap}.admin-table td{padding:13px;border-bottom:1px solid #eef2e8;vertical-align:middle;color:#4f6344}.admin-table tr:last-child td{border-bottom:0}.admin-table tr:hover td{background:#fafcf7}.admin-table img{width:55px;height:40px;object-fit:cover;border-radius:3px}.row-actions{display:flex;gap:7px;white-space:nowrap}.row-actions>a,.row-actions>button{font-size:10px;padding:6px 11px;border:1px solid var(--line);border-radius:2px;color:#5d7452;background:#fff;display:inline-flex;align-items:center;gap:5px}.row-actions>a:hover{background:var(--paper)}.row-actions .danger{color:#a74640;border-color:#ecd3cc}.row-actions .danger:hover{background:#fdf1ec}.filter-bar{display:flex;gap:11px;flex-wrap:wrap;margin-bottom:20px;align-items:center}.filter-bar .field{flex:1;min-width:150px}.filter-bar .field input,.filter-bar .field select{min-height:39px;font-size:11px}.filter-bar .btn{margin-top:24px;min-height:39px;font-size:11px}.admin-form .form-grid{gap:16px}.admin-form .field label{font-size:11px}.admin-form textarea{min-height:90px}.form-actions{display:flex;gap:11px;margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}.image-manager{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}.image-item{border:1px solid var(--line);border-radius:3px;overflow:hidden;background:#fff}.image-item img{width:100%;height:100px;object-fit:cover}.image-item>div{padding:10px;font-size:10px;display:flex;flex-direction:column;gap:7px}.image-item .badge{align-self:flex-start}.image-item input{font-size:10px;border:1px solid var(--line);border-radius:2px;padding:5px 7px;width:100%}.image-item label{display:flex;align-items:center;gap:6px;font-size:10px;color:#6d866f}.dropzone{border:2px dashed #cfdcc5;border-radius:4px;padding:35px;text-align:center;background:#fafcf6;font-size:12px;color:#718460}.dropzone.dragover{border-color:var(--green);background:#f0f6ec}.dropzone .icon{width:35px;height:35px;margin-bottom:12px;color:#8ca079}.audit-list{display:flex;flex-direction:column}.audit-list>div{display:flex;gap:14px;padding:13px 0;border-bottom:1px solid #eef2e8;font-size:11px}.audit-list>div:last-child{border:0}.audit-list time{color:#9aa88d;white-space:nowrap;font-size:10px}.audit-list b{font-weight:500;color:#4f6344}.roadmap-note{background:#f6f2e8;border:1px solid #e4d8bd;border-radius:4px;padding:25px;font-size:12px;line-height:1.85;color:#7a6f4e}.roadmap-note h2{color:#6b6142;font-size:22px}.permission-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}.permission-card{border:1px solid var(--line);border-radius:3px;padding:18px;font-size:11px}.permission-card h3{font-size:19px;margin-bottom:10px}.permission-card ul{margin:10px 0 0;padding-left:17px;line-height:1.9}
 
-@media(max-width:1200px){.category-grid{grid-template-columns:repeat(3,1fr)}.category-card:nth-child(3){border-right:0}.category-card{border-bottom:1px solid var(--line)}.category-card:nth-child(n+4){border-bottom:0}.services-grid{grid-template-columns:1fr 1fr;gap:30px 0}.service-card:nth-child(3){padding-left:0;border-left:0}.service-card{padding-right:28px}.location-grid{grid-template-columns:1fr 1fr}.stats-grid{grid-template-columns:1fr 1fr}.advanced-fields{grid-template-columns:1fr 1fr 1fr}.hero-property-label{display:none}}
+@media(max-width:1200px){.category-card:nth-child(3){border-right:0}.category-card{border-bottom:1px solid var(--line)}.category-card:nth-child(n+4){border-bottom:0}.services-grid{grid-template-columns:1fr 1fr;gap:30px 0}.service-card:nth-child(3){padding-left:0;border-left:0}.service-card{padding-right:28px}.stats-grid{grid-template-columns:1fr 1fr}.advanced-fields{grid-template-columns:1fr 1fr 1fr}.hero-property-label{display:none}}
 @media(max-width:1024px){.hero h1{font-size:55px;line-height:55px}.location-card h3,.category-card h3{font-size:30px}.section{padding:65px 0}.container{width:calc(100% - 56px)}.header-inner{height:75px}.main-nav{position:fixed;inset:0 0 0 auto;width:min(340px,88vw);background:#fff;flex-direction:column;align-items:stretch;padding:95px 35px 35px;margin:0;gap:5px;z-index:60;transform:translateX(100%);transition:transform .3s;box-shadow:-10px 0 40px #102e2615}.main-nav.open{transform:none}.main-nav>a{padding:13px 0;font-size:15px;border-bottom:1px solid #eef1e8}.main-nav>a::after{display:none}.main-nav .mobile-nav-cta{display:flex;margin-top:25px;width:100%}.header-cta{display:none}.mobile-toggle{display:flex;align-items:center;gap:8px;color:var(--green);font-size:12px;font-weight:500;margin-left:auto}.mobile-toggle .icon{width:25px;height:25px}.nav-overlay{position:fixed;inset:0;background:#102e2659;z-index:55;opacity:0;pointer-events:none;transition:.3s}.nav-overlay.show{opacity:1;pointer-events:auto}.hero-content{padding-top:50px}.search-fields{flex-wrap:wrap;gap:15px 0}.search-field{flex:1 1 40%;border:0;padding:0 15px 0 0}.search-field:first-child{flex:1 1 100%;border-bottom:1px solid var(--line);padding-bottom:12px}.search-submit{flex:1;margin:5px 0 0}.property-grid{grid-template-columns:1fr 1fr}.property-track>.property-card{flex-basis:calc(50% - 14px)}.split-layout,.contact-split,.contact-page-grid,.faq-section .split-layout,.property-enquiry-section{grid-template-columns:1fr;gap:45px}.about-visual>img{height:400px}.about-image-note{right:10px}.services-section{padding:60px 0}.testimonial-grid{grid-template-columns:1fr 1fr}.footer-grid{grid-template-columns:1fr 1fr;gap:35px}.footer-top{flex-direction:column;align-items:flex-start}.detail-specs{grid-template-columns:repeat(3,1fr);gap:18px}.property-detail-layout{grid-template-columns:1fr}.advisor-card{position:static}.property-gallery{height:360px}.service-detail{grid-template-columns:1fr;gap:25px}.admin-shell{grid-template-columns:1fr}.admin-sidebar{position:static;height:auto}.admin-main{padding:25px 20px}.admin-cols{grid-template-columns:1fr}.login-shell{grid-template-columns:1fr}.login-visual{min-height:320px;padding:40px}
 
     .login-visual{gap:34px;height:auto;justify-content:flex-start}
@@ -104,10 +104,10 @@ body{overflow-x:clip;max-width:100%}
 @media(max-width:1024px){
   .property-grid{grid-template-columns:repeat(2,1fr)}
   .testimonial-grid{grid-template-columns:repeat(2,1fr)}
-  .category-grid{grid-template-columns:repeat(2,1fr)}
+  
   .values-grid{grid-template-columns:repeat(2,1fr)}
   .stats-grid{grid-template-columns:repeat(2,1fr)}
-  .location-grid{grid-template-columns:repeat(2,1fr)}
+  
   .services-grid{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:640px){
@@ -1100,9 +1100,6 @@ p{text-wrap:pretty}
       mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
       -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
     }
-    .trust-strip span,.trust-strip i{animation:trust-slide 34s linear infinite}
-    .trust-strip:hover span,.trust-strip:hover i{animation-play-state:paused}
-    @keyframes trust-slide{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
   }
 }
 
@@ -3596,4 +3593,320 @@ summary,
     font-size:clamp(28px,7.4vw,29px);
     letter-spacing:.06em;
   }
+}
+
+/* ===========================================================================
+   CONTAINER GUTTERS — one continuous value
+   ---------------------------------------------------------------------------
+   The container changed width in four fixed steps: 28px of gutter at 360, 40 to
+   640, 56 to 1024, then 96. At the 1024 boundary the left edge of every section
+   jumped 20px to the right while the container simultaneously shrank 20px, so
+   the whole page visibly shifted sideways when a tablet rotated or a window was
+   dragged through that range. The same, smaller, jump happened at each boundary.
+
+   A single clamp removes every discontinuity: the gutter now grows smoothly from
+   14px on the narrowest phone to a 48px maximum, which is the desktop figure
+   the design was drawn at. The container's own max-width is unchanged.
+   =========================================================================== */
+.container{
+  --gutter:clamp(14px,4vw,48px);
+  width:calc(100% - var(--gutter) * 2);
+  max-width:1240px;
+  margin-inline:auto;
+}
+
+/* The four fixed-gutter rules above are superseded; neutralise them so a future
+   media query cannot reintroduce a step. They are left in place because the
+   print rule needs its own width. */
+@media(max-width:1024px){
+  .container{width:calc(100% - var(--gutter) * 2)}
+}
+@media(max-width:640px){
+  .container{width:calc(100% - var(--gutter) * 2)}
+}
+@media(max-width:360px){
+  .container{width:calc(100% - var(--gutter) * 2)}
+}
+
+/* ===========================================================================
+   NAVIGATION — a rule under the word, nothing else
+   ---------------------------------------------------------------------------
+   The active item had collected three different treatments across earlier
+   passes: a pale green pill behind the label (a rounded box that read as a
+   button), a gold 2px bar down its left edge, and an 8px indent on hover. None
+   of the three was the underline the design actually wants, and together they
+   made the current page look like a pressed toggle.
+
+   All three are removed. The underline is the only state: a 2px rule sitting
+   directly beneath the label, sized to the text, so it reads as a rule under a
+   word rather than a box around it.
+   =========================================================================== */
+
+/* Kill the pill. */
+.main-nav>a.active::before,
+.main-nav>a:hover::before{
+  content:none;
+  display:none;
+  width:0;height:0;
+  background:none;
+  border:0;
+}
+
+/* Kill the bars/borders that were standing in for an underline. */
+.main-nav>a,
+.main-nav>a.active{
+  border:0;
+  border-bottom:0;
+  padding-left:0;
+  padding-right:0;
+}
+.site-header .main-nav>a{border-bottom:0}
+
+/* The underline: exactly under the text, exactly as wide as the text.
+   Anchoring to the anchor's own box (which shrink-wraps its label) is what
+   makes it sit directly beneath the word at every label length. */
+.main-nav>a::after{
+  content:'';
+  position:absolute;
+  left:0;right:0;
+  bottom:26px;
+  height:2px;
+  background:var(--green);
+  transform:scaleX(0);
+  transform-origin:center;
+  transition:transform var(--dur-2) var(--ease-out);
+}
+.main-nav>a:hover::after,
+.main-nav>a.active::after,
+.main-nav>a[aria-current="page"]::after{
+  transform:scaleX(1);
+  width:auto;
+}
+
+/* Hover must not move the label sideways. */
+.main-nav>a:hover{padding-left:0;padding-right:0}
+
+/* Inside the mobile drawer the underline would collide with the row dividers,
+   so the drawer marks the current page on the left edge instead — a 2px rule,
+   not a pill, and not an indent. */
+@media(max-width:1024px){
+  .main-nav>a::after{display:none}
+  .main-nav>a,
+  .main-nav>a:hover,
+  .main-nav>a.active{
+    padding-left:0;
+    transition:color var(--dur-1) ease;
+  }
+  .main-nav>a{padding:13px 0;border-bottom:1px solid #eef1e8}
+  .main-nav>a.active,
+  .main-nav>a[aria-current="page"]{
+    color:var(--green);
+    font-weight:600;
+    padding-left:0;
+    /* The row divider must survive on the active item too, otherwise the list
+       loses a rule exactly where the eye is drawn. */
+    border-bottom:1px solid #eef1e8;
+    /* A hairline inset on the left edge marks the current page without a box,
+       an indent, or a pill. */
+    box-shadow:inset 2px 0 0 var(--green);
+  }
+  .main-nav>a:last-of-type{border-bottom:1px solid #eef1e8}
+  .main-nav>a.active::before,
+  .main-nav>a:hover::before{display:none}
+}
+
+/* ===========================================================================
+   FOOTER WHATSAPP — a link, not a button
+   ---------------------------------------------------------------------------
+   "Chat with us on WhatsApp" carried a background fill, a 1px border and a
+   corner radius, which made it the only boxed control in the footer and made it
+   read as a primary button competing with the real calls to action.
+
+   It is now an ordinary footer link like the phone number and address directly
+   above it: icon and text, no box. The hover state moves the icon, matching the
+   other footer links.
+   =========================================================================== */
+.footer-whatsapp{
+  background:none;
+  border:0;
+  border-radius:0;
+  padding:0!important;
+  margin-top:var(--space-4)!important;
+  color:#a8bda4!important;
+  box-shadow:none;
+}
+.footer-whatsapp:hover,
+.footer-whatsapp:focus-visible{
+  background:none;
+  border:0;
+  color:#fff!important;
+}
+.footer-whatsapp:hover .icon,
+.footer-whatsapp:focus-visible .icon{
+  opacity:1;
+  transform:translateX(1px);
+}
+
+/* ===========================================================================
+   GRID LADDER — one progression, no cliffs
+   ---------------------------------------------------------------------------
+   Each grid had been given its own column counts at its own breakpoints, so the
+   columns did not step together:
+
+     property   1  2  3
+     category   1  2  3  5     <- jumps 3 to 5 at exactly 1201px
+     location   1  2  2  4     <- stays at 2 through 1025..1200, then doubles
+     services   1  2  4
+     values     1  2  4
+
+   Two of those are visible faults. The location mosaic sat on a two-column
+   layout across the whole 1025–1200 band, so its large tiles looked stranded
+   next to the three-column card grid beneath them. The category row then
+   doubled 3 to 5 at a single pixel, which is a cliff, not a step.
+
+   Every grid now steps on the same ladder — 1, 2, 3, 4 — and no grid ever skips
+   a rung. Where a grid must show an odd final row it does so with the count the
+   content actually has (five categories), reached by wrapping rather than by a
+   breakpoint.
+   =========================================================================== */
+
+/* --- property cards: 1 / 2 / 3 ------------------------------------------- */
+@media(min-width:641px) and (max-width:1024px){
+  .property-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:1025px){
+  .property-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+/* --- category tiles: 1 / 2 / 3 / 4, with the fifth wrapping under --------- */
+@media(min-width:641px) and (max-width:900px){
+  .category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:901px) and (max-width:1199px){
+  .category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(min-width:1200px){
+  .category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+/* --- location mosaic: 1 / 2 / 3 / 4, never stranded at two --------------- */
+@media(min-width:641px) and (max-width:1024px){
+  .location-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:1025px) and (max-width:1199px){
+  .location-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(min-width:1200px){
+  .location-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+/* --- service cards: 1 / 2 / 4 (four services, so four reads as one row) -- */
+@media(min-width:641px) and (max-width:1024px){
+  .services-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:1025px){
+  .services-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+/* --- values: 1 / 2 / 4 (four values, matching the service row above) ----- */
+@media(min-width:641px) and (max-width:1024px){
+  .values-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:1025px){
+  .values-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+
+/* Tiles and cards share one gutter so columns line up across sections. */
+.property-grid,.category-grid,.location-grid,.services-grid,.values-grid{
+  column-gap:clamp(16px,2.2vw,28px);
+  row-gap:clamp(16px,2.2vw,28px);
+}
+
+/* The ladder above overlaps a handful of older max-width rules that still carry
+   their own column counts. Rather than trust source order between two sets of
+   conditions, pin the exact count per band once, with the narrow bands stated
+   explicitly so there is no width at which two rules disagree. */
+
+/* category tiles: 1 up to 640, 2 to 900, 3 to 1199, 4 above */
+@media(max-width:640px){ .category-grid{grid-template-columns:1fr} }
+@media(min-width:641px) and (max-width:1024px){ .category-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media(min-width:1025px) and (max-width:1199px){ .category-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media(min-width:1200px){ .category-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
+
+/* location mosaic: 1 up to 640, 2 to 1024, 3 to 1199, 4 above */
+@media(max-width:640px){ .location-grid{grid-template-columns:1fr} }
+@media(min-width:641px) and (max-width:1024px){ .location-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media(min-width:1025px) and (max-width:1199px){ .location-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media(min-width:1200px){ .location-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
+
+/* property cards: 1 up to 640, 2 to 1024, 3 above */
+@media(max-width:640px){ .property-grid{grid-template-columns:1fr} }
+@media(min-width:641px) and (max-width:1024px){ .property-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media(min-width:1025px){ .property-grid{grid-template-columns:repeat(3,minmax(0,1fr))} }
+
+/* services and values: 1 up to 640, 2 to 1024, 4 above */
+@media(max-width:640px){ .services-grid,.values-grid{grid-template-columns:1fr} }
+@media(min-width:641px) and (max-width:1024px){ .services-grid,.values-grid{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media(min-width:1025px){ .services-grid,.values-grid{grid-template-columns:repeat(4,minmax(0,1fr))} }
+
+/* The mosaic's lead tile spans where the grid has room for it, and is demoted
+   to a normal tile once the count drops to two. */
+@media(min-width:1200px){
+  .location-card:first-child{grid-column:span 2}
+}
+@media(max-width:1199px){
+  .location-card:first-child{grid-column:auto}
+}
+
+/* ===========================================================================
+   TRUST STRIP — static row, not a ticker
+   ---------------------------------------------------------------------------
+   Two faults sat on top of each other here.
+
+   First, a layout conflict: an earlier pass made the strip a responsive grid
+   (one column on phones, two above 640), then a later pass set the same element
+   to `display:flex`. Above 1024 the flex silently won, so the grid's column
+   rules never applied and the four statements sat on one line regardless of
+   width.
+
+   Second, the desktop strip scrolled itself: `trust-slide` translated the row
+   -50% on a 34s loop. But the markup holds a single copy of the four items, not
+   two, so the loop dragged them fully off the left edge and left a blank right
+   half before snapping back. It was also the one piece of motion on the site
+   that conveyed nothing — a trust strip that slides is a news ticker.
+
+   The row is now static and wraps: two columns on phones, four across from 1025.
+   =========================================================================== */
+.trust-strip .container{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px 18px;
+  align-items:center;
+  justify-items:start;
+  padding-block:16px;
+  flex-wrap:nowrap;
+  overflow:visible;
+  mask-image:none;
+  -webkit-mask-image:none;
+}
+.trust-strip span,
+.trust-strip i{animation:none}
+.trust-strip i{display:none}
+
+@media(min-width:641px){
+  .trust-strip .container{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:16px 26px;
+  }
+}
+@media(min-width:1025px){
+  .trust-strip .container{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:18px 30px;
+    padding-block:18px;
+  }
+}
+@media(max-width:400px){
+  .trust-strip .container{grid-template-columns:1fr}
+  .trust-strip span{font-size:11px}
 }

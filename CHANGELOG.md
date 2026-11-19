@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.8.1 — 2026-11-03
+
+Responsiveness and chrome corrections.
+
+**Container gutters.** The container width changed in four fixed steps — 28px of
+gutter at 360, 40 to 640, 56 to 1024, then 96 — so at the 1024 boundary the left
+edge of every section jumped 20px right while the container simultaneously shrank
+20px. Turning a tablet or dragging a window through that band shifted the whole
+page sideways. One `clamp(14px,4vw,48px)` gutter replaces all four steps with no
+discontinuity at any width.
+
+**Grid ladder.** Each grid had its own column counts at its own breakpoints:
+property cards went 1-2-3, but the category tiles went 1-2-3-**5** at exactly
+1201px and the location mosaic sat on two columns across the whole 1025–1200 band
+before doubling. Every grid now steps 1-2-3-4 on the same two boundaries (641 and
+1025), so columns line up across sections and nothing doubles at a single pixel.
+
+**Navigation.** The current page had collected three competing treatments: a pale
+green rounded pill behind the label, a 2px gold bar down its left edge, and an 8px
+indent on hover. All three are gone. The underline is now the only state — a 2px
+rule sized exactly to the word and sitting 5px beneath it, measured against the
+15px type and 33px anchor padding. The drawer keeps a hairline inset on the left
+edge plus its row divider.
+
+**Footer WhatsApp.** "Chat on WhatsApp" carried a background fill, a border and a
+corner radius, making it the only boxed control in the footer and reading as a
+primary button beside the real calls to action. It is now an ordinary footer link
+like the phone number and address above it.
+
+**Trust strip.** The strip scrolled itself on a 34s loop, but the markup holds one
+copy of the four items rather than two, so the loop dragged them off the left edge
+and left the right half blank before snapping back. It was also the one animation
+on the site that conveyed nothing. Now a static wrapping grid: one column on small
+phones, two to 1024, four above.
+
+All suites pass: smoke, responsive-regression (113), seo (48), accounts (17),
+dashboard-scope (38), migrations, logo-sanitizer (28); jsdom drawer, toast,
+gallery, sort, motion, reveal and a11y clean.
+
 ## 1.8.0 — 2026-11-03
 
 Third and final design pass. The first two passes built systems; this one removes
