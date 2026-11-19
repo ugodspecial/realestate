@@ -3632,7 +3632,7 @@ p{text-wrap:pretty}
   color:#a9c0a4;
 }
 .service-number{
-  font:500 12px/1 var(--font-display);
+  font:600 12px/1 var(--font-display);
   letter-spacing:var(--tracking-widest);
   color:#ffffff47;
   transition:color var(--dur-2) ease;
@@ -3829,7 +3829,6 @@ p{text-wrap:pretty}
   padding-top:var(--space-4);
   border-top:1px solid #e2e8da;
 }
-.enquiry-reference+*,
 .enquiry-reference b,
 .enquiry-reference strong{
   font:600 20px/1.4 var(--font-display);
