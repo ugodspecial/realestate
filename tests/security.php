@@ -206,6 +206,30 @@ check('and changes nothing', $dbValue('brand_name') === $settingsBefore);
 $r = http('POST', $base . '/admin/settings', $sa, ['_token' => $token, 'brand_name' => $settingsBefore]);
 check('the same POST succeeds with the real token', $r['code'] === 303, 'got ' . $r['code']);
 
+// "Send a test email" (Settings > Email delivery) posts to the same address with action=test-mail.
+// It makes the server connect to a mail server and send a message, so it must meet the bar every
+// other state-changing route meets: a token, and the settings permission. The test button is not
+// pressed with a genuine token here (what the server would do depends on how mail is set up where
+// this runs; tests/mail.php covers that), so a request that gets as far as the mailer shows up as
+// a row in the activity log, and none may.
+$mailTests = static fn(): int => (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'settings.mail_test'");
+$mailTestsBefore = $mailTests();
+$r = http('POST', $base . '/admin/settings', $sa, ['action' => 'test-mail']);
+check('"send a test email" without a token is refused', $r['code'] === 419, 'got ' . $r['code']);
+$r = http('POST', $base . '/admin/settings', $sa, ['action' => 'test-mail', '_token' => str_repeat('a', 64)]);
+check('...and with a forged token', $r['code'] === 419, 'got ' . $r['code']);
+foreach ([['a content editor', $ce], ['a listing manager', $lm]] as [$who, $jarFile]) {
+    $r = http('POST', $base . '/admin/settings', $jarFile, ['action' => 'test-mail', '_token' => csrf($base . '/admin', $jarFile)]);
+    check("{$who} cannot use it, even with a genuine token", $r['code'] === 403, 'got ' . $r['code']);
+}
+$r = http('POST', $base . '/admin/settings', jar(), ['action' => 'test-mail', '_token' => 'anything']);
+check('someone who is not signed in is sent to sign in, not to the mailer', $r['code'] === 303 && str_contains($r['location'], 'login'), 'got ' . $r['code'] . ' ' . $r['location']);
+check('none of those requests got as far as the mailer', $mailTests() === $mailTestsBefore);
+$settingsPage = http('GET', $base . '/admin/settings', $sa)['body'];
+check('the test button sits in a form of its own that carries a CSRF token (forms cannot nest)',
+    (bool) preg_match('/<form[^>]*method="post"[^>]*>\s*<input type="hidden" name="_token" value="[a-f0-9]+">\s*<input type="hidden" name="action" value="test-mail">/', $settingsPage)
+    && substr_count($settingsPage, '<form') === substr_count($settingsPage, '</form>'));
+
 echo "\n== CSRF covers every state-changing route ==\n";
 // The checks above prove the token is enforced on ONE route. CSRF is enforced handler
 // by handler, so a handler added later that forgets verify_csrf() is silently open, and

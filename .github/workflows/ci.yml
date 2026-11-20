@@ -48,6 +48,15 @@ jobs:
       - run: php tests/password-reset.php
       # A forged Host header must never decide where an emailed link points.
       - run: php tests/host-header.php
+      # Email, for real: SMTP conversations (plain, sign-in, STARTTLS, TLS, refusals, dropped and
+      # silent servers) against a local test server (python3 and openssl are on the runner), the
+      # command-line check, the settings button, and PHP's mail() handing a message to a stand-in
+      # for sendmail. MAIL_TEST_REQUIRE turns a skipped part into a failure, so a broken harness
+      # cannot hide behind a green build.
+      - run: php -d "sendmail_path=sh $PWD/tests/fixtures/mail-capture.sh -t -i" tests/mail.php
+        env:
+          MAIL_TEST_REQUIRE: '1'
+      - run: php -d sendmail_path=/nonexistent/sendmail tests/mail.php --mail-broken
       - run: |
           php -S 127.0.0.1:8080 -t public public/router.php >/tmp/php-server.log 2>&1 &
           echo $! >/tmp/php-server.pid
@@ -102,6 +111,11 @@ jobs:
       - run: mkdir -p storage/sessions storage/logs public/uploads
       - run: php bin/install.php --demo
       - run: php tests/smoke.php
+      # Production is MySQL, so the parts of the email suite that touch the database (the
+      # notification-address fallback, the activity log, rate limits) run here as well.
+      - run: php -d "sendmail_path=sh $PWD/tests/fixtures/mail-capture.sh -t -i" tests/mail.php
+        env:
+          MAIL_TEST_REQUIRE: '1'
       - run: |
           php -S 127.0.0.1:8080 -t public public/router.php >/tmp/php-server.log 2>&1 &
           echo $! >/tmp/php-server.pid

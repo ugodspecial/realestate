@@ -1,6 +1,138 @@
 # Changelog
 
-## 1.8.9 — 2026-11-03
+## 1.9.0 — 2026-11-20
+
+**Email can now be set up on a developer's computer (Laragon) and on a live hosting
+plan, can be tested from the Settings screen or a terminal, and says plainly why
+when it cannot send.**
+
+*What was wrong.* The question was whether the existing code would send email on
+Laragon and on any hosting plan. It would not have been safe to say yes, and an
+audit (rather than an assumption) found why. Every point below was true of 1.8.9:
+
+1. The site could only hand a message to PHP's `mail()`. There were no settings
+   for an SMTP mailbox at all, which is what most hosting plans need: `mail()` is
+   switched off on some, blocked or throttled on others, and its messages are the
+   likeliest to land in spam. On Windows `mail()` talks to whatever `php.ini`
+   names, which is nothing on a fresh install.
+2. Email was off unless the `MAIL_ENABLED` environment variable was exactly the
+   text `true`. Most shared hosting has nowhere to set environment variables, there
+   was no example settings file, the README's quick start said
+   `cp config.local.php config.local.php` (a file copied onto itself), and the
+   deployment guide said never to place `config.local.php` on a server, which is
+   the one file that works on every plan.
+3. A failure was silent. A password-reset email that could not be sent looked
+   exactly like one that was (the visitor sees the same neutral page by design, so
+   they cannot tell), and nothing was recorded anywhere.
+4. The enquiry alert's recipient fallback never worked. It fell back from the
+   notification address to the public email only when the notification setting was
+   missing, but the Settings screen saves an emptied box as empty text, so after
+   anyone saved that screen with the box empty, the alerts went nowhere.
+5. `mail()` was given no envelope sender (`-f`), so on shared hosting the message
+   is sent "from" the server's own account name, which fails the domain's SPF check
+   and is a classic reason for spam-foldering. The From name was not encoded, so a
+   site name with an accent or a comma could break the header.
+6. Nothing had ever sent a message in CI. Every test ran with email switched off,
+   so "email works" was an assumption, not a result.
+
+*What changed.*
+
+- **Three ways to send** (`MAIL_DRIVER`). `smtp` signs in to a real mailbox or mail
+  service. It is a small client of our own on PHP's stream functions, so there is no
+  library to install and nothing needed beyond PHP's openssl for encryption. It does
+  STARTTLS (port 587), TLS from the first byte (465) or none (a local catcher), AUTH
+  PLAIN and LOGIN, checks the server's certificate, and never sends the password to
+  a server that has not offered the encryption it was told to require. `mail` is the
+  old way, now with the envelope sender. `log` writes each message to
+  `storage/logs/mail.log` for development and is refused in production, since it
+  would hold live reset links. A site that sets nothing new behaves exactly as
+  before: with `MAIL_HOST` empty the method stays `mail`.
+- **Settings can live in a file.** `config.local.php` works on every plan; environment
+  variables still work and the file wins where both are set. Two ready-to-copy
+  examples: `docs/config-examples/local.php` (SQLite, mail to a log file) and
+  `docs/config-examples/live.php` (MySQL, an SMTP mailbox, placeholders only).
+  `MAIL_ENABLED` also accepts `1`, `yes` and `on`. New: `MAIL_DRIVER`, `MAIL_HOST`,
+  `MAIL_PORT`, `MAIL_ENCRYPTION`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+  `MAIL_VERIFY_PEER`, `MAIL_CAFILE`, `MAIL_TIMEOUT`.
+- **A better message.** UTF-8 quoted-printable, a Date and a Message-ID, a From name
+  that cannot break or add a header whatever the site is called, and a line that
+  starts with a dot written so no transport can take it for the end of the message.
+  The enquiry alert now has the visitor as its Reply-To, so replying answers them,
+  while it is still sent from the site. Only a plain address is ever used for
+  Reply-To or `-f`; a quoted address that PHP's own validator accepts, and that has
+  been used to inject options into mail programs, is left out.
+- **Failures are visible, and nobody is misled.** Settings has an *Email delivery*
+  card that says how mail leaves the site and names anything that cannot work. Its
+  **Send a test email to me** button (Super Administrator only, to your own address
+  only, five per ten minutes, CSRF-protected) checks the PHP that really serves the
+  website, which on shared hosting can differ from the terminal's. From a terminal,
+  `php bin/mail-test.php [address] [--verbose]` does the same and shows the
+  conversation with the mail server, passwords masked. `php bin/status.php` has an
+  Email block. A failed enquiry alert or reset email is recorded in the Activity log
+  (`enquiry.alert_failed`, `user.reset_mail_failed`) with the reason, and as one
+  `Mail not sent` line in `php-error.log`, never as a PHP warning. The visitor still
+  sees the same neutral page, and an enquiry is saved whether or not its alert goes.
+- **The notification-address fallback works**: a valid notification address, else a
+  valid public email, else the activity log says no alert could be sent and why.
+- **Written down for the people who have to set it up.** `docs/EMAIL.md`: what the
+  site emails; Laragon (a log file, Laragon's own Mail Catcher, or Mailpit); cPanel
+  and shared hosting step by step; a VPS; Gmail, Brevo, Mailgun, SendGrid and Amazon
+  SES; SPF, DKIM and DMARC and the spam folder; and a table of what each failure
+  message means and what to change. The README quick start now really copies a file,
+  and the deployment guide no longer contradicts itself.
+
+*Proven here, and how.* A new suite, `tests/mail.php` (278 checks run in this
+sandbox; the CI run adds the command-line checks and one that needs a PHP that
+refuses connections the way real PHP does), starts a fake SMTP server
+(`tests/fixtures/smtp-sink.py`: python3, plus openssl for the TLS cases; 16 behaviours) and sends real messages
+over real sockets to it. It covers a plain server, AUTH PLAIN and LOGIN, STARTTLS,
+TLS from the first byte, certificates refused and then trusted, a wrong password, a
+server that offers no encryption or no sign-in or only methods we lack, refused
+senders and recipients, a 451 deferral, a size limit, a server that hangs up, never
+answers, is not a mail server at all, or refuses sign-in with a reply that echoes
+the password. It compares what the server received with what was rendered, byte for
+byte, and reads the message the way a mail program would. It checks PHP's `mail()`
+handing a correct message, and `-f`, to a stand-in for sendmail
+(`tests/fixtures/mail-capture.sh`), and a broken mail program being reported rather
+than ignored. It runs both real flows end to end (enquiry alert, reset link), with
+the mail server up and down. It runs the Settings button directly and over HTTP and
+in a browser at 1366, 768 and 390px, including the failure text. It parses both
+example settings files and checks that every setting the application reads is
+written up. 45 deliberate breakages of the mail code and guides (no dot-stuffing,
+certificates never checked, sign-in before encryption, the password left in an
+error, a Reply-To taken raw, `-f` for any address, the log driver allowed in
+production, the fallback removed, a typo in an example file, and so on) each fail at
+least one check.
+
+*What the tests found while this was being built.* A server that echoes the
+password could have put it in the `--verbose` conversation; server text is now
+cleaned everywhere it is kept. A Reply-To is cleaned where it is written, once per
+place (headers, log file) rather than once on the way in. The WebAssembly PHP used
+for local checks sometimes reported a closed connection as a timeout, so a timeout
+now also has to have waited as long as it was allowed to. And the first draft of the
+Windows advice would have warned a Laragon user whose Mail Catcher is working: it now
+tries the address in `php.ini` before saying anything.
+
+*Not proven, and cannot be from here.* Laragon and PHP on Windows themselves (the
+Windows branch of the suite has never run); a real host's mail server and whether
+it lets PHP out on port 587 or 465; and whether the receiving mailbox accepts the
+message, which is decided by the sending domain's SPF, DKIM and DMARC records and
+not by this code. That is what the test button and `php bin/mail-test.php` are for:
+run one on the real machine, and treat a message in your inbox as the proof.
+
+*CI.* The SQLite jobs (PHP 8.1 to 8.5) run the mail suite with the sendmail
+stand-in, then once more with a mail program that does not exist. The MySQL jobs
+run it too, since production is MySQL and the notification fallback, the Activity
+log and the rate limit touch the database. `MAIL_TEST_REQUIRE=1` turns any skipped
+part into a failure, so a broken test harness cannot hide behind a green build.
+Also: 19 new checks in the smoke suite (200; `config.local.php` ignored by git and
+refused by `.htaccess`, `bin/` scripts refuse the web, the guides and examples
+exist and say what the code does) and 7 in the security suite (147: the test button
+without a token or with a forged one, as a content editor or a listing manager,
+signed out, and never reaching the mailer in any of those cases). Nothing public
+changed: no stylesheet, script or public page is touched.
+
+## 1.8.9 — 2026-11-20
 
 **Paragraph text now uses the width it has. It fills the column it sits in, up to
 one shared readable width, instead of stopping at a different small cap in each
@@ -93,7 +225,7 @@ characters. Each of 34 deliberate breakages (drop a selector, shrink the measure
 re-cap the FAQ or the footer blurb, restore the 44ch block, unwrap the row rule,
 put the hero back to 490px, and so on) fails at least one pin.
 
-## 1.8.8 — 2026-11-03
+## 1.8.8 — 2026-11-20
 
 **The home-page category tiles are fixed at every screen size: the "N
 properties" line no longer sits on top of the icon, the tiles are one divided
@@ -170,7 +302,7 @@ orphan rule, put the icon back to absolute, and so on) fails at least one pin.
 The first run let one through because a pin had matched a word in a CSS comment;
 the pins now ignore comments.
 
-## 1.8.7 — 2026-11-03
+## 1.8.7 — 2026-11-19
 
 **No menu item could be tapped. The footer is two columns on phones and
 tablets. A full audit of the site — layout, spacing, performance and security —

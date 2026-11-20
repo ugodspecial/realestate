@@ -459,6 +459,7 @@ final class AdminController {
         $keys = ['brand_name', 'brand_tagline', 'tagline', 'phone', 'whatsapp', 'email', 'notify_email', 'address', 'office_hours', 'map_embed', 'facebook', 'instagram', 'twitter', 'linkedin', 'listings_per_page', 'google_verification', 'bing_verification'];
         if ($method === 'POST') {
             verify_csrf();
+            if (input('action') === 'test-mail') self::testMail($user);
             $driver = Database::connection()->getAttribute(PDO::ATTR_DRIVER_NAME);
             $save = static function (string $key, string $value) use ($driver): void {
                 if ($driver === 'mysql') Database::query('INSERT INTO settings (key_name,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)', [$key, $value]);
@@ -501,7 +502,53 @@ final class AdminController {
             redirect('admin/settings');
         }
         $settings = array_column(Database::all('SELECT key_name, value FROM settings'), 'value', 'key_name');
-        self::layout('settings', 'Website settings', ['settings' => $settings], $user, 'settings');
+        $mail = ['enabled' => Mailer::enabled(), 'describe' => Mailer::describe(), 'problems' => Mailer::problems(), 'to' => (string) ($user['email'] ?? '')];
+        self::layout('settings', 'Website settings', ['settings' => $settings, 'mail' => $mail], $user, 'settings');
+    }
+
+    /**
+     * "Send a test email": the check bin/mail-test.php makes, for a hosting plan with no
+     * terminal. It writes only to the signed-in person's own address and is rate limited, so it
+     * cannot be turned into a way to mail someone else or to flood a mailbox. What the mail
+     * server answers is shown in plain words, never the SMTP password.
+     */
+    private static function testMail(array $user): never {
+        $result = self::mailTest($user);
+        flash($result['ok'] ? 'success' : 'error', $result['message']);
+        redirect('admin/settings');
+    }
+
+    /**
+     * The test itself, apart from the redirect, so it can be run and checked directly.
+     * @return array{ok:bool,message:string}
+     */
+    public static function mailTest(array $user): array {
+        if (!Mailer::enabled()) {
+            return ['ok' => false, 'message' => 'Email is switched off on this website, so nothing can be sent. The person who set up the hosting needs to turn it on (MAIL_ENABLED, see docs/EMAIL.md).'];
+        }
+        $key = 'mailtest|' . (int) ($user['id'] ?? 0);
+        if (RateLimiter::tooMany($key, 5, 600)) {
+            return ['ok' => false, 'message' => 'That is enough test emails for now. Wait ten minutes and try again.'];
+        }
+        RateLimiter::hit($key, 600);
+        $to = (string) ($user['email'] ?? '');
+        $sent = Mailer::send($to, 'Test email from ' . brand(), implode("\n", [
+            'This is a test message from the ' . brand() . ' website.',
+            '',
+            'If you can read it, the website can send email.',
+            'Requested by ' . ($user['name'] ?? 'a signed-in user') . ' at ' . date('Y-m-d H:i:s T') . '.',
+        ]));
+        if ($sent) {
+            Audit::log('settings.mail_test', 'settings', null, 'Sent a test email');
+            return ['ok' => true, 'message' => Mailer::settings()['driver'] === 'log'
+                ? 'Test email written to storage/logs/mail.log (the log method sends nothing).'
+                : 'The mail server accepted a test email for ' . $to . '. Look in that inbox, and the spam folder, in a minute or two.'];
+        }
+        Audit::log('settings.mail_test', 'settings', null, 'Test email failed: ' . Mailer::lastError());
+        // Two sentences, never run together: what happened, then what to try.
+        $why = rtrim(Mailer::lastError(), " .\t\n");
+        $advice = Mailer::hint(Mailer::lastError());
+        return ['ok' => false, 'message' => 'The test email could not be sent. ' . $why . '.' . ($advice !== '' ? ' What to try: ' . $advice : '')];
     }
 
     /* ---------------- Audit, roadmap, account ---------------- */

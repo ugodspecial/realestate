@@ -14,12 +14,19 @@
    (cPanel: *Domains → Document Root*). If the host forces `public_html/`, upload the
    contents of `public/` into `public_html/` and everything else one level above, then
    adjust the `dirname(__DIR__)` path in `public/index.php` accordingly.
-3. **Never** place `config.local.php`, `storage/*.sqlite`, or
-   `storage/demo-credentials.json` on a public server. Delete them if copied by accident.
+3. **Never** place `storage/*.sqlite` or `storage/demo-credentials.json` on a public
+   server. Delete them if copied by accident. Keep passwords out of git: put them in
+   environment variables, or in a `config.local.php` in the project folder (§3), which is
+   ignored by git, refused by the bundled `.htaccess`, and out of reach when the document
+   root is `public/`. Never place it inside `public/`.
 
 ## 3. Configure the environment
 
-Set these in cPanel (*Software → MultiPHP INI / Environment*) or your process manager:
+Set these as environment variables where your host allows it (PHP-FPM pool, Apache
+`SetEnv`, a process manager), **or** put the same settings in `config.local.php` in the
+project folder: copy `docs/config-examples/live.php` and edit it. A plain file works on every
+hosting plan, including those with nowhere to set environment variables, and where both are
+set the file wins. In the file the names are lower case (`MAIL_HOST` is `'mail_host'`).
 
 | Variable       | Example            | Purpose                              |
 |----------------|--------------------|--------------------------------------|
@@ -31,8 +38,20 @@ Set these in cPanel (*Software → MultiPHP INI / Environment*) or your process 
 | `DB_NAME`      | `you_cedar`        | Database name                        |
 | `DB_USER`      | `you_cedar`        | Database user                        |
 | `DB_PASS`      | `…`                | Database password                    |
-| `MAIL_ENABLED` | `true`             | Enables enquiry alerts **and password reset emails** |
-| `MAIL_FROM`    | `noreply@cedar…`   | Sender for outgoing mail             |
+| `MAIL_ENABLED` | `true`             | Enables enquiry alerts **and password reset emails** (off by default) |
+| `MAIL_FROM`    | `noreply@cedar…`   | Sender for outgoing mail: an address on your own domain that your mail account may send as |
+| `MAIL_DRIVER`  | `smtp`             | `smtp` (a real mailbox or mail service — recommended), `mail` (PHP `mail()`), or `log` (local development only). Empty: `smtp` if `MAIL_HOST` is set, else `mail` |
+| `MAIL_HOST`    | `mail.cedar…`      | The SMTP server (the mailbox's *outgoing server*) |
+| `MAIL_PORT`    | `587`              | `587` (STARTTLS), `465` (TLS) or `25`  |
+| `MAIL_ENCRYPTION` | `tls`           | `tls`, `ssl` or `none`. Empty: port 465 is `ssl`, a server on this machine is `none`, else `tls` |
+| `MAIL_USERNAME` | `noreply@cedar…`  | SMTP sign-in, usually the full address |
+| `MAIL_PASSWORD` | `…`               | SMTP password                          |
+| `MAIL_VERIFY_PEER` | `true`         | Check the mail server's certificate. `false` only while testing |
+| `MAIL_CAFILE`  | `…`                | CA bundle file, for a PHP without one (typically PHP on Windows) |
+| `MAIL_TIMEOUT` | `8`                | Seconds to wait for the mail server    |
+
+Email has its own guide, with recipes for Laragon, cPanel, a VPS and the common mail
+services, and a table of what each failure message means: **[docs/EMAIL.md](EMAIL.md)**.
 
 Optional: `BASE_PATH` (if installed in a subdirectory), `PRETTY_URLS=false` (if
 `mod_rewrite` is unavailable — URLs fall back to `index.php?route=…`).
@@ -60,9 +79,11 @@ trusting a forwarded header inside the application.
 ### Password recovery needs working mail
 
 Staff who forget their password use **Forgot your password?** on the sign-in
-page. That link is only useful if `MAIL_ENABLED` is `true` and `MAIL_FROM` is a
-real address the mail transport will accept — otherwise the message is never
-sent and the request silently does nothing.
+page. That link is only useful if `MAIL_ENABLED` is `true` and the mail server
+accepts the message. If it does not, the visitor still sees the same neutral
+answer (the page must not reveal which addresses are staff), but the failure is
+no longer silent: it is written to `storage/logs/php-error.log` and recorded in the
+**Activity log** as `user.reset_mail_failed`, with the reason.
 
 Decide what recovery looks like before you need it:
 
@@ -73,8 +94,16 @@ Decide what recovery looks like before you need it:
   on. The staff member is then required to choose their own password before
   they can use the dashboard.
 
-Test the mail path after deploying: request a reset for your own address and
-confirm the message arrives with a working link.
+Test the mail path after deploying, before you need it:
+
+```bash
+php bin/mail-test.php you@your-domain.com
+```
+
+or, with no terminal, **Settings → Email delivery → Send a test email to me**. Then
+request a reset for your own address and confirm the message arrives with a working
+link. A message that is *accepted* but lands in spam is a DNS matter (SPF, DKIM,
+DMARC); [docs/EMAIL.md](EMAIL.md) explains it.
 
 ## 4. Install the database
 
@@ -115,6 +144,8 @@ chmod 600 storage/demo-credentials.json  # local only; delete on production
 - [ ] Replace demo contact details everywhere (footer, contact page, seed enquiries)
 - [ ] Add real properties and photographs; approve and publish them
 - [ ] Submit a test enquiry and confirm it appears under `Admin → Enquiries`
+- [ ] Email: `php bin/mail-test.php you@your-domain.com` (or **Settings → Send a test
+      email**) reports ACCEPTED, and the message is in your inbox or spam folder
 - [ ] Check `/sitemap.xml`, page titles, and mobile layout
 - [ ] Confirm daily backups cover both the database and `public/uploads/`
 
@@ -137,7 +168,10 @@ location ~* ^/uploads/.*\.php$ { deny all; }
 
 ## 8. Operations
 
-- **Logs:** `storage/logs/php-error.log` (application + PHP errors).
+- **Logs:** `storage/logs/php-error.log` (application + PHP errors, including one
+  `Mail not sent (…)` line for every email that could not be sent). The **Activity
+  log** also records failed enquiry alerts and reset emails. `storage/logs/mail.log`
+  exists only with `MAIL_DRIVER=log`, which production refuses.
 - **Sessions:** `storage/sessions/` (filesystem; no database sessions to manage).
 - **Backups:** database + `public/uploads/` + this file set. No build step, no
   Node.js, no cron jobs required.

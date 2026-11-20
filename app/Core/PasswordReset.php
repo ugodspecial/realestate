@@ -103,8 +103,14 @@ final class PasswordReset {
             'If you did not ask for this, you can ignore this message — your',
             'password has not changed and nothing has been shared.',
         ];
-        Mailer::send((string) $user['email'], 'Reset your ' . brand() . ' password', implode("\n", $lines));
+        $sent = Mailer::send((string) $user['email'], 'Reset your ' . brand() . ' password', implode("\n", $lines));
         Audit::log('user.reset_requested', 'user', $userId, 'Password reset link issued', $ip);
+        // Email switched off is a choice (bin/status.php says so). Email switched on that
+        // fails is not, and the visitor is told the same neutral thing either way, so this
+        // entry in the activity log (and the error log) is how the operator finds out.
+        if (!$sent && Mailer::enabled()) {
+            Audit::log('user.reset_mail_failed', 'user', $userId, 'The reset email could not be sent: ' . Mailer::lastError());
+        }
         return $token;
     }
 

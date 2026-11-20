@@ -20,9 +20,20 @@ final class Enquiries {
         RateLimiter::hit('enquiry|'.$ip,3600);
         $reference='CTE-'.strtoupper(bin2hex(random_bytes(4)));
         $id=Database::insert('enquiries',array_merge($data,['reference'=>$reference,'property_id'=>$property['id'] ?? null,'status'=>'new','admin_notes'=>'','created_at'=>Database::now(),'updated_at'=>Database::now()]));
-        if(config('mail_enabled') && filter_var(setting('notify_email',setting('email')),FILTER_VALIDATE_EMAIL)) {
-            $body="New enquiry $reference\n\nName: {$data['name']}\nEmail: {$data['email']}\nPhone: {$data['phone']}\nProperty: ".($property['title'] ?? 'General enquiry')."\n\n{$data['message']}\n\nManage enquiries in your ".brand()." dashboard.";
-            Mailer::send(setting('notify_email',setting('email')),'New property enquiry · '.$reference,$body);
+        // The enquiry is already saved, so nothing below can lose it or turn a visitor's thank-you
+        // into an error. But if the alert does not go out, the office must be able to find out
+        // (activity log; the reason is also written to the error log), not just never hear.
+        if(Mailer::enabled()) {
+            $office=Mailer::officeAddress();
+            if($office==='') {
+                Audit::log('enquiry.alert_failed','enquiry',(int)$id,'No alert email was sent: no valid notification or public email address is set in Website settings.');
+            } else {
+                $body="New enquiry $reference\n\nName: {$data['name']}\nEmail: {$data['email']}\nPhone: {$data['phone']}\nProperty: ".($property['title'] ?? 'General enquiry')."\n\n{$data['message']}\n\nManage enquiries in your ".brand()." dashboard.";
+                // Reply goes to the person who wrote in.
+                if(!Mailer::send($office,'New property enquiry · '.$reference,$body,$data['email'])) {
+                    Audit::log('enquiry.alert_failed','enquiry',(int)$id,'The alert email could not be sent: '.Mailer::lastError());
+                }
+            }
         }
         unset($_SESSION['old'],$_SESSION['form_started']);
         return ['id'=>$id,'reference'=>$reference];

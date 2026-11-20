@@ -368,6 +368,36 @@ check('display headings use Rajdhani 600', str_contains($css, 'faq-section h2{fo
 check('login card title uses theme scale', !str_contains($css, 'login-card h2{font:'));
 check('no Rajdhani below 600 weight', !preg_match('/font:500 [^;{]*var\(--font-display\)/', $css));
 
+// ---- Email: what can be checked without a mail server (tests/mail.php does the rest) ----
+$readme = (string) file_get_contents(ROOT_PATH . '/README.md');
+$deployDoc = (string) file_get_contents(ROOT_PATH . '/docs/DEPLOYMENT.md');
+$emailDoc = is_file(ROOT_PATH . '/docs/EMAIL.md') ? (string) file_get_contents(ROOT_PATH . '/docs/EMAIL.md') : '';
+$gitignore = is_file(ROOT_PATH . '/.gitignore') ? (string) file_get_contents(ROOT_PATH . '/.gitignore') : '';
+$settingsSource = (string) file_get_contents(ROOT_PATH . '/app/views/admin/settings.php');
+if ($gitignore !== '') check('config.local.php, which holds passwords, is kept out of git', preg_match('#^/config\.local\.php$#m', $gitignore) === 1);
+check('the root .htaccess refuses config*.php, for a host whose document root is the project folder', str_contains($htaccess, 'RewriteRule ^config.*\.php$ - [F,L]'));
+check('...and docs/ and bin/, where the example settings files and the command-line tools live', str_contains($htaccess, '^(app|database|storage|bin|docs|tests)(/|$)'));
+foreach (glob(ROOT_PATH . '/bin/*.php') ?: [] as $binFile) {
+    $binText = (string) file_get_contents($binFile);
+    check('bin/' . basename($binFile) . ' refuses to run from the web', str_contains($binText, "PHP_SAPI !== 'cli'") || str_contains($binText, "PHP_SAPI!=='cli'"));
+}
+check('the quick start no longer copies a file onto itself', !str_contains($readme, 'cp config.local.php config.local.php'));
+check('no guide both tells people to use config.local.php and never to deploy it', !preg_match('/never\*{0,2} (place|deploy) `config\.local\.php`/i', $readme . $deployDoc));
+check('the email guide exists and says how to check it, with and without a terminal', str_contains($emailDoc, 'php bin/mail-test.php') && str_contains($emailDoc, 'Send a test email'));
+check('...and covers Laragon and cPanel by name', str_contains($emailDoc, '## Laragon') && str_contains($emailDoc, 'cPanel'));
+check('the README and the deployment guide both point to it', str_contains($readme, 'docs/EMAIL.md') && str_contains($deployDoc, 'EMAIL.md'));
+check('the settings page points to a guide that exists', str_contains($settingsSource, 'docs/EMAIL.md') && $emailDoc !== '');
+check('the settings page keeps the email test in a form of its own (forms cannot nest)', substr_count($settingsSource, '<form') === substr_count($settingsSource, '</form>') && substr_count($settingsSource, '<form') >= 2);
+foreach (['live', 'local'] as $example) {
+    check("docs/config-examples/{$example}.php ships", is_file(ROOT_PATH . "/docs/config-examples/{$example}.php"));
+}
+$ciFile = ROOT_PATH . '/.github/workflows/ci.yml';
+if (is_file($ciFile)) {
+    $ciText = (string) file_get_contents($ciFile);
+    check('CI runs the mail suite, with a stand-in for sendmail so mail() is exercised', str_contains($ciText, 'tests/mail.php') && str_contains($ciText, 'mail-capture.sh'));
+    check('...and fails the build if any part of it is skipped', str_contains($ciText, 'MAIL_TEST_REQUIRE'));
+}
+
 foreach ($phpIssues as $issue) {
     $failures++;
     echo 'FAIL  clean runtime: ' . $issue . PHP_EOL;

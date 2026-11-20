@@ -19,8 +19,26 @@ $config = array_replace([
     // sandbox cannot provide - there each process then sees its own, older copy of the data.
     // SQLITE_JOURNAL_MODE=delete selects the classic rollback journal for those cases.
     'sqlite_journal_mode' => getenv('SQLITE_JOURNAL_MODE') ?: 'wal',
-    'mail_enabled' => getenv('MAIL_ENABLED') === 'true',
+    // Email. MAIL_ENABLED is the master switch; the rest says how a message leaves (see
+    // app/Core/Mailer.php). MAIL_DRIVER: mail = PHP's mail(), smtp = a mail server named below,
+    // log = write to storage/logs/mail.log (local development only). Left empty it is smtp when
+    // MAIL_HOST is set and mail otherwise. MAIL_ENCRYPTION: tls (STARTTLS, port 587), ssl (port
+    // 465) or none; left empty it follows the port and the host. Secrets belong in the
+    // environment or config.local.php, never in the settings screen or the repository.
+    'mail_enabled' => in_array(strtolower((string) getenv('MAIL_ENABLED')), ['true', '1', 'yes', 'on'], true),
     'mail_from' => getenv('MAIL_FROM') ?: '',
+    'mail_driver' => getenv('MAIL_DRIVER') ?: '',
+    'mail_host' => getenv('MAIL_HOST') ?: '',
+    'mail_port' => getenv('MAIL_PORT') ?: '',
+    'mail_encryption' => getenv('MAIL_ENCRYPTION') ?: '',
+    'mail_username' => getenv('MAIL_USERNAME') ?: '',
+    'mail_password' => getenv('MAIL_PASSWORD') ?: '',
+    // Check the mail server's TLS certificate. Turn off (false) only while testing.
+    'mail_verify_peer' => !in_array(strtolower((string) getenv('MAIL_VERIFY_PEER')), ['false', '0', 'no', 'off'], true),
+    // A CA bundle file, for a PHP that has none of its own (typically PHP on Windows).
+    'mail_cafile' => getenv('MAIL_CAFILE') ?: '',
+    'mail_timeout' => getenv('MAIL_TIMEOUT') ?: '8',
+    'mail_log_file' => ROOT_PATH . '/storage/logs/mail.log',
     'agent_portal_enabled' => false,
     'session_name' => 'cedar_session',
     'upload_max_bytes' => 5 * 1024 * 1024,

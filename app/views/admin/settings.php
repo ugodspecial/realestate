@@ -75,3 +75,20 @@
   <div class="form-actions"><button class="btn btn-primary" type="submit"><?= icon('check') ?> Save settings</button></div>
 </div>
 </form>
+<?php /* Variables: $mail (enabled, describe, problems, to). A separate form: forms cannot nest. */ ?>
+<form method="post" action="<?= url('admin/settings') ?>">
+<?= csrf_field() ?>
+<input type="hidden" name="action" value="test-mail">
+<div class="admin-card admin-form" id="email-delivery">
+  <h2>Email delivery</h2>
+  <p>Enquiry alerts and staff password-reset links are sent by email.</p>
+  <p><strong>Status:</strong> <?= $mail['enabled'] ? 'on, sending through ' . e($mail['describe']) . '.' : 'off. The website sends no email until it is switched on (see docs/EMAIL.md).' ?></p>
+  <?php foreach ($mail['problems'] as $problem): ?>
+    <p class="field-hint"><?= icon('alert') ?> <?= e($problem) ?></p>
+  <?php endforeach; ?>
+  <?php if ($mail['enabled']): ?>
+    <p>Check that email really works from this server: the button sends one short message to your own address, <strong><?= e($mail['to']) ?></strong>, and shows the mail server’s answer in plain words if it cannot.</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit"><?= icon('mail') ?> Send a test email to me</button></div>
+  <?php endif; ?>
+</div>
+</form>

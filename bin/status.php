@@ -67,6 +67,16 @@ if (config('app_env') === 'production') {
     }
 }
 
+// Email, in every environment. Settings only - nothing is sent from here; that is what
+// bin/mail-test.php is for - but a setting that cannot work is named now rather than when
+// the first enquiry alert or reset link fails to arrive.
+$mail = Mailer::settings();
+echo 'Email: ' . ($mail['enabled'] ? 'on, ' . Mailer::describe() : 'off (MAIL_ENABLED is not true)') . PHP_EOL;
+if ($mail['enabled']) {
+    foreach (Mailer::problems() as $problem) echo 'WARNING: ' . $problem . PHP_EOL;
+    echo '         Try it for real: php bin/mail-test.php you@example.com' . PHP_EOL;
+}
+
 echo PHP_EOL;
 if ($pending !== []) {
     echo 'The database is behind the code. New features that depend on pending' . PHP_EOL;

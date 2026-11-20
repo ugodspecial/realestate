@@ -40,11 +40,11 @@ page ready for a future agent marketplace (registration, subscriptions, Paystack
 - MySQL 5.7+ / MariaDB 10.3+ (SQLite is supported for local demos only)
 - Apache/LiteSpeed with `mod_rewrite`, or any server that can route to `public/index.php`
 
-## Quick start (local demo)
+## Quick start (local demo, including Laragon)
 
 ```bash
-# 1. Copy the example config and point it at SQLite
-cp config.local.php config.local.php   # already SQLite-ready for demos
+# 1. Create your local settings: SQLite, and email written to a log file
+cp docs/config-examples/local.php config.local.php        # Windows: copy docs\config-examples\local.php config.local.php
 
 # 2. Install the database with realistic demo content
 php bin/install.php --demo
@@ -58,11 +58,27 @@ Demo staff credentials are printed once and saved to `storage/demo-credentials.j
 
 > The installer never overwrites existing users or content — re-running it is safe.
 
+**Email on your own computer.** Nothing is sent from the setup above: each message the
+site would send (an enquiry alert, a password-reset link) is written to
+`storage/logs/mail.log`, where you can read it and open the link. Check it with
+`php bin/mail-test.php you@example.com`. In Laragon, keep the folder under
+`C:\laragon\www`, run the same three steps in its terminal, and open the address in step 3 (or
+the `.test` address Laragon makes for the folder, if it shows the site). To see mail arrive in a
+real inbox screen, add a local mail catcher such as Mailpit — [docs/EMAIL.md](docs/EMAIL.md)
+has the three lines, and covers Laragon's own Mail Catcher too.
+
 ## Deploying to cPanel / production
 
 See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full guide: MySQL setup,
 installer usage (`php bin/install.php --email …` with `CEDAR_ADMIN_PASSWORD`),
 document-root configuration, permissions, cron-free operation, and migration checklist.
+
+**Email on a live site** needs one decision and one check. Use a real mailbox on your
+domain over SMTP (`docs/config-examples/live.php` shows the settings, which work on any
+hosting plan because they live in a plain file), then run
+`php bin/mail-test.php you@your-domain.com`, or press **Settings → Send a test email**.
+**[docs/EMAIL.md](docs/EMAIL.md)** covers cPanel, a VPS, Gmail and the common mail services,
+the spam folder, and what every failure message means.
 
 ## Upgrading
 
@@ -80,13 +96,14 @@ app/
   config.php           Production defaults (env-overridable) + config.local.php merge
   routes.php           Front-controller routing table
   Core/                Database, Auth (+RBAC), RateLimiter, Audit, Properties,
-                       Enquiries, Uploads, Mailer, PublicController, AdminController
+                       Enquiries, Uploads, Mailer (+SmtpClient), PublicController, AdminController
   views/               Public templates, reusable components, auth, admin dashboard
 bin/                   CLI installer (schema + seed + admin) and upgrader (backup + migrations)
 database/              Portable MySQL/SQLite schema, versioned migrations, demo seed
 public/                Web root: index.php, router.php, assets, uploads
 storage/               SQLite demo DB, sessions, logs, backups (never web-accessible)
-docs/                  Deployment, upgrading, and operations guides
+docs/                  Deployment, email, upgrading, and operations guides;
+                       config-examples/ (copy one to config.local.php)
 tests/                 CLI smoke, HTTP, and migration self-tests
 ```
 
@@ -97,7 +114,8 @@ tests/                 CLI smoke, HTTP, and migration self-tests
 - Sessions are strict, `HttpOnly`, `SameSite=Lax`, idle-expired, and remotely
   revocable via per-user session versions. Failed logins are throttled per account+IP.
 - Content-Security-Policy and other hardening headers are set in `app/bootstrap.php`.
-- Never deploy `config.local.php`, `storage/*.sqlite`, or `storage/demo-credentials.json`.
+- `config.local.php` holds your passwords: keep it out of git (it is ignored) and outside
+  the folder the web serves. Never deploy `storage/*.sqlite` or `storage/demo-credentials.json`.
 
 ## License & attribution
 
