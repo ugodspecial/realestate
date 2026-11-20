@@ -4769,3 +4769,72 @@ html.nav-open .read-progress{
   .category-bottom{grid-area:2 / 2;align-self:start;margin-top:2px}
   .category-bottom .icon{display:none}
 }
+
+/* ===========================================================================
+   PARAGRAPH MEASURE (1.8.9)
+   ---------------------------------------------------------------------------
+   Paragraph text looked narrow, and the sections around it unbalanced. The
+   cause was a cap on each paragraph, written one section at a time over many
+   releases, in px and in ch, each far below the column it sat in: 30ch on the
+   service cards, 34 on the values and the footer blurb, 42-48 on the contact
+   and intro copy, 44-46 on the two step lists, 52-68 on the section intros,
+   service details and FAQ, 330-370px on three more. On 14px text that is
+   250-570px. At a 1568px window the text used 36-77% of its column (the Services
+   intro 36%, the footer blurb 66%, the home contact copy 77%), and in the stacked
+   layouts of a tablet 48-84%. The Why section was the worst: its whole text
+   block was held to 44ch (346px) inside a 590px column.
+
+   One rule replaces them: text fills the column it is in and stops at --measure.
+   `ch` follows each paragraph's own font size, so larger copy gets a wider box
+   and the line holds about the same number of characters. In a card or a narrow
+   column the measure is never reached and the text simply fills it; in a wide
+   column it stops at a comfortable ~680-770px. The selectors below repeat the
+   originals, so each ties on specificity and wins by coming last.
+
+   Not touched: the privacy and terms pages. Their text runs the whole container,
+   which is the opposite fault; capping it would leave a column with a void beside
+   it, so it is left for a separate decision.
+   =========================================================================== */
+:root{
+  --measure:86ch;
+}
+.section-heading p,
+.section-heading h2 + p,
+.listing-page-heading .section-heading p,
+.max-copy,
+.why-list p,
+.process-list p,
+.contact-copy > p,
+.contact-information > p,
+.footer-brand-col p,
+.service-detail p,
+.service-detail > div > p,
+.property-description p,
+.property-enquiry-section > div > p,
+.faq-list details p,
+.about-copy p,
+.values-grid p,
+.service-card p{
+  max-width:var(--measure);
+}
+
+/* A heading and its intro sharing one row (the Services page, 641px and up; below
+   that the row stacks). The intro's box is wider now, and when a flex row is too
+   full every item shrinks in proportion to its size: at 768px that squeezed
+   "THOUGHTFUL SUPPORT." into four lines in 144px. The intro now starts from zero
+   and grows into whatever the heading leaves free, so the heading keeps its own
+   width and the intro never drops below 18rem. */
+@media (min-width:641px){
+  .section-heading > p{flex:1 1 0;min-width:min(18rem,100%)}
+}
+
+/* The Why section's text block was held to 44ch inside a 590px column. */
+.why-section .split-layout > div:first-child{max-width:none}
+
+/* The hero's lead was held to 490px and its assurance line to 430px, so the line
+   wrapped and left "VALUE." alone on a second row. The lead's cap now follows its
+   font size, and both lines are balanced: the two sentences of the lead each take
+   a line at every width, and the assurance line shrinks to the width of its text. */
+.hero-copy > p{max-width:min(60ch,100%);text-wrap:balance}
+.hero-assurance{width:fit-content;max-width:100%}
+.hero-assurance span{text-wrap:balance}

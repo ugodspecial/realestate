@@ -1,5 +1,98 @@
 # Changelog
 
+## 1.8.9 — 2026-11-03
+
+**Paragraph text now uses the width it has. It fills the column it sits in, up to
+one shared readable width, instead of stopping at a different small cap in each
+section.**
+
+*What was wrong.* Paragraphs looked narrow, with unused space beside them and
+sections that felt lopsided. Rather than judge it by eye, every paragraph of 45
+characters or more was measured in a real browser: 456 measurements over 10
+pages at 390, 768, 1024, 1280, 1568 and 1920px. 25 groups of paragraphs were held
+well short of the column they sit in. The cause was a cap on each paragraph,
+added one section at a time over many releases, in px and in ch, in about a
+dozen separate layers (the last rule wins): 30ch on the service cards, 34 on the
+values and the footer blurb, 42-48 on the contact and intro copy, 44-46 on the
+two step lists, 52-68 on the section intros, service details and FAQ, 330-370px
+on three more. On 14px text that is 250-570px. At 1568px the text used 36-77% of
+its column (the Services intro 36%, the footer blurb 66%, the home contact copy
+77%), and in the stacked layouts of a tablet 48-84%. The home "Why" section was
+the worst: its whole left block was held to 44ch (346px) inside a 590px column.
+
+*What changed.* One rule replaces the layers. Every one of those paragraphs now
+fills its column and stops at a single `--measure` of 86ch. `ch` follows each
+paragraph's own font size, so the limit is about 680px for 14px text and 770px
+for 16px, and a line holds about 105 characters at most. In a card or a narrow
+column the limit is never reached and the text simply fills the column; in a
+wide column it stops at a comfortable width. The number lives in one place
+(`:root`), so it can be tuned for the whole site at once. At 1568px:
+
+| Paragraph | Before | After | Its column |
+| --- | --- | --- | --- |
+| Services intro | 441px | 677px | 1240px row, beside the heading |
+| Services detail text | 567px | 717px | 1045px |
+| Properties page intro | 409px | 677px | 754px |
+| Home featured intro | 409px | 538px | 538px |
+| Home Why, left block | 346px | 590px | 590px |
+| Home Why, list | 367px | 516px | 516px |
+| Home contact copy | 330px | 428px | 428px |
+| Footer blurb | 248px | 373px | 373px |
+| About, process intro and steps | 378px / 383px | 586px / 510px | 586px / 510px |
+| Property description | 519px | 677px | 868px |
+| Property enquiry intro | 360px | 477px | 477px |
+| Contact information | 378px | 415px | 415px |
+| FAQ answers | 519px | 677px | 710px |
+
+On a phone the service cards and the About values go from 252px and 268px to the
+full card (359px and 333px), and on a tablet the Why, contact, process and footer
+text no longer stops at 330-380px in a 640-710px column.
+
+Three places needed more than a number:
+
+1. *Why section.* Its left block was capped (44ch) on the block itself, not on
+the paragraph, so it now has no cap and takes its column.
+2. *A heading with its intro on one row (the Services page).* A wider intro makes
+the row overflow, and a flex row then shrinks every item in proportion to its
+size: at 768px that squeezed "THOUGHTFUL SUPPORT." into four lines in 144px. The
+intro now starts from zero and grows into whatever the heading leaves free (never
+below 18rem; from 641px, since below that the row stacks). The heading keeps two
+lines at every width from 641px (it was four lines at 641px and three at 700px)
+and the intro takes the rest.
+3. *Hero.* The lead was a fixed 490px and the line under it a fixed 430px, which
+wrapped "LASTING VALUE." onto a second row at 1568px. The lead is now capped in
+ch, so it follows its font size, and it breaks evenly: its two sentences each
+take a line at every width (between 768 and 1024px it used to break after
+"Discover a"). The line under it takes the width of its text.
+
+*Deliberately not changed.*
+- The privacy and terms pages. Their text runs the whole 1240px container, 140
+  to 200 characters per line on a laptop. That is the opposite fault, and capping
+  it to a column left the page lopsided with a void beside it, so it is left for
+  a separate decision. Adding `.legal-content > p`, `> ul` and `> ol` to the
+  `--measure` rule would cap it.
+- The page banners and the one-line "A place to belong" paragraph on a property
+  page. They already fit on one line; capping them would only have wrapped them.
+- The hero lead stays narrower than the heading above it, by design.
+
+*Checked in a real browser.* Of the 456 paragraph measurements, 223 are wider,
+233 were already filling their column and are unchanged, none is narrower, 124
+take fewer lines and none takes more. The groups flagged as narrow went from 25 to
+0. The wider regression sweep is clean: 209 page/width combinations with no
+overflow, no tight spacing or small tap targets, 0 of 295 reveal-gated elements
+left hidden, 7 of 7 menu items reachable, 23 of 23 menu-flow checks, the footer
+at 11 widths, the category panel 0.0px off-centre at every width, and the
+category tiles still clean in all 242 width and data combinations.
+
+*Tests.* 14 new pins in the responsive regression suite (170 to 184): the measure
+is one length in ch between 70 and 100; every one of the 17 paragraph selectors is
+capped by it and by nothing else (a later fixed-width cap on any of them fails the
+pin); the Why block, the heading row and the hero rules; and a simulation that a
+column up to 600px is filled at 14, 15 and 16px and no line passes about 125
+characters. Each of 34 deliberate breakages (drop a selector, shrink the measure,
+re-cap the FAQ or the footer blurb, restore the 44ch block, unwrap the row rule,
+put the hero back to 490px, and so on) fails at least one pin.
+
 ## 1.8.8 — 2026-11-03
 
 **The home-page category tiles are fixed at every screen size: the "N

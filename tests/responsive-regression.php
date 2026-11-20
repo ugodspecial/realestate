@@ -336,6 +336,105 @@ ok('location rows come from the cards that exist',
     (bool) preg_match('/\\.location-grid\\{[^}]*grid-auto-rows/', $cssNow));
 ok('an empty location grid collapses', str_contains($cssNow, '.location-grid:empty{display:none}'));
 
+echo "\n== Paragraph measure ==\n";
+// Paragraph text looked narrow and the sections unbalanced: a dozen layers of px and ch
+// caps, each far below its column, left the text at 36-77% of it. One rule now caps every
+// section's paragraphs at --measure (they fill their column up to it), and the few places
+// that fought it are pinned below. The slice starts at the comment that opens the block,
+// and comments are removed, so prose can never satisfy a pin.
+$pmMark = strrpos($css, 'PARAGRAPH MEASURE (1.8.9)');
+$pmOpen = $pmMark === false ? false : strrpos(substr($css, 0, $pmMark), '/*');
+$pm = $pmOpen === false ? '' : (string) preg_replace('~/\*.*?\*/~s', '', substr($css, $pmOpen));
+ok('the paragraph-measure block is in the stylesheet (rules, not just its comment)', strlen($pm) > 500);
+preg_match_all('/([^{}]+)\{([^{}]*)\}/', $pm, $pmRules, PREG_SET_ORDER);
+$pmSel = static fn (string $sel): array => array_map(static fn ($x) => preg_replace('/\s+/', ' ', trim($x)), explode(',', $sel));
+
+// One measure, in ch so it follows each paragraph's own font size.
+ok('--measure is one length in ch, between 70 and 100ch (about 680-770px for 14-16px text)',
+    (bool) preg_match('/:root\s*\{[^{}]*--measure:\s*(\d+)ch\s*;/', $pm, $mm) && (int) $mm[1] >= 70 && (int) $mm[1] <= 100);
+ok('--measure is defined once', substr_count($pm, '--measure:') === 1);
+
+// Every paragraph that used to carry its own narrow cap.
+$capped = ['.section-heading p', '.section-heading h2 + p', '.listing-page-heading .section-heading p', '.max-copy',
+    '.why-list p', '.process-list p', '.contact-copy > p', '.contact-information > p', '.footer-brand-col p',
+    '.service-detail p', '.service-detail > div > p', '.property-description p', '.property-enquiry-section > div > p', '.faq-list details p',
+    '.about-copy p', '.values-grid p', '.service-card p'];
+$measureSel = [];
+foreach ($pmRules as $r) {
+    if (preg_match('/max-width:\s*var\(--measure\)/', $r[2])) {
+        $measureSel = array_merge($measureSel, $pmSel($r[1]));
+    }
+}
+$missing = array_values(array_diff($capped, $measureSel));
+ok('every section paragraph is capped by --measure, and by nothing else', $missing === [], implode(' | ', $missing));
+
+// A later rule that caps one of them again (the way the old layers did) would silently
+// beat the measure, so nothing in or after the block may.
+$recap = [];
+foreach ($pmRules as $r) {
+    if (!preg_match('/(?<![\w-])max-width:\s*([^;}]+)/', $r[2], $mw) || trim($mw[1]) === 'var(--measure)') {
+        continue;
+    }
+    $hit = array_intersect($pmSel($r[1]), $capped);
+    if ($hit !== []) {
+        $recap[] = implode(',', $hit) . ' => ' . trim($mw[1]);
+    }
+}
+ok('no later rule re-caps those paragraphs at a fixed width', $recap === [], implode(' | ', $recap));
+
+// The Why section's whole left block sat in a 44ch (346px) box inside a 590px column.
+$whyBody = '';
+foreach ($pmRules as $r) {
+    if (preg_replace('/\s+/', ' ', trim($r[1])) === '.why-section .split-layout > div:first-child') {
+        $whyBody = $r[2];
+    }
+}
+ok('the Why section text block fills its column (it was held to 44ch inside it)', (bool) preg_match('/max-width:\s*none/', $whyBody));
+
+// A heading and its intro on one row: with a wider intro the row overflows, and flex then
+// shrinks every item in proportion, which squeezed the heading to four lines in 144px.
+ok('the heading row: the intro grows from zero into what the heading leaves free (so it cannot squeeze the heading)',
+    (bool) preg_match('/@media\s*\(min-width:\s*641px\)\s*\{\s*\.section-heading\s*>\s*p\s*\{[^{}]*flex:\s*1\s+1\s+0\b/', $pm));
+ok('the heading row: the intro keeps a floor, so it can never collapse beside a long heading',
+    (bool) preg_match('/\.section-heading\s*>\s*p\s*\{[^{}]*min-width:\s*min\(\s*18rem\s*,\s*100%\s*\)/', $pm));
+ok('the heading row rule applies to the row layout only (a flex-basis in the stacked column would become a height)',
+    (bool) preg_match('/@media\s*\(min-width:\s*641px\)\s*\{\s*\.section-heading\s*>\s*p\s*\{/', $pm));
+
+// The hero: the lead was a fixed 490px, the assurance line a fixed 430px (it wrapped, "VALUE."
+// alone on row two).
+$heroLead = '';
+$heroLine = '';
+foreach ($pmRules as $r) {
+    $sel = preg_replace('/\s+/', ' ', trim($r[1]));
+    if ($sel === '.hero-copy > p') {
+        $heroLead = $r[2];
+    }
+    if ($sel === '.hero-assurance') {
+        $heroLine = $r[2];
+    }
+}
+ok('the hero lead is capped in ch, so it follows its font size', (bool) preg_match('/max-width:\s*min\(\s*\d+ch\s*,\s*100%\s*\)/', $heroLead));
+ok('the hero lead breaks evenly (its two sentences each take a row)', (bool) preg_match('/text-wrap:\s*balance/', $heroLead));
+ok('the hero assurance line takes the width of its text instead of a fixed 430px',
+    (bool) preg_match('/width:\s*fit-content/', $heroLine) && (bool) preg_match('/max-width:\s*100%/', $heroLine) && !preg_match('/\b\d+px/', $heroLine));
+
+// Simulation: what the measure does to a paragraph of any font size in a column of any width.
+// Text fills min(column, measure); at 14-16px the measure is 680-770px, so columns up to that
+// are used in full and wider ones are never asked to carry a line past ~105 characters.
+$chPx = static fn (float $fs): float => $fs * 0.5625;   // 1ch of the body face, measured in Chromium
+$measureCh = isset($mm[1]) ? (int) $mm[1] : 0;
+$fillOk = true;
+$lineOk = true;
+foreach ([14, 15, 16] as $fs) {
+    foreach ([250, 320, 380, 430, 520, 590, 680, 707, 868, 942, 1045, 1240] as $col) {
+        $w = min($col, $measureCh * $chPx($fs));
+        $fillOk = $fillOk && $w >= min($col, 600);            // a column up to 600px is used in full
+        $lineOk = $lineOk && $w / ($fs * 0.445) <= 125;       // average glyph 0.445em: about 125 characters at most
+    }
+}
+ok('simulation: a column of up to 600px is filled by its paragraph at 14, 15 and 16px', $fillOk);
+ok('simulation: no paragraph runs past about 125 characters per line at 14, 15 or 16px', $lineOk);
+
 echo "\n== Stylesheet structure ==\n";
 // An unterminated comment silently swallows every rule that follows it, which
 // is how the trust-strip fix went missing once. Keep the stylesheet balanced.
