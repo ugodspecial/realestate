@@ -134,6 +134,149 @@ ok('the band does not rely on auto margins', !preg_match('/margin-inline:\s*auto
 ok('the band width is one variable, so width and margin cannot drift apart',
     (bool) preg_match('/--band:\s*min\(1720px,\s*94vw\)/', $bandRule) && (bool) preg_match('/width:\s*var\(--band\)/', $bandRule));
 
+echo "\n== Category tiles ==\n";
+// The home tiles were reported broken at 423px and 1568px: the "N properties" footer
+// rendered in the number row on top of the icon, a 16-28px grid gap broke every
+// divider, and the fifth tile sat alone with a hole beside it. Each pin below
+// guards the cause of one of those, and the simulation proves no category count
+// can leave a hole.
+$home    = (string) file_get_contents($root . '/app/views/public/home.php');
+$helpers = (string) file_get_contents($root . '/app/Core/helpers.php');
+$tilePos = strrpos($css, 'CATEGORY TILES — footer placement');
+$tiles   = $tilePos === false ? '' : substr($css, $tilePos);
+ok('the tile block is in the stylesheet', $tiles !== '' && strlen($tiles) > 1500);
+// Declarations of the first top-level rule with exactly this selector, comments
+// removed so that prose explaining a declaration can never satisfy a pin for it.
+$body = static function (string $selector) use ($tiles): string {
+    $found = preg_match('/(?:^|[}\/])\s*' . preg_quote($selector, '/') . '\s*\{([^{}]*)\}/', $tiles, $m);
+    return $found ? (string) preg_replace('~/\*.*?\*/~s', '', $m[1]) : '';
+};
+$wrap = $body('.category-grid-wrap');
+$grid = $body('.category-grid');
+$card = $body('.category-card');
+
+echo "-- placement --\n";
+// The footer had no grid-row, so auto-placement dropped it into the icon's cell.
+ok('the footer has its own grid row, so it cannot auto-place into the number row',
+    (bool) preg_match('/grid-area:\s*4\s*\/\s*1\s*\/\s*5\s*\/\s*-1/', $body('.category-bottom')));
+ok('the footer is pinned to the bottom of its row', (bool) preg_match('/align-self:\s*end/', $body('.category-bottom')));
+ok('the footer never wraps or splits the count from its arrow', (bool) preg_match('/white-space:\s*nowrap/', $body('.category-bottom')));
+// An absolutely positioned child occupies no grid cell, so the icon must be static.
+$icon = $body('.category-icon');
+ok('the icon is a grid item in the number row', (bool) preg_match('/grid-area:\s*1\s*\/\s*2\b/', $icon));
+ok('the icon is not absolutely positioned (that took it out of the grid)', (bool) preg_match('/position:\s*static/', $icon));
+ok('the number is placed in row 1, column 1', (bool) preg_match('/grid-area:\s*1\s*\/\s*1\b/', $body('.category-number')));
+ok('the label spans both columns of row 2', (bool) preg_match('/grid-area:\s*2\s*\/\s*1\s*\/\s*3\s*\/\s*-1/', $body('.category-label-row')));
+ok('a spacer row absorbs spare height, which pins the footer to the bottom',
+    (bool) preg_match('/grid-template-rows:\s*auto\s+auto\s+1fr\s+auto/', $card));
+
+echo "-- panel and dividers --\n";
+ok('the tiles touch: the grid has no gap (the shared 16-28px rule broke every divider)', (bool) preg_match('/\bgap:\s*0\b/', $grid));
+ok('each tile draws its own right and bottom hairline',
+    (bool) preg_match('/box-shadow:\s*inset\s+-1px\s+0\s+0\s+var\(--line\),\s*inset\s+0\s+-1px\s+0\s+var\(--line\)/', $card));
+ok('the legacy tile borders are retired in one place', (bool) preg_match('/border:\s*0\s*!important/', $card));
+ok('the panel, not the grid, carries the border, the radius and the clipping',
+    (bool) preg_match('/border:\s*1px\s+solid/', $wrap) && (bool) preg_match('/border-radius:/', $wrap) && (bool) preg_match('/overflow:\s*hidden/', $wrap)
+    && !preg_match('/overflow:\s*hidden/', $grid));
+ok('the grid is pulled 1px past the panel edge, so the outer hairlines are clipped', (bool) preg_match('/margin:\s*0\s+-1px\s+-1px\s+0/', $grid));
+ok('the panel clips composited children to its rounded corners in WebKit', (bool) preg_match('/isolation:\s*isolate/', $wrap));
+
+echo "-- sizing and rows --\n";
+ok('tiles sit on a 60-track grid (divisible by 5, 3, 2 and 1 columns, and by 1 to 4 left over)',
+    (bool) preg_match('/grid-template-columns:\s*repeat\(60,\s*minmax\(0,\s*1fr\)\)/', $grid));
+// An older compact-list rule declared an explicit first row, which made row 1 content-sized.
+ok('every row is `1fr`, so no row is taller than another (and the older explicit first row is retired)',
+    (bool) preg_match('/grid-auto-rows:\s*1fr/', $grid) && (bool) preg_match('/grid-template-rows:\s*none/', $grid));
+ok('a tile spans its share of the 60 tracks', (bool) preg_match('/grid-column:\s*span\s+var\(--span\)/', $card));
+ok('tile height is a minimum from the tile width, not an aspect-ratio (a widened tile must not grow taller)',
+    (bool) preg_match('/min-height:\s*calc\(var\(--tile\)\s*\*\s*var\(--ratio\)\)/', $card) && (bool) preg_match('/aspect-ratio:\s*auto/', $card));
+ok('type, icon and padding are fractions of one tile width, as in the reference',
+    (bool) preg_match('/--tile:\s*calc\(var\(--band\)\s*\/\s*var\(--cols\)\)/', $wrap)
+    && (bool) preg_match('/font:[^;]*clamp\([^;]*var\(--tile\)\s*\*\s*\.125/', $body('.category-card h3')));
+
+echo "-- the ladder --\n";
+ok('five columns by default', (bool) preg_match('/--cols:\s*5\b/', $wrap) && (bool) preg_match('/--span:\s*12\b/', $wrap));
+ok('three columns from 641px to 1024px',
+    (bool) preg_match('/@media\(min-width:641px\) and \(max-width:1024px\)\{\s*\.category-grid-wrap\{--cols:3;--span:20\}/', $tiles));
+ok('two columns from 401px to 640px',
+    (bool) preg_match('/@media\(min-width:401px\) and \(max-width:640px\)\{\s*\.category-grid-wrap\{--cols:2;--span:30\}/', $tiles));
+ok('one compact row per tile at 400px and below',
+    (bool) preg_match('/@media\(max-width:400px\)\{[^@]*?\.category-grid-wrap\{--cols:1;--span:60\}/s', $tiles)
+    && (bool) preg_match('/grid-template-columns:\s*calc\(var\(--num\)\s*\*\s*1\.5\)\s+minmax\(0,1fr\)\s+auto/', $tiles));
+ok('the compact row puts the count under its label, at row 2 column 2',
+    (bool) preg_match('/@media\(max-width:400px\)\{.*\.category-bottom\{grid-area:\s*2\s*\/\s*2/s', $tiles));
+
+// Simulate the stylesheet. For every number of categories an admin could have,
+// the tiles of every row must add up to exactly 60 tracks: no row short (a hole)
+// and no tile pushed to the next row (a gap). Rules are read from the CSS itself.
+$simulate = static function (int $cols, string $inner, int $base): array {
+    $rules = [];
+    preg_match_all('/((?:\s*\.category-card:[^,{]+,?)+)\{--span:(\d+)\}/', $inner, $groups, PREG_SET_ORDER);
+    foreach ($groups as $g) {
+        foreach (explode(',', $g[1]) as $sel) {
+            if (preg_match('/:(last-child|nth-last-child\((\d+)\)):nth-child\((\d+)n\+(\d+)\)/', $sel, $m)) {
+                $rules[] = [
+                    'fromEnd' => $m[1] === 'last-child' ? 1 : (int) $m[2],
+                    'step'    => (int) $m[3],
+                    'offset'  => (int) $m[4],
+                    'span'    => (int) $g[2],
+                ];
+            }
+        }
+    }
+    $errors = [];
+    for ($n = 1; $n <= 40; $n++) {
+        $sum = 0;
+        for ($i = 1; $i <= $n; $i++) {
+            $span = $base;
+            foreach ($rules as $r) {
+                if ($i === $n - $r['fromEnd'] + 1 && $i >= $r['offset'] && ($i - $r['offset']) % $r['step'] === 0) {
+                    $span = $r['span'];
+                }
+            }
+            $sum += $span;
+            if ($sum > 60) { $errors[] = "{$n} tiles: tile {$i} overflows its row ({$sum} tracks)"; break; }
+            if ($sum === 60) { $sum = 0; }
+        }
+        if ($sum !== 0 && !$errors) { $errors[] = "{$n} tiles: the last row is short ({$sum} of 60 tracks) - a hole"; }
+        if (count($errors) >= 3) break;
+    }
+    return [count($rules), $errors];
+};
+foreach ([
+    5 => ['/@media\(min-width:1025px\)\{(.*?)\n\}/s', 12],
+    3 => ['/@media\(min-width:641px\) and \(max-width:1024px\)\{(.*?)\n\}/s', 20],
+    2 => ['/@media\(min-width:401px\) and \(max-width:640px\)\{(.*?)\n\}/s', 30],
+] as $cols => [$re, $base]) {
+    $inner = preg_match($re, $tiles, $mm) ? $mm[1] : '';
+    [$ruleCount, $errors] = $simulate($cols, $inner, $base);
+    ok("{$cols} columns: the left-over tiles of an incomplete last row fill it, for 1 to 40 categories",
+        $ruleCount === $cols * ($cols - 1) / 2 && $errors === [], ($ruleCount === $cols * ($cols - 1) / 2 ? '' : "found {$ruleCount} orphan selectors; ") . implode('; ', $errors));
+}
+
+echo "-- hover and reduced motion --\n";
+ok('hover is still the green wash with a white label',
+    (bool) preg_match('/\.category-card:hover\{background:var\(--green\)\}/', $css) && (bool) preg_match('/\.category-card:hover h3\{color:#fff\}/', $css));
+// The older reset sat above an unconditional rule with the same specificity, so it never applied.
+ok('with reduced motion the arrow does not nudge on hover',
+    (bool) preg_match('/@media\(prefers-reduced-motion:reduce\)\{\s*\.category-card:hover \.category-bottom \.icon\{transform:none\}\s*\}/', $tiles));
+ok('a keyboard-focused tile has a visible ring that sits inside it (the panel clips anything outside)',
+    (bool) preg_match('/\.category-card:focus-visible\{outline:\s*2px solid[^}]*outline-offset:\s*-\d+px/', $tiles));
+
+echo "-- markup --\n";
+ok('property_count_label exists', (bool) preg_match('/function property_count_label\(int \$total, bool \$available = false\): string/', $helpers));
+ok('the tile count goes through property_count_label, so one listing reads "1 property"',
+    str_contains($home, "property_count_label((int)\$c['total'])"));
+ok('the location cards use the same helper', str_contains($home, "property_count_label((int)\$l['total'], true)"));
+ok('no card still prints a hard-coded plural after a number',
+    !preg_match('/\(int\)\s*\$[cl]\[.total.\]\s*\?>\s*(?:available\s+)?properties/', $home));
+ok('the decorative ghost number is hidden from assistive tech and always has two digits',
+    (bool) preg_match('/class="category-number" aria-hidden="true"><\?= sprintf\(.%02d., \$i \+ 1\)/', $home));
+ok('the section index follows the number of categories instead of a fixed 05',
+    str_contains($home, "sprintf('01 — %02d', count(\$categories))") && !str_contains($home, '01 — 05'));
+ok('with no categories the section is not rendered at all',
+    (bool) preg_match('/<\?php if\(\$categories\): \?><section class="categories-section/', $home) && str_contains($home, '</section><?php endif; ?>'));
+
 echo "\n== Footer columns on phones and tablets ==\n";
 // Explore and Our company sit side by side below 1025px. They used to stack into
 // one column on phones and, on tablets, were each paired with something else

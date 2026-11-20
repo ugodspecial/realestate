@@ -1,5 +1,82 @@
 # Changelog
 
+## 1.8.8 — 2026-11-03
+
+**The home-page category tiles are fixed at every screen size: the "N
+properties" line no longer sits on top of the icon, the tiles are one divided
+panel, and an odd tile fills its row instead of leaving a hole.**
+
+*What was wrong.* It was reported at 423px and 1568px. Rather than patch those
+two widths, the tiles were measured in a real browser at 22 widths from 320 to
+2560px with 11 data shapes (no listings, large counts, 1 to 11 categories, long
+names): all 242 combinations had at least one defect. There were three causes.
+
+1. *The footer was in the number row.* A tile has four parts but only three had
+a place in its grid. The icon was meant to be a grid item yet still inherited
+`position:absolute` from an earlier layer, and an absolutely positioned child
+takes no grid cell. The footer ("3 properties ↗") had no row of its own, so
+auto-placement put it in the first free cell, which was the icon's: the icon was
+painted over the arrow (a 289px² overlap at 423px) and the footer sat 144px
+(423px) to 152px (1568px) above the bottom edge instead of on it. Every part now
+has an explicit place: number top-left, icon top-right, label in the middle,
+count bottom-left, arrow bottom-right, pinned to the bottom padding.
+2. *The tiles did not touch.* The site-wide rule that gives grids a 16-28px gap
+applied here too, so every divider was broken or doubled, and the content of
+tiles 2-5 sat one gap further from its divider than tile 1's: at 1568px
+APARTMENTS was 1px wider than the box it was in. The tiles are now one panel
+with no gap, and each tile draws its own right and bottom hairline, so every
+divider is a single continuous 1px line in any layout.
+3. *An odd tile left a hole.* The ladder was 5 / 4 / 3 / 2 / 1 columns, so at
+423px LAND sat alone in a third row with an empty cell beside it, and at
+861-1024px the fifth tile sat alone in the second row. The tiles now sit on a
+60-track grid (60 divides by 5, 3, 2 and 1), and the tiles left on an incomplete
+last row share it evenly, so a row is always full. An admin can add and remove
+categories, so this holds for any number of them. Every row is the same height
+(`grid-auto-rows:1fr`), so a two-word name that wraps cannot make one row taller
+than another.
+
+*The new ladder.* Five columns from 1025px, three from 641 to 1024px, two from
+401 to 640px, and one compact row per tile at 400px and below (number, name
+over count, icon). Type, icon and padding are fractions of one tile's width
+(name 12.5%, number 24%, icon 10%, padding 9.8%), which is how the reference is
+proportioned, so a tile is the reference scaled at any width and any column
+count, with no per-breakpoint font ramp to drift out of step.
+
+*Smaller things found on the way.*
+- A single listing read "1 properties". The count now says "1 property" (and
+  "1 available property" on the location cards) through one helper,
+  `property_count_label()`.
+- The index beside the heading was fixed at "01 — 05". It now follows the number
+  of categories. The ghost numbers always have two digits and are hidden from
+  assistive technology (the heading carries the name). With no categories the
+  whole section is left out instead of showing an empty box.
+- With reduced motion the arrow still nudged on hover. The reset for it sat above
+  an unconditional rule with the same specificity, so it never applied. Fixed.
+- The panel is now its own stacking context, so WebKit clips the hover wash and
+  the reveal animation to its rounded corners.
+- Hover (green wash, white name), the keyboard focus ring (inset, so the panel
+  cannot clip it) and the reveal are unchanged.
+
+*Checked in a real browser.* The tile sweep went from 242 of 242 failing to 0 of
+242. It checks that no two parts overlap, 12px of room from every edge, the
+footer within 2.5px of the bottom padding, no name split or overflowing, equal
+padding and height, no gap or hole between tiles, footers level across a row,
+and single 1px dividers by pixel scan. The panel is 0.0px off-centre at 320,
+423, 768, 1024, 1568 and 1920px. Hover, press, reduced motion and focus were
+checked at 423, 768 and 1568px. The wider regression sweep is clean: 209
+page/width combinations with no overflow, no tight spacing or small tap targets,
+0 of 295 reveal-gated elements left hidden, 7 of 7 menu items reachable, 23 of
+23 menu-flow checks, and the footer at 11 widths.
+
+*Tests.* 38 new pins in the responsive regression suite (132 to 170). One
+simulates the stylesheet's own rules for every count from 1 to 40 categories at
+5, 3 and 2 columns and requires every row to add up to exactly 60 tracks, so a
+hole cannot come back unnoticed. Four new smoke checks cover the count wording.
+Each of 32 deliberate breakages (drop the footer's row, restore the gap, drop an
+orphan rule, put the icon back to absolute, and so on) fails at least one pin.
+The first run let one through because a pin had matched a word in a CSS comment;
+the pins now ignore comments.
+
 ## 1.8.7 — 2026-11-03
 
 **No menu item could be tapped. The footer is two columns on phones and

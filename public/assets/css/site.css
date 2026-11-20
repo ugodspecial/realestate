@@ -4587,3 +4587,185 @@ html.nav-open .read-progress{
 @media(max-width:1024px){
   .site-header .brand{min-height:48px}
 }
+
+/* ===========================================================================
+   CATEGORY TILES — footer placement, dividers and the ladder (1.8.8)
+   ---------------------------------------------------------------------------
+   Measured in a real browser at 423px and 1568px (the two screenshots that
+   prompted this), then at 22 widths from 320 to 2560 with 11 data shapes
+   (fewer and more categories, long names, big counts): every combination failed.
+
+   1. THE FOOTER WAS IN THE NUMBER ROW. The tile is a grid with four children
+      but only three had a place. The icon was meant to be a grid item, yet it
+      still inherited `position:absolute` from an earlier layer, and an absolutely
+      positioned child occupies no grid cell. The footer ("3 properties ↗") had no
+      `grid-row`, so auto-placement put it in the first free cell - the icon's -
+      and the house icon was painted over its arrow. Now every child is placed
+      explicitly, so nothing depends on auto-placement, and the icon really is a
+      grid item.
+
+   2. THE CARDS DID NOT TOUCH. The site-wide grid rule gives every grid a 16-28px
+      gap. Here that broke every divider and pushed the content of cards 2-5 a gap
+      further from their left divider than card 1's, so APARTMENTS ended up wider
+      than its own box at 1568px. A divided panel has no gap.
+
+   3. ORPHANS AND UNEVEN ROWS. The ladder was 5 / 4 / 3 / 2 / 1 columns, so the
+      fifth tile sat alone at 861-1024px and a cell was left empty at 401-860px.
+      An admin can add and remove categories, so the layout cannot assume five.
+
+   HOW IT WORKS
+   - One panel. The border, radius and clipping belong to the wrapper. The grid
+     inside is pulled 1px out past the right and bottom edge, so the wrapper's
+     overflow clips the last column's and last row's hairlines and leaves exactly
+     one outer border. Every tile draws its own right and bottom hairline, so the
+     dividers are continuous for any count and need no per-position borders.
+     (The legacy rules draw borders, some with !important; `border:0 !important`
+     retires them in one place.)
+   - 60 tracks. 60 divides evenly by 5, 3, 2 and 1 columns, and by the 1, 2, 3
+     or 4 tiles that can be left on a last row. A tile spans 60 / columns tracks
+     (--span); the tiles on an incomplete last row are given an even share of it
+     instead, so a row is always full and there is never a hole.
+   - Equal rows. `grid-auto-rows:1fr` makes every row as tall as the tallest, so
+     a label that wraps in one tile does not make its row taller than the others.
+   - One size variable. --tile is the width of one tile for the current column
+     count. Type, icon, padding and height are fractions of it, which is exactly
+     how the reference (337px tiles) is proportioned: label .125, number .24,
+     icon .1, padding .098. So a tile is the reference scaled, at any width and
+     any column count, with no per-breakpoint font ramp to drift out of step.
+   =========================================================================== */
+.category-grid-wrap{
+  --cols:5;
+  --span:12;
+  --tile:calc(var(--band) / var(--cols));
+  --ratio:.93;
+  background:#fff;
+  border:1px solid #e6eae3;
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-xs);
+  overflow:hidden;
+  /* WebKit can fail to clip composited children (the tiles animate transform and
+     opacity on reveal) to a rounded overflow:hidden parent; a stacking context
+     of its own makes the clip apply, so the hover wash cannot poke out of a corner. */
+  isolation:isolate;
+}
+.category-grid{
+  display:grid;
+  grid-template-columns:repeat(60,minmax(0,1fr));
+  /* Every row is implicit, so every row is `1fr`. (An older compact-list rule
+     declared an explicit first row, which made row 1 content-sized while the rest
+     were equal; `none` retires it.) */
+  grid-template-rows:none;
+  grid-auto-rows:1fr;
+  gap:0;
+  margin:0 -1px -1px 0;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  background:none;
+  overflow:visible;
+}
+.category-card{
+  grid-column:span var(--span);
+  min-width:0;
+  min-height:calc(var(--tile) * var(--ratio));
+  height:auto;
+  aspect-ratio:auto;
+  --pad:clamp(14px, calc(var(--tile) * .098), 33px);
+  padding:var(--pad) var(--pad) clamp(14px, calc(var(--tile) * .078), 26px);
+  border:0 !important;
+  box-shadow:inset -1px 0 0 var(--line), inset 0 -1px 0 var(--line);
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  /* number row / label / spacer / footer: the spacer takes whatever height the
+     tile has beyond its content, which pins the footer to the bottom edge. */
+  grid-template-rows:auto auto 1fr auto;
+  align-content:normal;
+}
+/* Every child has an explicit place. */
+.category-number{
+  grid-area:1 / 1;
+  font:700 clamp(38px, calc(var(--tile) * .24), 84px)/.82 var(--font-display);
+}
+.category-icon{
+  grid-area:1 / 2;
+  position:static;
+  justify-self:end;
+  align-self:start;
+  margin-top:clamp(2px, calc(var(--tile) * .02), 7px);
+}
+.category-icon .icon{
+  width:clamp(20px, calc(var(--tile) * .1), 34px);
+  height:clamp(20px, calc(var(--tile) * .1), 34px);
+}
+.category-label-row{
+  grid-area:2 / 1 / 3 / -1;
+  margin-top:clamp(12px, calc(var(--tile) * .17), 58px);
+}
+.category-card h3{
+  font:600 clamp(19px, calc(var(--tile) * .125), 43px)/1.06 var(--font-display);
+}
+.category-bottom{
+  grid-area:4 / 1 / 5 / -1;
+  align-self:end;
+  gap:8px;
+  margin-top:clamp(8px, calc(var(--tile) * .05), 16px);
+  white-space:nowrap;
+}
+/* Inset, so the panel's clipping can never cut it. */
+.category-card:focus-visible{outline:2px solid var(--green);outline-offset:-5px}
+
+/* Reduced motion: the reset for the arrow in the older reduced-motion block (L~3365)
+   never applied, because an unconditional rule with the same specificity a few lines
+   below it re-sets the nudge and wins by source order. The green wash is the hover
+   cue; with reduced motion the arrow stays put. */
+@media(prefers-reduced-motion:reduce){
+  .category-card:hover .category-bottom .icon{transform:none}
+}
+
+/* --- the ladder: 5 / 3 / 2 / compact rows ----------------------------------- */
+/* The last row, when it is not full: its tiles share it evenly. */
+@media(min-width:1025px){
+  .category-card:last-child:nth-child(5n+1){--span:60}
+  .category-card:nth-last-child(2):nth-child(5n+1),
+  .category-card:last-child:nth-child(5n+2){--span:30}
+  .category-card:nth-last-child(3):nth-child(5n+1),
+  .category-card:nth-last-child(2):nth-child(5n+2),
+  .category-card:last-child:nth-child(5n+3){--span:20}
+  .category-card:nth-last-child(4):nth-child(5n+1),
+  .category-card:nth-last-child(3):nth-child(5n+2),
+  .category-card:nth-last-child(2):nth-child(5n+3),
+  .category-card:last-child:nth-child(5n+4){--span:15}
+}
+@media(min-width:641px) and (max-width:1024px){
+  .category-grid-wrap{--cols:3;--span:20}
+  .category-card:last-child:nth-child(3n+1){--span:60}
+  .category-card:nth-last-child(2):nth-child(3n+1),
+  .category-card:last-child:nth-child(3n+2){--span:30}
+}
+@media(min-width:401px) and (max-width:640px){
+  .category-grid-wrap{--cols:2;--span:30}
+  .category-card:last-child:nth-child(2n+1){--span:60}
+}
+@media(max-width:400px){
+  /* One tile per row, laid out sideways: number, then label over count, then the
+     icon. The number column has a fixed width so the labels start at the same x in
+     every row; an auto column took the width of "01" in one row and "04" in
+     another. */
+  .category-grid-wrap{--cols:1;--span:60}
+  .category-card{
+    --num:40px;
+    min-height:0;
+    padding:16px 18px 15px;
+    grid-template-columns:calc(var(--num) * 1.5) minmax(0,1fr) auto;
+    grid-template-rows:auto auto;
+    column-gap:14px;
+    align-items:center;
+  }
+  .category-number{grid-area:1 / 1 / 3 / 2;font-size:var(--num);align-self:center}
+  .category-icon{grid-area:1 / 3 / 3 / 4;align-self:center;margin-top:0}
+  .category-icon .icon{width:22px;height:22px}
+  .category-label-row{grid-area:1 / 2;margin-top:0;align-self:end}
+  .category-card h3{font-size:23px}
+  .category-bottom{grid-area:2 / 2;align-self:start;margin-top:2px}
+  .category-bottom .icon{display:none}
+}

@@ -28,6 +28,12 @@ check('users exist', (int)Database::value('SELECT COUNT(*) FROM users') > 0);
 check('migrations baseline recorded', (int)Database::value("SELECT COUNT(*) FROM migrations WHERE version = '001'") === 1);
 check('app version defined', defined('APP_VERSION') && APP_VERSION !== '');
 
+// Counts read naturally: "1 property", never "1 properties" (the home tiles printed the latter).
+check('property count: zero is plural', property_count_label(0) === '0 properties');
+check('property count: one is singular', property_count_label(1) === '1 property');
+check('property count: many is plural', property_count_label(12) === '12 properties');
+check('property count: location cards say "available"', property_count_label(1, true) === '1 available property' && property_count_label(3, true) === '3 available properties');
+
 $result = Properties::search([], 1, 5);
 check('property search runs', isset($result['items'], $result['total']));
 check('published properties exist', $result['total'] > 0);

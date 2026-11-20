@@ -219,6 +219,14 @@ function money(int|float|string $price, bool $compact = false): string {
     return '₦' . number_format($n);
 }
 function price_label(array $p, bool $compact = false): string { return money($p['price'], $compact) . ($p['deal'] === 'rent' ? ' / year' : ''); }
+/**
+ * "0 properties", "1 property", "12 properties" - and, for the location cards,
+ * "1 available property". The templates used to print the number followed by a
+ * fixed plural, so a single listing read "1 properties".
+ */
+function property_count_label(int $total, bool $available = false): string {
+    return $total . ' ' . ($available ? 'available ' : '') . ($total === 1 ? 'property' : 'properties');
+}
 function deal_label(string $deal): string { return $deal === 'rent' ? 'For rent' : 'For sale'; }
 function status_label(string $status): string { return ['available'=>'Available','sold'=>'Sold','rented'=>'Rented','pending'=>'Awaiting approval','draft'=>'Draft','published'=>'Published'][$status] ?? ucfirst($status); }
 function badge(string $status, ?string $label = null): string { return '<span class="badge badge-' . e($status) . '">' . e($label ?? status_label($status)) . '</span>'; }
