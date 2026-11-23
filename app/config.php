@@ -38,6 +38,17 @@ $config = array_replace([
     // A CA bundle file, for a PHP that has none of its own (typically PHP on Windows).
     'mail_cafile' => getenv('MAIL_CAFILE') ?: '',
     'mail_timeout' => getenv('MAIL_TIMEOUT') ?: '8',
+    // Signing in to the mail server with OAuth instead of a password, for providers that no longer take
+    // one (Microsoft 365). MAIL_OAUTH_PROVIDER=microsoft turns it on; the rest says how the website
+    // proves itself to Microsoft. See app/Core/MailOAuth.php and "Microsoft 365" in docs/EMAIL.md. The
+    // client secret is a password: environment or config.local.php only, never the settings screen or git.
+    'mail_oauth_provider' => getenv('MAIL_OAUTH_PROVIDER') ?: '',
+    'mail_oauth_flow' => getenv('MAIL_OAUTH_FLOW') ?: '',
+    'mail_oauth_tenant' => getenv('MAIL_OAUTH_TENANT') ?: '',
+    'mail_oauth_client_id' => getenv('MAIL_OAUTH_CLIENT_ID') ?: '',
+    'mail_oauth_client_secret' => getenv('MAIL_OAUTH_CLIENT_SECRET') ?: '',
+    'mail_oauth_authority' => getenv('MAIL_OAUTH_AUTHORITY') ?: '',
+    'mail_oauth_store' => getenv('MAIL_OAUTH_STORE') ?: ROOT_PATH . '/storage/mail-oauth.json',
     'mail_log_file' => ROOT_PATH . '/storage/logs/mail.log',
     'agent_portal_enabled' => false,
     'session_name' => 'cedar_session',

@@ -1,5 +1,129 @@
 # Changelog
 
+## 1.10.0 — 2026-11-23
+
+**The website can send email through Microsoft 365 with OAuth, which is what Microsoft
+is replacing passwords with. Nobody types a password; the Settings page can connect a
+mailbox; and the command line can do the same.**
+
+*Why.* Microsoft's published plan, as of this date: from the end of December 2026,
+password sign-in for SMTP is off by default for existing Microsoft 365 organisations,
+it is not available to organisations created after that, and it will be removed
+completely on a date still to be announced (second half of 2027). A website set up with
+a mailbox address and a password (1.9.0) then gets `550 5.7.30 Basic authentication is
+not supported for Client Submission`. Dates like these have moved before; the guide says
+so and tells the reader to check Microsoft's current notice.
+
+*What is new.*
+
+- **OAuth sign-in to the mail server (XOAUTH2)** in `SmtpClient`: the access token is
+  sent in the form the protocol asks for, including the empty line a server expects after
+  an error explanation (without it a refusal was reported as a hang). The token is never
+  sent before the connection is encrypted, and a server that offers only passwords is told
+  so before anything is sent.
+- **`MailOAuth` and `HttpClient`** (new): ask Microsoft for a token with nothing but PHP's
+  own sockets (no curl, no packages). Tokens are kept in `storage/mail-oauth.json` (created
+  readable by its owner only, refused by `.htaccess`, ignored by git) and reused until five
+  minutes before they run out. A saved token is filed under the app, the tenant, the flow
+  *and the client secret it was made with*, so changing the secret takes effect at once
+  instead of an hour later.
+- **Two ways to sign in.** *App*: the website signs in as an app registered in Microsoft
+  Entra (client credentials, `SMTP.SendAsApp`), no person involved. *Person*: a person signs
+  in as the mailbox once, on a Microsoft page, with a short code (the device-code flow); the
+  website keeps Microsoft's refresh token and replaces it each time it uses it. That ends
+  when the mailbox's password is changed, when its sessions are revoked, or after 90 days
+  with no mail: press Connect again (the card and the guide say so).
+- **A sign-in card in Settings** (Dashboard, Settings, Email delivery; Super Administrator
+  only). It shows *Not connected*, then the steps and the code, then *Connected as …*, with
+  Connect, *I have signed in*, Cancel and Disconnect. After a press the page lands on the
+  card and the answer is shown inside it, not flashed at the top of a long page the person
+  has already scrolled away from. Every press needs the CSRF token and the permission, is
+  rate limited (30 per ten minutes), and is written to the Activity log without any secret.
+- **`php bin/mail-oauth.php connect | status | disconnect`** for the same thing from a
+  terminal (exit 0 done or connected, 1 failed, refused or not connected, 2 not set up for
+  this or bad arguments), and
+  `php bin/maintenance.php` now uses a connected sign-in once a day so a quiet site does not
+  lose it to Microsoft's 90 days of silence. `php bin/mail-test.php` says how it signed in
+  and `php bin/status.php` shows the connection and, until someone connects, the command
+  that does it.
+- **Seven settings**, each from an environment variable or `config.local.php`, all written
+  up in `docs/EMAIL.md` and `docs/DEPLOYMENT.md` and checked against the code by the suite:
+  `MAIL_OAUTH_PROVIDER`, `_FLOW`, `_TENANT`, `_CLIENT_ID`, `_CLIENT_SECRET`, `_AUTHORITY`
+  and `_STORE`. With the provider set, the host defaults to `smtp.office365.com` (587,
+  STARTTLS) and the sender to the mailbox. A third example file,
+  `docs/config-examples/microsoft365.php`, is parsed by the tests like the other two.
+- **`docs/EMAIL.md` has a Microsoft 365 chapter**: the timeline above, which way to choose,
+  every click of the Entra app registration and the PowerShell for the app way, the person
+  way, what each failure means (ten new rows in the failure table), and an offer of the
+  alternative that needs none of this: send through Brevo, Mailgun, SendGrid or Amazon SES.
+
+*Care taken with what comes from outside.* Everything Microsoft's side says is treated as
+untrusted text. Secrets and tokens are masked wherever a message could carry them (the
+settings page, `--verbose`, the error log, the Activity log), as sent, in base64 and
+URL-encoded, and even when a long reply cuts one off in the middle. A sign-in page address
+is offered as a link only when it is `https` and made of ordinary address characters
+(otherwise the standard Microsoft page is shown); a sign-in code must be plain letters and
+digits; answers are limited in size, not followed to another address, and read with a
+deadline; plain `http` is refused for anything but this machine.
+
+*Proven here, and how.* `tests/mail.php` now runs 466 checks in this sandbox (498 with the
+command-line part, which needs a PHP that can start another PHP; CI runs those too). It
+starts a stand-in for Microsoft: a mail server that speaks XOAUTH2 (`oauth`, a server that
+explains with a 334, one that switches OAuth off, one that echoes the token back, one with
+no encryption, one that has stopped taking passwords) and a token service over HTTP and
+HTTPS that behaves in 20 different ways (a good answer, a slow one, a web page instead of
+JSON, chunked, close-delimited, endless, a redirect, hostile addresses and codes, and so
+on). Real sockets, the real code, every path: both flows end to end, connect, renewal,
+revoke, a changed secret, a refused saved token replaced once and a fresh one not tried
+twice, the Settings card at every step and through the buttons, the permission and CSRF
+checks over HTTP (`tests/security.php`: 22 more checks), and the command line. A guard now
+fails if any message in the failure table of the guide is not one the code can print. 65
+new deliberate breakages of this code and its guides (a missing empty line after a 334, a
+token left in a log, a saved file open to everyone, plain `http` to any host, a secret that
+no longer invalidates a saved token, an unescaped address, a typo in an example file, and
+so on) each fail at least one check, and so do the 45 from 1.9.0. A browser run of the
+card at 1366, 768 and 390 pixels (not connected, code shown, not yet, connected, test mail
+sent, disconnected, a failure, and the app way) found no overflow, and showed that the
+answer to a press was landing a screen away from it, which is why the page now lands on
+the card.
+
+*What the tests found while this was being built.* A saved token was still used after
+the client secret was changed, so a wrong new secret would have looked fine for an hour; the
+secret is now part of what a token is filed under. A reply longer than one line buffer is
+read in pieces, and the base64 form of a token cut in the middle by that no longer matched
+the mask, so a piece of it reached the Settings page; masking now hides the start of a
+secret as well as the whole of it, and its URL-encoded forms. Nine of the first 51
+deliberate breakages were not caught at first: one was that real weakness, and the other
+eight were checks that were too weak (the size limit on chunked and endless answers,
+whether STARTTLS is still demanded before a token, the link's `rel`, what the card says
+when pressed for the wrong flow, and others); they are sharper now. A row of the guide
+quoted a message with different punctuation from the one the code prints, which is why the
+failure table is now checked against the code.
+
+*Not proven, and cannot be from here.* **A real Microsoft 365 organisation was never
+used.** Everything above was run against stand-ins that follow Microsoft's documentation,
+so three things come from documentation alone: the wording of Microsoft's own error
+messages (the plain-words versions are keyed on the error codes it documents), the address
+of the delegated permission (`https://outlook.office.com/SMTP.Send`, as in Microsoft's
+IMAP/POP/SMTP OAuth article; one third-party guide uses `outlook.office365.com`, and if
+Microsoft refuses it at **Connect**, `SCOPE_USER` in `app/Core/MailOAuth.php` is the one
+line to change), and the PowerShell steps. Also not proven: PHP's real behaviour on a
+closed port and the command-line exit codes (CI is the first place those run), Windows,
+and whether the receiving mailbox accepts the message (SPF, DKIM and DMARC are the sending
+domain's business, not this code's). The test button and `php bin/mail-test.php` are how to
+find out on the real machine: a message in the inbox is the proof.
+
+*Not built.* Sending through the Microsoft Graph API over HTTPS (port 443) instead of SMTP
+(useful where port 587 is blocked); the "Sign in with Microsoft" redirect flow; OAuth for
+Google (a Gmail or Google Workspace mailbox still uses an app password); personal
+Outlook.com accounts; going out through an HTTP proxy. Mail is still sent while the visitor
+waits for the thank-you page, so a blocked port can stall it for up to `MAIL_TIMEOUT`
+seconds twice; the guide says how to lower that.
+
+*CI.* The mail suite already runs in the SQLite and MySQL jobs with every skipped part
+counted as a failure; it now covers the above in both. Nothing public changed: the only
+stylesheet addition is two rules for the sign-in card in the dashboard.
+
 ## 1.9.0 — 2026-11-20
 
 **Email can now be set up on a developer's computer (Laragon) and on a live hosting

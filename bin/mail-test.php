@@ -41,6 +41,11 @@ echo '  Switch (MAIL_ENABLED): ' . ($s['enabled'] ? 'on' : 'OFF') . PHP_EOL;
 echo '  Method:                ' . Mailer::describe() . PHP_EOL;
 echo '  Sent from:             ' . ($s['from'] !== '' ? $s['from'] : '(none)') . PHP_EOL;
 if ($s['driver'] === 'smtp') echo '  Certificate check:     ' . ($s['verify_peer'] ? 'on' : 'OFF') . PHP_EOL;
+if ($s['oauth'] !== '') {
+    $o = MailOAuth::settings();
+    echo '  Sign-in:               ' . $s['oauth'] . ' OAuth, ' . ($o['flow'] === 'app' ? 'the website signs in as an app (no password)'
+        : ($o['connected'] ? 'connected as ' . ($o['account'] !== '' ? $o['account'] : 'a saved account') : 'NOT connected yet (Settings > Email delivery)')) . PHP_EOL;
+}
 foreach (Mailer::problems() as $problem) echo '  ! ' . $problem . PHP_EOL;
 echo PHP_EOL;
 
@@ -61,7 +66,7 @@ $sent = Mailer::send($to, 'Test email from ' . brand(), implode("\n", [
 $seconds = number_format(microtime(true) - $started, 1);
 
 if ($verbose && Mailer::conversation()) {
-    echo PHP_EOL . 'Conversation (passwords are masked):' . PHP_EOL;
+    echo PHP_EOL . 'Conversation (passwords and access tokens are masked):' . PHP_EOL;
     foreach (Mailer::conversation() as $line) echo '  ' . $line . PHP_EOL;
     echo PHP_EOL;
 }

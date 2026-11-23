@@ -4838,3 +4838,11 @@ html.nav-open .read-progress{
 .hero-copy > p{max-width:min(60ch,100%);text-wrap:balance}
 .hero-assurance{width:fit-content;max-width:100%}
 .hero-assurance span{text-wrap:balance}
+
+/* ==========================================================================
+   1.10.0 Microsoft 365 sign-in card (Dashboard > Settings > Email delivery).
+   The short code a person types on the Microsoft page: large, spaced, easy to
+   read out and to copy. Plain colours only; nothing moves.
+   ========================================================================== */
+.oauth-steps{margin:0 0 16px;padding-left:22px;display:grid;gap:8px;font-size:13px;line-height:1.7}
+.oauth-code{display:inline-block;margin-left:4px;padding:4px 14px;font:700 24px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:4px;color:var(--green);background:var(--paper);border:1px dashed #c9d6c3;border-radius:4px;user-select:all;overflow-wrap:anywhere}

@@ -49,6 +49,13 @@ set the file wins. In the file the names are lower case (`MAIL_HOST` is `'mail_h
 | `MAIL_VERIFY_PEER` | `true`         | Check the mail server's certificate. `false` only while testing |
 | `MAIL_CAFILE`  | `…`                | CA bundle file, for a PHP without one (typically PHP on Windows) |
 | `MAIL_TIMEOUT` | `8`                | Seconds to wait for the mail server    |
+| `MAIL_OAUTH_PROVIDER` | `microsoft` | Sign in with OAuth instead of a password (Microsoft 365, whose password sign-in for SMTP is being switched off). Empty: password. Also selects `smtp.office365.com` on 587 |
+| `MAIL_OAUTH_FLOW` | `app`           | `app`: the website signs in as an app (needs the secret below). `user`: a person connects once in Settings. Empty: `app` if a secret is set, else `user` |
+| `MAIL_OAUTH_TENANT` | `…`           | Your Directory (tenant) ID, from the app's Overview page in Microsoft Entra |
+| `MAIL_OAUTH_CLIENT_ID` | `…`        | The app's Application (client) ID      |
+| `MAIL_OAUTH_CLIENT_SECRET` | `…`    | The app's client secret **Value** (`app` flow). A password: keep it out of git |
+| `MAIL_OAUTH_AUTHORITY` | `…`        | Leave empty (Microsoft's sign-in address is built in) |
+| `MAIL_OAUTH_STORE` | `…`            | Leave empty (saved token: `storage/mail-oauth.json`) |
 
 Email has its own guide, with recipes for Laragon, cPanel, a VPS and the common mail
 services, and a table of what each failure message means: **[docs/EMAIL.md](EMAIL.md)**.

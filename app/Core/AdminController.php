@@ -460,6 +460,7 @@ final class AdminController {
         if ($method === 'POST') {
             verify_csrf();
             if (input('action') === 'test-mail') self::testMail($user);
+            if (str_starts_with((string) input('action'), 'oauth-')) self::mailOAuth($user);
             $driver = Database::connection()->getAttribute(PDO::ATTR_DRIVER_NAME);
             $save = static function (string $key, string $value) use ($driver): void {
                 if ($driver === 'mysql') Database::query('INSERT INTO settings (key_name,value) VALUES (?,?) ON DUPLICATE KEY UPDATE value=VALUES(value)', [$key, $value]);
@@ -502,8 +503,122 @@ final class AdminController {
             redirect('admin/settings');
         }
         $settings = array_column(Database::all('SELECT key_name, value FROM settings'), 'value', 'key_name');
-        $mail = ['enabled' => Mailer::enabled(), 'describe' => Mailer::describe(), 'problems' => Mailer::problems(), 'to' => (string) ($user['email'] ?? '')];
+        $mail = ['enabled' => Mailer::enabled(), 'describe' => Mailer::describe(), 'problems' => Mailer::problems(), 'to' => (string) ($user['email'] ?? ''), 'oauth' => self::mailOAuthView()];
         self::layout('settings', 'Website settings', ['settings' => $settings, 'mail' => $mail], $user, 'settings');
+    }
+
+    /**
+     * What the "sign-in" card under Email delivery shows, or null when mail does not use OAuth. Nothing
+     * secret: the client secret and every token stay out of the page, and the code in a pending device
+     * sign-in is the short one a person types, never the long device code Microsoft polls with.
+     *
+     * @return array<string,mixed>|null
+     */
+    private static function mailOAuthView(): ?array {
+        $note = $_SESSION['mail_oauth_note'] ?? null;
+        unset($_SESSION['mail_oauth_note']);
+        $o = MailOAuth::settings();
+        if ($o['provider'] === '') return null;
+        $device = $_SESSION['mail_oauth_device'] ?? null;
+        if (is_array($device) && time() >= (int) ($device['expires_at'] ?? 0)) { unset($_SESSION['mail_oauth_device']); $device = null; }
+        return [
+            'label' => $o['label'], 'flow' => $o['flow'], 'client_id' => $o['client_id'], 'mailbox' => Mailer::settings()['username'],
+            'connected' => $o['connected'], 'account' => $o['account'], 'connected_at' => $o['connected_at'], 'supported' => $o['provider'] === 'microsoft',
+            'note' => is_array($note) && (string) ($note['message'] ?? '') !== '' ? ['ok' => !empty($note['ok']), 'message' => (string) $note['message']] : null,
+            'device' => is_array($device) ? [
+                'user_code' => (string) $device['user_code'], 'verification_uri' => (string) $device['verification_uri'],
+                'minutes_left' => max(1, (int) ceil(((int) $device['expires_at'] - time()) / 60)), 'checked' => (int) ($device['checked_at'] ?? 0) > 0,
+            ] : null,
+        ];
+    }
+
+    /** Connect, check, cancel or disconnect the account behind "sign-in" (the "user" flow), then back to the page. */
+    private static function mailOAuth(array $user): never {
+        $result = self::mailOAuthStep($user, (string) input('action'));
+        if ($result['message'] !== '' && MailOAuth::settings()['provider'] === '') flash('error', $result['message']);
+        header('Location: ' . self::mailOAuthLanding(), true, 303);
+        exit;
+    }
+
+    /**
+     * Where the page goes after one of the sign-in buttons: the Settings page, scrolled to the sign-in card when
+     * there is one (the answer is in it). Built here, not by redirect(): a "#" given to redirect() is encoded into
+     * the route when the site uses index.php?route= links, and the page would not be found.
+     */
+    public static function mailOAuthLanding(): string {
+        return url('admin/settings') . (MailOAuth::settings()['provider'] !== '' ? '#mail-oauth' : '');
+    }
+
+    /**
+     * One press of one of the sign-in buttons, apart from the redirect so it can be run and checked directly.
+     * The code Microsoft hands out for a device sign-in is kept in the session of the person who asked, and
+     * every step needs the Settings permission and the CSRF token. Attempts are rate limited.
+     *
+     * @return array{ok:bool,message:string} An empty message means "nothing to say; the page shows the state".
+     */
+    public static function mailOAuthStep(array $user, string $action): array {
+        $result = self::mailOAuthRun($user, $action);
+        // The page after a press lands on the card, so the answer is kept for the card (once), not flashed at the top
+        // of a long page where the person is no longer looking. With OAuth off there is no card, and the caller flashes it.
+        if ($result['message'] !== '' && MailOAuth::settings()['provider'] !== '') $_SESSION['mail_oauth_note'] = $result;
+        return $result;
+    }
+
+    /** @return array{ok:bool,message:string} */
+    private static function mailOAuthRun(array $user, string $action): array {
+        $s = MailOAuth::settings();
+        if ($s['provider'] === '') return ['ok' => false, 'message' => 'Signing in with OAuth is not switched on (MAIL_OAUTH_PROVIDER, see docs/EMAIL.md).'];
+        if ($s['flow'] !== 'user') return ['ok' => false, 'message' => 'The website signs in as an app (MAIL_OAUTH_FLOW=app), so there is nothing to connect.'];
+        $key = 'mailoauth|' . (int) ($user['id'] ?? 0);
+        if (RateLimiter::tooMany($key, 30, 600)) return ['ok' => false, 'message' => 'That is enough sign-in attempts for now. Wait ten minutes and try again.'];
+        RateLimiter::hit($key, 600);
+        $mail = Mailer::settings();
+        $net = ['timeout' => $mail['timeout'], 'verify_peer' => $mail['verify_peer'], 'cafile' => $mail['cafile']];
+        $label = $s['label'];
+        // Said once, the same way for every refusal: what happened, then what to try.
+        $failed = static function (RuntimeException $e) use ($label): array {
+            Audit::log('settings.mail_oauth', 'settings', null, $label . ' sign-in failed: ' . $e->getMessage());
+            $advice = MailOAuth::hint($e->getMessage());
+            return ['ok' => false, 'message' => rtrim($e->getMessage(), " .") . '.' . ($advice !== '' ? ' What to try: ' . $advice : '')];
+        };
+
+        switch ($action) {
+            case 'oauth-connect':
+                try {
+                    $device = MailOAuth::beginDeviceLogin($net);
+                } catch (RuntimeException $e) {
+                    return $failed($e);
+                }
+                $_SESSION['mail_oauth_device'] = $device + ['checked_at' => 0];
+                return ['ok' => true, 'message' => $label . ' gave the sign-in code ' . $device['user_code'] . '. Follow the steps below.'];
+            case 'oauth-check':
+                $device = $_SESSION['mail_oauth_device'] ?? null;
+                if (!is_array($device)) return ['ok' => false, 'message' => 'No sign-in is waiting. Press Connect first.'];
+                try {
+                    $result = MailOAuth::pollDeviceLogin($device, $net);
+                } catch (RuntimeException $e) {
+                    // A network hiccup leaves the code usable; anything else (declined, expired, refused) ends it.
+                    if ($e->getCode() !== MailOAuth::TRANSIENT) unset($_SESSION['mail_oauth_device']);
+                    return $failed($e);
+                }
+                if ($result['state'] === 'pending') {
+                    $_SESSION['mail_oauth_device']['checked_at'] = time();
+                    return ['ok' => true, 'message' => ''];
+                }
+                unset($_SESSION['mail_oauth_device']);
+                $who = $result['account'] !== '' ? ' as ' . $result['account'] : '';
+                Audit::log('settings.mail_oauth', 'settings', null, 'Connected ' . $label . $who);
+                return ['ok' => true, 'message' => $label . ' is connected' . $who . '. Press "Send a test email to me" above to check that mail really goes out.'];
+            case 'oauth-cancel':
+                unset($_SESSION['mail_oauth_device']);
+                return ['ok' => true, 'message' => ''];
+            case 'oauth-disconnect':
+                unset($_SESSION['mail_oauth_device']);
+                MailOAuth::disconnect();
+                Audit::log('settings.mail_oauth', 'settings', null, 'Disconnected ' . $label);
+                return ['ok' => true, 'message' => 'Disconnected. The website cannot send email through ' . $label . ' until it is connected again.'];
+        }
+        return ['ok' => false, 'message' => 'That button is not one this page knows.'];
     }
 
     /**

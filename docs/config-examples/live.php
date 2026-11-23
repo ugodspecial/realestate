@@ -45,4 +45,8 @@ return [
     'mail_encryption' => 'tls',
     'mail_username' => 'noreply@example.com',   // usually the full address
     'mail_password' => 'the-mailbox-password',
+
+    // A Microsoft 365 mailbox does not take a password for this any more (Microsoft is switching that off).
+    // It signs in with OAuth instead: use docs/config-examples/microsoft365.php for the email lines, and
+    // read "Microsoft 365" in docs/EMAIL.md.
 ];

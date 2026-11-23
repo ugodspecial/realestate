@@ -92,3 +92,43 @@
   <?php endif; ?>
 </div>
 </form>
+<?php /* Variables: $mail['oauth'] (null, or label, flow, mailbox, connected, account, connected_at, client_id, device, note). Its own form: the one above is closed. */ ?>
+<?php if (!empty($mail['oauth'])): $oauth = $mail['oauth']; ?>
+<form method="post" action="<?= url('admin/settings') ?>">
+<?= csrf_field() ?>
+<div class="admin-card admin-form" id="mail-oauth">
+  <h2><?= e($oauth['label']) ?> sign-in</h2>
+  <?php if (!empty($oauth['note']['message'])): /* the answer to the button just pressed: here, where the page landed, not at the top */ ?>
+    <div class="notice<?= empty($oauth['note']['ok']) ? ' notice-error' : '' ?>" role="status"><?= icon(empty($oauth['note']['ok']) ? 'alert' : 'check') ?><div><?= e($oauth['note']['message']) ?></div></div>
+  <?php endif; ?>
+  <?php if (!$oauth['supported']): ?>
+    <p>Email is set to sign in with OAuth, but that provider is not one this website knows. See the problems listed under Email delivery.</p>
+  <?php elseif ($oauth['flow'] === 'app'): ?>
+    <p>No password is used. The website signs in to <?= e($oauth['label']) ?> as an app (client ID <code><?= e($oauth['client_id']) ?></code>) and sends email as <strong><?= e($oauth['mailbox'] !== '' ? $oauth['mailbox'] : 'the mailbox in MAIL_USERNAME') ?></strong>. Nobody has to sign in, so there is nothing to connect here: use <em>Send a test email to me</em> above to check it.</p>
+  <?php elseif ($oauth['device']): $device = $oauth['device']; ?>
+    <p>Connecting <?= e($oauth['label']) ?> takes one minute and is done with the mailbox that should send the website's email.</p>
+    <ol class="oauth-steps">
+      <li>Open <a href="<?= e($device['verification_uri']) ?>" target="_blank" rel="noopener noreferrer"><?= e($device['verification_uri']) ?></a>.</li>
+      <li>Type this code: <span class="oauth-code" aria-label="Code <?= e(implode(' ', str_split($device['user_code']))) ?>"><?= e($device['user_code']) ?></span></li>
+      <li>Sign in as the mailbox that should send the email, and accept.</li>
+      <li>Come back here and press <strong>I have signed in</strong>.</li>
+    </ol>
+    <?php if ($device['checked']): ?><p class="field-hint"><?= icon('alert') ?> <?= e($oauth['label']) ?> has not seen the sign-in yet. Finish it on its page, then press the button again.</p><?php endif; ?>
+    <p class="field-hint">The code works for about <?= (int) $device['minutes_left'] ?> more minute<?= $device['minutes_left'] === 1 ? '' : 's' ?>.</p>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" name="action" value="oauth-check"><?= icon('check') ?> I have signed in</button>
+      <button class="btn btn-outline" type="submit" name="action" value="oauth-cancel">Cancel</button>
+    </div>
+  <?php elseif ($oauth['connected']): ?>
+    <p><strong>Connected</strong> as <strong><?= e($oauth['account']) ?></strong><?= $oauth['connected_at'] !== '' ? ' since ' . e(date('j F Y', (int) strtotime($oauth['connected_at']))) : '' ?>. The website keeps the sign-in, not a password. It lasts as long as the website sends email at least every few weeks, or until the account's password is changed or the connection is removed in Microsoft: then press Connect again.</p>
+    <div class="form-actions">
+      <button class="btn btn-outline" type="submit" name="action" value="oauth-connect">Connect again</button>
+      <button class="btn btn-outline" type="submit" name="action" value="oauth-disconnect">Disconnect</button>
+    </div>
+  <?php else: ?>
+    <p><strong>Not connected.</strong> The website cannot send email through <?= e($oauth['label']) ?> until the mailbox that should send it has signed in once. No password is typed here or stored.</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit" name="action" value="oauth-connect"><?= icon('mail') ?> Connect <?= e($oauth['label']) ?></button></div>
+  <?php endif; ?>
+</div>
+</form>
+<?php endif; ?>

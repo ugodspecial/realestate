@@ -17,6 +17,10 @@
  * With MAIL_DRIVER unset it is "smtp" when MAIL_HOST is set and "mail" otherwise, so a site
  * that already works through mail() keeps working unchanged.
  *
+ * The smtp driver signs in with a password, or - for providers that no longer accept one, Microsoft 365
+ * above all - with an OAuth access token (MAIL_OAUTH_PROVIDER, see MailOAuth). Which of the two is
+ * decided by the settings, never by trying one and falling back to the other.
+ *
  * send() never throws and never lets a PHP warning out: it returns false and lastError() says
  * why in plain words. True means the mail server ACCEPTED the message. Whether it reaches an
  * inbox rather than a spam folder depends on DNS records (SPF, DKIM) that no code can set.
@@ -61,12 +65,15 @@ final class Mailer {
      * only as "is there one".
      *
      * @return array{enabled:bool,driver:string,from:string,host:string,port:int,encryption:string,
-     *               username:string,has_password:bool,verify_peer:bool,cafile:string,timeout:int}
+     *               username:string,has_password:bool,oauth:string,verify_peer:bool,cafile:string,timeout:int}
+     *         oauth is the provider's name when OAuth sign-in is on ("Microsoft 365"), else ''.
      */
     public static function settings(): array {
-        $host = trim((string) config('mail_host', ''));
+        $oauth = MailOAuth::enabled();
+        // With OAuth the provider's own server is the default, so MAIL_HOST can stay empty.
+        $host = trim((string) config('mail_host', '')) ?: MailOAuth::defaultHost();
         $driver = strtolower(trim((string) config('mail_driver', '')));
-        if ($driver === '') $driver = $host !== '' ? 'smtp' : 'mail';
+        if ($driver === '') $driver = ($host !== '' || $oauth) ? 'smtp' : 'mail';
 
         $port = (int) config('mail_port', 0);
         $encryption = match (strtolower(trim((string) config('mail_encryption', '')))) {
@@ -80,15 +87,20 @@ final class Mailer {
         if ($encryption === '') $encryption = $port === 465 ? 'ssl' : (self::isLoopback($host) ? 'none' : 'tls');
         if ($port < 1 || $port > 65535) $port = $encryption === 'ssl' ? 465 : ($encryption === 'none' ? 25 : 587);
 
+        // The mailbox: MAIL_USERNAME, or - for a person who connected their own account - that account.
+        $username = trim((string) config('mail_username', '')) ?: ($oauth ? MailOAuth::settings()['account'] : '');
         return [
             'enabled' => self::enabled(),
             'driver' => $driver,
-            'from' => trim((string) (config('mail_from') ?: setting('email'))),
+            // Microsoft 365 only sends as the mailbox itself (or an address it holds Send As rights for), so
+            // with OAuth the default sender is the mailbox, not the public email address on the website.
+            'from' => trim((string) (config('mail_from') ?: ($oauth && $username !== '' ? $username : setting('email')))),
             'host' => $host,
             'port' => $port,
             'encryption' => $encryption,
-            'username' => trim((string) config('mail_username', '')),
+            'username' => $username,
             'has_password' => (string) config('mail_password', '') !== '',
+            'oauth' => $oauth ? MailOAuth::settings()['label'] : '',
             'verify_peer' => filter_var(config('mail_verify_peer', true), FILTER_VALIDATE_BOOLEAN),
             'cafile' => trim((string) config('mail_cafile', '')),
             'timeout' => max(1, min(60, (int) config('mail_timeout', 8) ?: 8)),
@@ -107,12 +119,26 @@ final class Mailer {
                 if ($s['host'] === '') $p[] = 'MAIL_DRIVER is smtp but MAIL_HOST is empty.';
                 $unavailable = SmtpClient::unavailable($s['encryption']);
                 if ($unavailable !== '') $p[] = $unavailable;
-                if ($s['username'] !== '' && !$s['has_password']) $p[] = 'MAIL_USERNAME is set but MAIL_PASSWORD is empty.';
+                if ($s['oauth'] !== '') {
+                    array_push($p, ...MailOAuth::problems());
+                    $o = MailOAuth::settings();
+                    if ($s['username'] === '' && ($o['flow'] === 'app' || $o['connected'])) {
+                        $p[] = 'MAIL_USERNAME is empty. With OAuth it is the mailbox the mail is sent from, for example noreply@yourcompany.com.';
+                    }
+                    if ($s['has_password']) $p[] = 'MAIL_PASSWORD is set but not used: with OAuth no password is sent. Remove it so nobody keeps a password that does nothing.';
+                } else {
+                    if ($s['username'] !== '' && !$s['has_password']) $p[] = 'MAIL_USERNAME is set but MAIL_PASSWORD is empty.';
+                    // Said before it stops working, not after: Microsoft's own schedule (Exchange team, January 2026).
+                    if ($s['username'] !== '' && strtolower($s['host']) === MailOAuth::SMTP_HOST) {
+                        $p[] = 'Microsoft is switching password sign-in off for Microsoft 365 mail (by default from the end of December 2026), so this setup will stop working unless an administrator switches it back on. Sign in with OAuth instead: MAIL_OAUTH_PROVIDER=microsoft, and see "Microsoft 365" in docs/EMAIL.md.';
+                    }
+                }
                 if ($s['encryption'] !== 'none' && !extension_loaded('openssl')) $p[] = 'The PHP openssl extension is off, so encrypted SMTP cannot work. Enable extension=openssl in php.ini.';
-                if ($s['encryption'] === 'none' && $s['username'] !== '' && !self::isLoopback($s['host'])) $p[] = 'MAIL_ENCRYPTION is none while signing in: the password would cross the network unencrypted.';
+                if ($s['encryption'] === 'none' && ($s['username'] !== '' || $s['oauth'] !== '') && !self::isLoopback($s['host'])) $p[] = 'MAIL_ENCRYPTION is none while signing in: the ' . ($s['oauth'] !== '' ? 'access token' : 'password') . ' would cross the network unencrypted.';
                 if (!$s['verify_peer'] && !self::isLoopback($s['host'])) $p[] = 'MAIL_VERIFY_PEER is off, so the mail server\'s certificate is not checked. Use that only while testing.';
                 break;
             case 'mail':
+                if ($s['oauth'] !== '') $p[] = 'MAIL_OAUTH_PROVIDER is set, but MAIL_DRIVER is mail, which cannot sign in with OAuth. Use MAIL_DRIVER=smtp.';
                 if (!function_exists('mail')) {
                     $p[] = 'PHP\'s mail() is disabled on this server (disable_functions). Use MAIL_DRIVER=smtp.';
                 } else {
@@ -122,6 +148,7 @@ final class Mailer {
                 break;
             case 'log':
                 if (config('app_env') === 'production') $p[] = 'MAIL_DRIVER=log is for local development only and is refused in production, so no email is sent.';
+                if ($s['oauth'] !== '') $p[] = 'MAIL_OAUTH_PROVIDER is set, but MAIL_DRIVER is log, which sends nothing. Use MAIL_DRIVER=smtp to send through ' . $s['oauth'] . '.';
                 break;
             default:
                 $p[] = 'MAIL_DRIVER "' . $s['driver'] . '" is not one of mail, smtp or log.';
@@ -169,7 +196,9 @@ final class Mailer {
         return match ($s['driver']) {
             'smtp' => 'SMTP server ' . ($s['host'] ?: '(not set)') . ':' . $s['port'] . ' ('
                 . ['tls' => 'STARTTLS', 'ssl' => 'TLS', 'none' => 'no encryption'][$s['encryption']]
-                . ($s['username'] !== '' ? ', signing in as ' . $s['username'] : ', no sign-in') . ')',
+                . ($s['oauth'] !== ''
+                    ? ', ' . $s['oauth'] . ' OAuth' . ($s['username'] !== '' ? ' as ' . $s['username'] : ', mailbox not known yet')
+                    : ($s['username'] !== '' ? ', signing in as ' . $s['username'] : ', no sign-in')) . ')',
             'mail' => 'PHP mail() through this server\'s own mail program',
             'log' => 'a log file (storage/logs/mail.log); nothing is actually sent',
             default => 'an unknown method "' . $s['driver'] . '"',
@@ -178,6 +207,9 @@ final class Mailer {
 
     /** A one-line suggestion for a failure message from send(); '' when there is nothing useful to add. */
     public static function hint(string $error): string {
+        // Sign-in by OAuth (and a password meeting a server that wants OAuth) has its own, more exact advice.
+        $oauth = MailOAuth::hint($error);
+        if ($oauth !== '') return $oauth;
         return match (true) {
             str_contains($error, 'switched off') => 'Set MAIL_ENABLED=true.',
             str_contains($error, 'could not be found') => 'Check MAIL_HOST for typos.',
@@ -224,15 +256,41 @@ final class Mailer {
     private static function viaSmtp(array $s, string $to, string $subject, string $body, string $replyTo): bool {
         if ($s['host'] === '') return self::fail('MAIL_DRIVER is smtp but MAIL_HOST is empty.');
         $message = self::render($s['from'], brand(), $to, $subject, $body, $replyTo);
-        $client = new SmtpClient([
+        $options = [
             'host' => $s['host'], 'port' => $s['port'], 'encryption' => $s['encryption'],
             'username' => $s['username'], 'password' => (string) config('mail_password', ''),
             'timeout' => $s['timeout'], 'verify_peer' => $s['verify_peer'], 'cafile' => $s['cafile'],
             'helo' => self::heloName(),
-        ]);
-        $sent = $client->send($s['from'], $to, $message);
-        self::$conversation = $client->conversation();
-        return $sent ? true : self::fail($client->error());
+        ];
+        if ($s['oauth'] === '') {
+            $client = new SmtpClient($options);
+            $sent = $client->send($s['from'], $to, $message);
+            self::$conversation = $client->conversation();
+            return $sent ? true : self::fail($client->error());
+        }
+
+        // OAuth: no password is sent, an access token is. A token is asked for only when the saved one is
+        // about to expire, so ordinarily no request to the provider is made at all.
+        $net = ['timeout' => $s['timeout'], 'verify_peer' => $s['verify_peer'], 'cafile' => $s['cafile']];
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                $token = MailOAuth::accessToken($net);
+            } catch (RuntimeException $e) {
+                self::$conversation = [];
+                return self::fail($e->getMessage());
+            }
+            $client = new SmtpClient(['password' => '', 'token' => $token] + $options);
+            $sent = $client->send($s['from'], $to, $message);
+            self::$conversation = array_merge(MailOAuth::note() !== '' ? [MailOAuth::note()] : [], $client->conversation());
+            if ($sent) return true;
+            // The saved token can be one the provider has since taken back (a consent withdrawn, a permission
+            // changed). When the server refuses a token that came from the file, discard it and try once with a fresh one.
+            if ($attempt === 1 && MailOAuth::lastTokenWasSaved() && str_contains($client->error(), 'OAuth sign-in was refused')) {
+                MailOAuth::forgetAccessToken();
+                continue;
+            }
+            return self::fail($client->error());
+        }
     }
 
     private static function viaMail(array $s, string $to, string $subject, string $body, string $replyTo): bool {

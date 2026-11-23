@@ -74,6 +74,10 @@ $mail = Mailer::settings();
 echo 'Email: ' . ($mail['enabled'] ? 'on, ' . Mailer::describe() : 'off (MAIL_ENABLED is not true)') . PHP_EOL;
 if ($mail['enabled']) {
     foreach (Mailer::problems() as $problem) echo 'WARNING: ' . $problem . PHP_EOL;
+    $signIn = MailOAuth::settings();
+    if ($signIn['provider'] !== '' && $signIn['flow'] === 'user' && !$signIn['connected']) {
+        echo '         Or connect from this terminal: php bin/mail-oauth.php connect' . PHP_EOL;
+    }
     echo '         Try it for real: php bin/mail-test.php you@example.com' . PHP_EOL;
 }
 

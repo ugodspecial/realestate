@@ -59,5 +59,20 @@ if ($retention > 0) {
     echo '  (AUDIT_RETENTION_DAYS unset: history is kept)' . PHP_EOL;
 }
 
+// A person's Microsoft 365 sign-in kept by the website (MAIL_OAUTH_FLOW=user) is Microsoft's refresh token,
+// which lapses after 90 days without use. Every message sent renews it, so a busy site never notices; a quiet
+// one would find out at the next enquiry. Using it once a day, here, costs one short request at most.
+if (Mailer::enabled() && MailOAuth::enabled() && MailOAuth::settings()['flow'] === 'user' && MailOAuth::settings()['connected']) {
+    $mail = Mailer::settings();
+    try {
+        MailOAuth::accessToken(['timeout' => $mail['timeout'], 'verify_peer' => $mail['verify_peer'], 'cafile' => $mail['cafile']]);
+        echo '  ' . str_pad($mail['oauth'] . ' sign-in', 28) . 'renewed' . PHP_EOL;
+    } catch (RuntimeException $e) {
+        echo 'WARNING: the ' . $mail['oauth'] . ' sign-in could not be renewed: ' . $e->getMessage() . PHP_EOL;
+        $advice = Mailer::hint($e->getMessage());
+        if ($advice !== '') echo '         What to try: ' . $advice . PHP_EOL;
+    }
+}
+
 echo 'Done.' . PHP_EOL;
 exit(0);

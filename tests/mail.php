@@ -88,12 +88,12 @@ ini_set('error_log', $errorLogFile);
 function errorLogText(): string { return is_file($GLOBALS['errorLogFile']) ? (string) file_get_contents($GLOBALS['errorLogFile']) : ''; }
 function clearErrorLog(): void { if (is_file($GLOBALS['errorLogFile'])) unlink($GLOBALS['errorLogFile']); }
 
-/** @return array{ports:array<string,int>,cert:string,dir:string,proc:mixed}|null */
+/** @return array{ports:array<string,int>,cert:string,dir:string,proc:mixed,oauth:array<string,string>}|null */
 function startSink(string $root): ?array {
     $existing = (string) getenv('MAIL_TEST_SINKS');
     if ($existing !== '' && is_file($existing)) {
         $state = json_decode((string) file_get_contents($existing), true);
-        if (is_array($state) && isset($state['ports'])) return ['ports' => $state['ports'], 'cert' => (string) $state['cert'], 'dir' => dirname($existing), 'proc' => null];
+        if (is_array($state) && isset($state['ports'])) return ['ports' => $state['ports'], 'cert' => (string) $state['cert'], 'dir' => dirname($existing), 'proc' => null, 'oauth' => (array) ($state['oauth'] ?? [])];
     }
     if (!function_exists('proc_open')) return null;
     $dir = sys_get_temp_dir() . '/cedar-mail-sink-' . bin2hex(random_bytes(4));
@@ -108,7 +108,7 @@ function startSink(string $root): ?array {
         }
         if (is_file($dir . '/state.json')) {
             $state = json_decode((string) file_get_contents($dir . '/state.json'), true);
-            return ['ports' => $state['ports'], 'cert' => (string) $state['cert'], 'dir' => $dir, 'proc' => $proc];
+            return ['ports' => $state['ports'], 'cert' => (string) $state['cert'], 'dir' => $dir, 'proc' => $proc, 'oauth' => (array) ($state['oauth'] ?? [])];
         }
         proc_terminate($proc);
     }
@@ -232,6 +232,105 @@ mailConfig(['mail_host' => 'smtp.example.com', 'mail_username' => 'me@example.co
 ok('the description never contains the password', !str_contains(Mailer::describe(), 'Very-Secret-Pw-123') && str_contains(Mailer::describe(), 'smtp.example.com'));
 ok('settings() reports the password only as present', Mailer::settings()['has_password'] === true && !str_contains(json_encode(Mailer::settings()), 'Very-Secret-Pw-123'));
 
+
+// ================================================================== OAuth, settings only
+echo "\n== OAuth sign-in (Microsoft 365): the settings and the wording, with no network ==\n";
+ok('SmtpClient::xoauth2 reproduces the example printed in Microsoft\'s documentation, byte for byte',
+    SmtpClient::xoauth2('test@contoso.onmicrosoft.com', 'EwBAAl3BAAUFFpUAo7J3Ve0bjLBWZWCclRC3EoAA') === 'dXNlcj10ZXN0QGNvbnRvc28ub25taWNyb3NvZnQuY29tAWF1dGg9QmVhcmVyIEV3QkFBbDNCQUFVRkZwVUFvN0ozVmUwYmpMQldaV0NjbFJDM0VvQUEBAQ==');
+ok('...and the one in Google\'s',
+    SmtpClient::xoauth2('someuser@example.com', 'ya29.vF9dft4qmTc2Nvb3RlckBhdHRhdmlzdGEuY29tCg') === 'dXNlcj1zb21ldXNlckBleGFtcGxlLmNvbQFhdXRoPUJlYXJlciB5YTI5LnZGOWRmdDRxbVRjMk52YjNSbGNrQmhkSFJoZG1semRHRXVZMjl0Q2cBAQ==');
+ok('the decoded string is user=, the mailbox, 0x01, auth=Bearer, the token, and two 0x01', base64_decode(SmtpClient::xoauth2('a@b.example', 'TOK')) === "user=a@b.example\x01auth=Bearer TOK\x01\x01");
+
+$oauthStoreFile = sys_get_temp_dir() . '/cedar-oauth-test-' . bin2hex(random_bytes(4)) . '.json';
+$oauthBase = ['mail_oauth_store' => $oauthStoreFile, 'mail_host' => '', 'mail_driver' => '', 'mail_port' => '', 'mail_encryption' => '', 'mail_username' => '', 'mail_password' => '', 'mail_from' => ''];
+$appSettings = ['mail_oauth_provider' => 'microsoft', 'mail_oauth_flow' => 'app', 'mail_oauth_tenant' => 'a1b2c3d4-0000-4000-8000-000000000001', 'mail_oauth_client_id' => 'a1b2c3d4-0000-4000-8000-000000000002', 'mail_oauth_client_secret' => 'Not-A-Real-Secret~Value', 'mail_username' => 'noreply@contoso.example'];
+$withOAuth = static fn(array $o = []): array => array_replace($oauthBase, $appSettings, $o);
+
+mailConfig($oauthBase);
+ok('with no provider named, OAuth is off, adds no problem, and mail behaves exactly as before', !MailOAuth::enabled() && Mailer::settings()['oauth'] === '' && MailOAuth::problems() === [] && Mailer::settings()['driver'] === 'mail');
+foreach (['microsoft', 'Microsoft', 'microsoft365', 'Microsoft-365', 'office365', 'M365'] as $alias) {
+    mailConfig($withOAuth(['mail_oauth_provider' => $alias]));
+    ok("\"{$alias}\" means Microsoft 365", MailOAuth::provider() === 'microsoft' && Mailer::settings()['oauth'] === 'Microsoft 365');
+}
+mailConfig($withOAuth());
+$s = Mailer::settings();
+ok('naming the provider is enough to select SMTP, its own server, STARTTLS and 587 (no MAIL_HOST to look up)', $s['driver'] === 'smtp' && $s['host'] === 'smtp.office365.com' && $s['port'] === 587 && $s['encryption'] === 'tls', json_encode($s));
+ok('the sender defaults to the mailbox (Microsoft 365 will not send as the website\'s public address)', $s['from'] === 'noreply@contoso.example');
+mailConfig($withOAuth(['mail_from' => 'sales@contoso.example']));
+ok('...unless a sender is set', Mailer::settings()['from'] === 'sales@contoso.example');
+ok('a complete app setup has no problems', Mailer::problems() === [], implode(' | ', Mailer::problems()));
+ok('the description says how mail is signed in, and names no secret', str_contains(Mailer::describe(), 'smtp.office365.com:587') && str_contains(Mailer::describe(), 'Microsoft 365 OAuth as noreply@contoso.example') && !str_contains(Mailer::describe(), 'Not-A-Real-Secret'));
+ok('settings() holds no secret of any kind', !str_contains(json_encode(Mailer::settings()), 'Not-A-Real-Secret') && !str_contains(json_encode(MailOAuth::settings()), 'Not-A-Real-Secret') && MailOAuth::settings()['has_secret'] === true);
+mailConfig($withOAuth(['mail_oauth_flow' => '']));
+ok('with a client secret and no flow named, the website signs in as an app', MailOAuth::settings()['flow'] === 'app');
+mailConfig($withOAuth(['mail_oauth_flow' => '', 'mail_oauth_client_secret' => '']));
+ok('without a secret and no flow named, a person connects (the "user" way)', MailOAuth::settings()['flow'] === 'user');
+
+$problemWith = static function (array $o, string $needle) use ($withOAuth): bool {
+    mailConfig($withOAuth($o));
+    return (bool) array_filter(Mailer::problems(), static fn($p) => str_contains($p, $needle));
+};
+ok('no tenant is reported, in the words of the screen that has it', $problemWith(['mail_oauth_tenant' => ''], 'MAIL_OAUTH_TENANT is empty'));
+ok('a tenant that is not a name or a GUID is reported', $problemWith(['mail_oauth_tenant' => 'a b/../c'], 'cannot be part of a tenant ID'));
+ok('"common" cannot be the tenant when the app signs in as itself', $problemWith(['mail_oauth_tenant' => 'common'], 'must be your own Directory (tenant) ID'));
+ok('no client ID is reported', $problemWith(['mail_oauth_client_id' => ''], 'MAIL_OAUTH_CLIENT_ID is empty'));
+ok('no client secret is reported for the app way, with the reminder to use the Value and not the Secret ID', $problemWith(['mail_oauth_flow' => 'app', 'mail_oauth_client_secret' => ''], 'MAIL_OAUTH_CLIENT_SECRET is empty') && $problemWith(['mail_oauth_flow' => 'app', 'mail_oauth_client_secret' => ''], 'not its Secret ID'));
+ok('a flow that is neither app nor user is reported', $problemWith(['mail_oauth_flow' => 'magic'], 'is not one of app or user'));
+ok('a provider that is not supported is reported, not ignored', $problemWith(['mail_oauth_provider' => 'carrier-pigeon'], 'is not supported'));
+ok('a sign-in address that is not https is reported', $problemWith(['mail_oauth_authority' => 'http://login.example.com'], 'MAIL_OAUTH_AUTHORITY must be'));
+ok('...but one on this machine may be plain http (the tests use one)', !$problemWith(['mail_oauth_authority' => 'http://127.0.0.1:8123'], 'MAIL_OAUTH_AUTHORITY'));
+ok('a password left in the settings is reported as unused', $problemWith(['mail_password' => 'a-long-password-nobody-needs'], 'MAIL_PASSWORD is set but not used'));
+ok('a mailbox missing is reported for the app way', $problemWith(['mail_username' => ''], 'MAIL_USERNAME is empty'));
+ok('OAuth with MAIL_DRIVER=mail is reported (mail() cannot sign in)', $problemWith(['mail_driver' => 'mail'], 'which cannot sign in with OAuth'));
+ok('OAuth with MAIL_DRIVER=log is reported (it would send nothing)', $problemWith(['mail_driver' => 'log'], 'which sends nothing'));
+ok('OAuth over an unencrypted connection to a remote server is reported as sending the token in the clear', $problemWith(['mail_encryption' => 'none'], 'access token would cross the network unencrypted'));
+ok('a connect-by-person setup that has not been connected says so, and what to press', $problemWith(['mail_oauth_flow' => 'user', 'mail_oauth_client_secret' => ''], 'is not connected yet'));
+mailConfig(array_replace($oauthBase, ['mail_host' => 'smtp.office365.com', 'mail_encryption' => 'tls', 'mail_username' => 'me@contoso.example', 'mail_password' => 'a-long-password-123']));
+ok('a PASSWORD set-up on Microsoft 365\'s server is told, before it breaks, that Microsoft is switching passwords off', (bool) array_filter(Mailer::problems(), static fn($p) => str_contains($p, 'switching password sign-in off') && str_contains($p, 'MAIL_OAUTH_PROVIDER=microsoft')), implode(' | ', Mailer::problems()));
+mailConfig(array_replace($oauthBase, ['mail_host' => 'smtp.gmail.com', 'mail_encryption' => 'tls', 'mail_username' => 'me@example.com', 'mail_password' => 'a-long-password-123']));
+ok('...and nobody else is told that', !array_filter(Mailer::problems(), static fn($p) => str_contains($p, 'Microsoft')));
+
+// Microsoft's error codes in plain words, and what to try. The codes are the ones Microsoft documents.
+$say = static fn(string $error, string $text): array => MailOAuth::explain($error, $text);
+ok('a wrong client secret says to use the Value, not the Secret ID', str_contains($say('invalid_client', 'AADSTS7000215: Invalid client secret provided.')[0], 'secret is wrong') && str_contains($say('invalid_client', 'AADSTS7000215: x')[1], 'Value'));
+ok('an expired secret says to make a new one', str_contains($say('invalid_client', 'AADSTS7000222: The provided client secret keys are expired.')[0], 'expired'));
+ok('an unknown client ID points at the two IDs on the Overview page', str_contains($say('invalid_request', 'AADSTS700016: Application not found')[1], 'Overview'));
+ok('a missing tenant is explained', str_contains($say('invalid_request', 'AADSTS90002: Tenant not found')[1], 'MAIL_OAUTH_TENANT'));
+ok('consent that is missing says where to grant it', str_contains($say('invalid_grant', 'AADSTS65001: The user or administrator has not consented')[1], 'Grant admin consent'));
+ok('"public client flows" being off is explained for the connect way', str_contains($say('invalid_client', 'AADSTS7000218: The request body must contain the following parameter: client_assertion or client_secret.')[1], 'Allow public client flows'));
+ok('a lapsed saved sign-in says to connect again', str_contains($say('invalid_grant', 'AADSTS700082: The refresh token has expired due to inactivity.')[1], 'Connect again'));
+ok('a Conditional Access block is named as one', str_contains($say('interaction_required', 'AADSTS53003: Access has been blocked by Conditional Access policies.')[0], 'Conditional Access'));
+ok('a refusal with no known code still gets a sentence by its OAuth name', $say('authorization_declined', '')[0] !== '' && $say('expired_token', '')[0] !== '' && $say('invalid_scope', '')[0] !== '');
+ok('and an error nobody has heard of is left to Microsoft\'s own words', $say('some_new_error', 'AADSTS999999: Something new.') === ['', '']);
+
+// The id_token only supplies the account's address for display; whatever it holds is checked before use.
+$jwt = static fn(array $claims): string => 'x.' . rtrim(strtr(base64_encode(json_encode($claims)), '+/', '-_'), '=') . '.y';
+ok('the signed-in account is read from the id_token', MailOAuth::accountFrom($jwt(['preferred_username' => 'boss@contoso.example'])) === 'boss@contoso.example');
+ok('...falling back to email, ignoring a claim that is not an address, and tolerating junk', MailOAuth::accountFrom($jwt(['preferred_username' => 'not an address', 'email' => 'e@contoso.example'])) === 'e@contoso.example'
+    && MailOAuth::accountFrom($jwt(['preferred_username' => "a@b.example\r\nBcc: x@y.example"])) === '' && MailOAuth::accountFrom('nonsense') === '' && MailOAuth::accountFrom('') === '');
+
+// The example file people copy.
+echo "\n== The Microsoft 365 example file ==\n";
+$m365 = $root . '/docs/config-examples/microsoft365.php';
+ok('docs/config-examples/microsoft365.php exists', is_file($m365));
+if (is_file($m365)) {
+    ob_start();
+    $example = (static fn() => require $m365)();
+    $printed = (string) ob_get_clean();
+    ok('it returns an array and prints nothing', is_array($example) && $printed === '', $printed);
+    $example = (array) $example;
+    ok('every setting in it is one the application reads', array_diff(array_keys($example), array_keys($baseConfig)) === [], implode(',', array_diff(array_keys($example), array_keys($baseConfig))));
+    $GLOBALS['config'] = array_replace($baseConfig, $example);
+    $s = Mailer::settings();
+    ok('it switches email on, through Microsoft 365, and the settings code has nothing to complain about', Mailer::enabled() && $s['oauth'] === 'Microsoft 365' && $s['driver'] === 'smtp' && Mailer::problems() === [], json_encode($s) . ' ' . implode(' | ', Mailer::problems()));
+    ok('it holds no password (the point of it), and its secrets are obvious placeholders', !isset($example['mail_password']) && str_starts_with((string) $example['mail_oauth_client_secret'], 'the-')
+        && ($example['mail_oauth_tenant'] ?? '') === '00000000-0000-0000-0000-000000000000' && ($example['mail_oauth_client_id'] ?? '') === '00000000-0000-0000-0000-000000000000');
+    $guideText = (string) file_get_contents($root . '/docs/EMAIL.md');
+    $unexplained = array_filter(array_keys($example), static fn($k) => str_starts_with((string) $k, 'mail_') && !str_contains($guideText, "'" . $k . "'"));
+    ok('every mail setting in it is explained in docs/EMAIL.md', $unexplained === [], implode(',', $unexplained));
+    $GLOBALS['config'] = $baseConfig;
+}
+
 // ================================================================== the example files
 echo "\n== The example configuration files people copy ==\n";
 // docs/config-examples/*.php are what the README and the guides tell people to copy to
@@ -278,12 +377,37 @@ foreach (['live' => 'smtp', 'local' => 'log'] as $name => $driver) {
 // The other direction: every mail setting the application reads must be written up where an operator looks.
 foreach ($mailKeys as $key) {
     $env = strtoupper((string) $key);
-    ok("{$env} is documented in docs/EMAIL.md (both spellings) and in the table in docs/DEPLOYMENT.md", str_contains($guide, '`' . $env . '`') && str_contains($guide, "'" . $key . "'") && str_contains($deploy, '`' . $env . '`'));
+    ok("{$env} is documented in docs/EMAIL.md (a row of the settings table, both spellings) and in the table in docs/DEPLOYMENT.md",
+        preg_match('/^\| `' . preg_quote($env, '/') . '` \| `\'' . preg_quote((string) $key, '/') . '\'/m', $guide) === 1 && preg_match('/^\| `' . preg_quote($env, '/') . '`\s*\|/m', $deploy) === 1);
 }
 preg_match_all("/getenv\\('(MAIL_[A-Z_]+)'\\)/", (string) file_get_contents($root . '/app/config.php'), $found);
 $envNames = array_values(array_unique($found[1]));
 $expectedNames = array_map(static fn($k) => strtoupper((string) $k), $mailKeys);
 ok('the environment variable behind each mail setting is that setting\'s own name in capitals, no more and no fewer (so the guides are right about both)', !array_diff($expectedNames, $envNames) && !array_diff($envNames, $expectedNames) && count($envNames) >= 10, implode(',', $envNames));
+// The table of failure messages is only any use if the messages in it are the ones people really see.
+$tableAt = strpos($guide, '## When the test fails');
+$table = substr($guide, (int) $tableAt, (int) strpos($guide, '## What has and has not been tested') - (int) $tableAt);
+$said = '';
+foreach (array_merge(glob($root . '/app/Core/*.php') ?: [], glob($root . '/bin/*.php') ?: []) as $sourceFile) $said .= file_get_contents($sourceFile) . "\n";
+$said = strtolower(str_replace("\\'", "'", $said));
+// Quoted from Microsoft's own mail server, whose words the code shows but does not write.
+$theirWords = ['5.7.139', 'smtpclientauthentication is disabled', '550 5.7.30 basic authentication is not supported'];
+$drifted = [];
+$rowsChecked = 0;
+foreach (preg_split('/\R/', $table) ?: [] as $row) {
+    if (!str_starts_with($row, '| *')) continue;
+    $rowsChecked++;
+    preg_match_all('/\*([^*]+)\*/u', explode('|', $row)[1], $pieces);
+    foreach ($pieces[1] as $piece) {
+        foreach (preg_split('/…|\.\.\./u', $piece) ?: [] as $part) {
+            $part = strtolower(trim((string) preg_replace('/\s+\(.*$/', '', $part), " :,"));
+            $part = (string) preg_replace('/^(microsoft would not issue an access token:\s*|microsoft 365 )/', '', $part); // the front is shared; what follows is Microsoft's explanation, or the label of the account
+            if (strlen($part) < 6 || in_array($part, $theirWords, true)) continue;
+            if (!str_contains($said, $part)) $drifted[] = $part;
+        }
+    }
+}
+ok('every message in the "When the test fails" table is one the code can really print, not a paraphrase of it (' . $rowsChecked . ' rows)', $drifted === [] && $rowsChecked >= 20, implode(' | ', $drifted));
 
 // ================================================================== message
 echo "\n== The message itself ==\n";
@@ -648,6 +772,489 @@ if ($sink === null) {
     mailConfig($base('plain'));
 }
 
+// ================================================================== OAuth against real sockets
+echo "\n== OAuth sign-in against a stand-in for Microsoft (token service and XOAUTH2 servers) ==\n";
+if ($sink === null || empty($sink['oauth']) || empty($sink['ports']['token_https'])) {
+    skipped('OAuth sign-in against the token service and the XOAUTH2 servers', $sink === null ? 'needs the SMTP sink' : 'the running sink has no token service (an older tests/fixtures/smtp-sink.py?)');
+} else {
+    $kit = $sink['oauth'];
+    $https = 'https://127.0.0.1:' . $port('token_https');
+    $http = 'http://127.0.0.1:' . $port('token_http');
+    $net = ['timeout' => 3, 'verify_peer' => true, 'cafile' => $sink['cert']];
+    $requests = static fn(string $label): array => array_values(array_filter(sinkEvents($GLOBALS['sink'], $label),
+        static fn($e) => ($e['event'] ?? '') === 'request' && !str_starts_with((string) $e['path'], '/_control/')));
+    $tokenUrl = static fn(string $tenant, bool $tls = true): string => ($tls ? $GLOBALS['https'] : $GLOBALS['http']) . '/' . $tenant . '/oauth2/v2.0/token';
+    $control = static fn(string $what) => HttpClient::postForm($GLOBALS['http'] . '/_control/' . $what, [], ['timeout' => 3]);
+    $form = ['grant_type' => 'client_credentials', 'client_id' => $kit['app_client_id'], 'client_secret' => $kit['app_secret'], 'scope' => 'https://outlook.office365.com/.default'];
+    $store = $oauthStoreFile;
+    $resetStore = static function () use ($store): void { foreach (array_merge([$store], glob($store . '.*') ?: []) as $f) if (is_file($f)) unlink($f); };
+    $readStore = static fn(): array => (array) json_decode(is_file($GLOBALS['store']) ? (string) file_get_contents($GLOBALS['store']) : '[]', true);
+    $writeStore = static function (array $data): void { file_put_contents($GLOBALS['store'], json_encode($data)); chmod($GLOBALS['store'], 0600); };
+    $appCfg = static fn(array $o = []): array => array_replace([
+        'mail_driver' => 'smtp', 'mail_host' => '127.0.0.1', 'mail_port' => $GLOBALS['port']('oauth'), 'mail_encryption' => 'tls',
+        'mail_username' => $GLOBALS['kit']['mailbox'], 'mail_password' => '', 'mail_from' => $GLOBALS['kit']['mailbox'], 'mail_verify_peer' => true,
+        'mail_cafile' => $GLOBALS['sink']['cert'], 'mail_timeout' => 3,
+        'mail_oauth_provider' => 'microsoft', 'mail_oauth_flow' => 'app', 'mail_oauth_tenant' => 'contoso', 'mail_oauth_client_id' => $GLOBALS['kit']['app_client_id'],
+        'mail_oauth_client_secret' => $GLOBALS['kit']['app_secret'], 'mail_oauth_authority' => $GLOBALS['https'], 'mail_oauth_store' => $GLOBALS['store'],
+    ], $o);
+    $userCfg = static fn(array $o = []): array => $appCfg(array_replace([
+        'mail_oauth_flow' => 'user', 'mail_oauth_client_secret' => '', 'mail_oauth_client_id' => $GLOBALS['kit']['user_client_id'], 'mail_username' => '', 'mail_from' => '',
+    ], $o));
+    $resetStore();
+
+    // ---------------------------------------------------------------- the HTTPS client on its own
+    echo "\n-- the web client the token request uses --\n";
+    $before = count($requests('token_http'));
+    $odd = ['grant_type' => 'client_credentials', 'client_secret' => 'p@ss w0rd&x=1%2F+é', 'scope' => 'a b'];
+    $r = HttpClient::postForm($tokenUrl('contoso', false), $odd, $net);
+    $seen = array_slice($requests('token_http'), $before);
+    ok('a form is POSTed to the path asked for, as a urlencoded form, and arrives exactly as written (spaces, &, =, % and non-ASCII included)',
+        count($seen) === 1 && $seen[0]['method'] === 'POST' && $seen[0]['path'] === '/contoso/oauth2/v2.0/token' && str_starts_with((string) $seen[0]['ctype'], 'application/x-www-form-urlencoded') && $seen[0]['form'] === $odd, json_encode($seen));
+    ok('...with a Host header that names the server and its port', ($seen[0]['host'] ?? '') === '127.0.0.1:' . $port('token_http'), json_encode($seen));
+    ok('an OAuth refusal (HTTP 400) comes back as an answer to be read, not as an exception', $r['status'] === 400 && str_contains($r['body'], 'invalid_request'), $r['status'] . ' ' . substr($r['body'], 0, 80));
+    $r = HttpClient::postForm($tokenUrl('contoso'), $form, $net);
+    $answer = json_decode($r['body'], true);
+    ok('over HTTPS, with the certificate checked against the CA file, a token request is answered', $r['status'] === 200 && ($answer['token_type'] ?? '') === 'Bearer' && strlen((string) ($answer['access_token'] ?? '')) > 800, $r['status'] . ' ' . substr($r['body'], 0, 80));
+    try { HttpClient::postForm($tokenUrl('contoso'), $form, ['timeout' => 3, 'verify_peer' => true]); $why = ''; } catch (RuntimeException $e) { $why = $e->getMessage(); }
+    ok('...and a certificate the machine does not trust is refused, in words', str_contains($why, 'certificate could not be verified') && !preg_match('/[^\x20-\x7E]/', $why), $why);
+    $r = HttpClient::postForm($tokenUrl('contoso'), $form, ['timeout' => 3, 'verify_peer' => false]);
+    ok('...unless checking was switched off, as it is for MAIL_VERIFY_PEER=false', $r['status'] === 200);
+    foreach (['chunked' => 'a chunked answer (with an extension and a trailer)', 'closedelim' => 'an answer that ends when the server hangs up'] as $tenant => $what) {
+        $r = HttpClient::postForm($tokenUrl($tenant), $form, $net);
+        $answer = json_decode($r['body'], true);
+        ok("{$what} is read whole", $r['status'] === 200 && ($answer['token_type'] ?? '') === 'Bearer' && strlen((string) ($answer['access_token'] ?? '')) > 800, $r['status'] . ' ' . strlen($r['body']));
+    }
+    $r = HttpClient::postForm($tokenUrl('longheader'), $form, $net);
+    $answer = json_decode($r['body'], true);
+    ok('headers far longer than a line buffer (a 5000 character header and a 3000 character cookie, as real services send) do not stop the answer being read',
+        $r['status'] === 200 && ($answer['token_type'] ?? '') === 'Bearer' && strlen((string) ($answer['access_token'] ?? '')) > 800 && ($r['headers']['connection'] ?? '') === 'close', $r['status'] . ' ' . strlen($r['body']));
+    $before = count($requests('token_https'));
+    $r = HttpClient::postForm($tokenUrl('redirect'), $form, $net);
+    ok('a redirect is NOT followed (the form would go wherever it points); it is reported as it is', $r['status'] === 302 && ($r['headers']['location'] ?? '') === 'http://evil.example/steal' && count($requests('token_https')) === $before + 1);
+    $failure = static function (string $url, array $options = []) use ($form, $net): string {
+        try { HttpClient::postForm($url, $form, array_replace($net, $options)); return ''; } catch (RuntimeException $e) { return $e->getMessage(); }
+    };
+    ok('an answer of megabytes is refused, not read', str_contains($failure($tokenUrl('huge')), 'far larger'), $failure($tokenUrl('huge')));
+    ok('...also when the answer has no length and simply goes on until the connection closes', str_contains($failure($tokenUrl('hugeclose')), 'far larger'), $failure($tokenUrl('hugeclose')));
+    ok('...or arrives in chunks that are each modest and together far too much', str_contains($failure($tokenUrl('hugechunk')), 'far larger'), $failure($tokenUrl('hugechunk')));
+    ok('a header line of 200 kilobytes is refused, not read to the end', str_contains($failure($tokenUrl('hugeheader')), 'header line far longer'), $failure($tokenUrl('hugeheader')));
+    ok('a server that hangs up without answering is reported', str_contains($failure($tokenUrl('dropped')), 'closed the connection'), $failure($tokenUrl('dropped')));
+    ok('something that is not a web server is recognised, and shown as plain text', str_contains($failure($tokenUrl('garbage')), 'does not look like a web server') && !preg_match('/[^\x20-\x7E]/', $failure($tokenUrl('garbage'))), $failure($tokenUrl('garbage')));
+    $started = microtime(true);
+    $why = $failure($tokenUrl('slow'), ['timeout' => 1]);
+    ok('a server that never answers is given up on after the timeout', str_contains($why, 'did not answer') && microtime(true) - $started < 4, sprintf('%.1fs %s', microtime(true) - $started, $why));
+    $started = microtime(true);
+    $why = $failure('http://example.com/oauth2/token');
+    ok('sign-in details are never sent without encryption to another machine, and nothing is connected to', str_contains($why, 'without encryption') && microtime(true) - $started < 0.5, $why);
+    ok('an address with a user name and password in it, or a fragment, or a line break is refused', str_contains($failure('https://user:pw@example.com/x'), 'not usable') && str_contains($failure('https://example.com/x#frag'), 'not usable') && str_contains($failure("https://example.com/x\r\nHost: evil"), 'not usable'));
+    $gone = stream_socket_server('tcp://127.0.0.1:0');
+    $gonePort = (int) substr((string) stream_socket_get_name($gone, false), strrpos((string) stream_socket_get_name($gone, false), ':') + 1);
+    fclose($gone);
+    $why = $failure('http://127.0.0.1:' . $gonePort . '/x');
+    ok('a port nobody listens on fails quickly with a reason, as plain text', $why !== '' && !preg_match('/stream_socket_client|Warning|[^\x20-\x7E]/', $why), $why);
+
+    // ---------------------------------------------------------------- the token, the app way
+    echo "\n-- the app way (client credentials) --\n";
+    $resetStore();
+    mailConfig($appCfg());
+    $before = count($requests('token_https'));
+    $token = MailOAuth::accessToken($net);
+    $seen = array_slice($requests('token_https'), $before);
+    ok('the website asks for a token with the client credentials, for the SMTP resource, from the tenant\'s own address, and sends nothing else',
+        count($seen) === 1 && $seen[0]['path'] === '/contoso/oauth2/v2.0/token' && $seen[0]['form'] === $form, json_encode($seen));
+    ok('the token is a long run of visible characters (it goes into a command line)', strlen($token) > 800 && preg_match('/^[\x21-\x7E]+$/', $token) === 1);
+    ok('it is saved in a file only its owner can read', is_file($store) && (PHP_OS_FAMILY === 'Windows' || (fileperms($store) & 0077) === 0), decoct(fileperms($store) & 0777));
+    ok('...which holds the token and not the client secret, and no half-written file is left beside it', str_contains((string) file_get_contents($store), $token) && !str_contains((string) file_get_contents($store), $kit['app_secret']) && !glob($store . '.*.tmp'));
+    ok('what it did is reported without the token in it', str_contains(MailOAuth::note(), 'new access token') && !str_contains(MailOAuth::note(), $token));
+    $before = count($requests('token_https'));
+    ok('the next message reuses the saved token, with no request to Microsoft at all', MailOAuth::accessToken($net) === $token && count($requests('token_https')) === $before && MailOAuth::lastTokenWasSaved() && str_contains(MailOAuth::note(), 'saved earlier'));
+    mailConfig($appCfg(['mail_oauth_tenant' => 'short']));
+    $first = MailOAuth::accessToken($net);
+    $second = MailOAuth::accessToken($net);
+    ok('a token with under five minutes left is not reused (it could expire during the message): each message gets a fresh one', $first !== $second && !MailOAuth::lastTokenWasSaved());
+    ok('a token saved for another tenant or app is never offered for this one', MailOAuth::accessToken($net) !== $token);
+    $resetStore();
+    mailConfig($appCfg());
+    $good = MailOAuth::accessToken($net);
+    mailConfig($appCfg(['mail_oauth_client_secret' => 'Changed~To.Something-Wrong-1']));
+    try { MailOAuth::accessToken($net); $why = ''; } catch (RuntimeException $e) { $why = $e->getMessage(); }
+    ok('a client secret that was just changed is tried at once: the token saved under the old one is not reused (the test button must not say "fine" for an hour)', $good !== '' && str_contains($why, 'client secret is wrong'), $why);
+    mailConfig($appCfg());
+    ok('...and putting the right one back finds the saved token again (nothing was thrown away)', MailOAuth::accessToken($net) === $good && MailOAuth::lastTokenWasSaved());
+    $resetStore();
+
+    $closed = stream_socket_server('tcp://127.0.0.1:0');
+    $closedAt = (int) substr((string) stream_socket_get_name($closed, false), strrpos((string) stream_socket_get_name($closed, false), ':') + 1);
+    fclose($closed);
+    $problemOf = static function (array $cfg) use ($appCfg, $net, $resetStore): string {
+        $resetStore();
+        mailConfig($appCfg($cfg));
+        try { MailOAuth::accessToken(['timeout' => (int) ($cfg['mail_timeout'] ?? 3)] + $net); return ''; } catch (RuntimeException $e) { return $e->getMessage(); }
+    };
+    $wrongSecret = 'Wr0ng~Secret.Sentinel-9876';
+    $msg = $problemOf(['mail_oauth_client_secret' => $wrongSecret]);
+    ok('a wrong client secret is explained in plain words, with Microsoft\'s own code, and without Microsoft\'s trace lines', str_contains($msg, 'Microsoft would not issue an access token') && str_contains($msg, 'client secret is wrong') && str_contains($msg, 'AADSTS7000215') && !str_contains($msg, 'Trace ID'), $msg);
+    ok('...never with the secret in it', !str_contains($msg, $wrongSecret) && !str_contains($msg, $kit['app_secret']));
+    ok('...and Mailer::hint says what to do about it', str_contains(Mailer::hint($msg), 'Certificates & secrets'), Mailer::hint($msg));
+    $msg = $problemOf(['mail_oauth_client_id' => '99999999-9999-4999-8999-999999999999']);
+    ok('an unknown app is explained, pointing at the Overview page', str_contains($msg, 'No app with that client ID') && str_contains(Mailer::hint($msg), 'Overview'), $msg);
+    $msg = $problemOf(['mail_oauth_tenant' => 'echo', 'mail_oauth_client_secret' => $kit['app_secret']]);
+    ok('...nor in the form it travelled in (URL-encoded), which is what a proxy echoing the request body would show', !str_contains($msg, urlencode($kit['app_secret'])) && !str_contains($msg, substr($kit['app_secret'], 0, 12)), $msg);
+    ok('a refusal that echoes back the client secret is shown with the secret masked, as plain text', str_contains($msg, '***') && !str_contains($msg, $kit['app_secret']) && !preg_match('/[^\x20-\x7E]/', $msg) && strlen($msg) < 700, $msg);
+    $started = microtime(true);
+    $msg = $problemOf(['mail_oauth_tenant' => 'slow', 'mail_timeout' => 1]);
+    ok('a sign-in service that never answers is reported as unreachable, quickly, with the way out', str_contains($msg, 'Could not reach the Microsoft sign-in service') && str_contains($msg, 'did not answer') && microtime(true) - $started < 5 && str_contains(Mailer::hint($msg), 'login.microsoftonline.com'), sprintf('%.1fs %s', microtime(true) - $started, $msg));
+    foreach (['html' => 'HTTP 200', 'badjson' => 'HTTP 200', 'redirect' => 'HTTP 302'] as $tenant => $code) {
+        $msg = $problemOf(['mail_oauth_tenant' => $tenant]);
+        ok("an answer that is not a token ({$tenant}) is said to be that, with its HTTP status", str_contains($msg, 'not a token') && str_contains($msg, $code), $msg);
+    }
+    // The first step (asking for a sign-in code) gets the same kind of answer, and says what it was waiting for.
+    foreach (['html', 'badjson'] as $tenant) {
+        $resetStore();
+        mailConfig($userCfg(['mail_oauth_tenant' => $tenant]));
+        try { MailOAuth::beginDeviceLogin($net); $msg = ''; } catch (RuntimeException $e) { $msg = $e->getMessage(); }
+        ok("...an answer to the request for a sign-in code that is not one ({$tenant}) says \"not a sign-in code\", not \"not a token\"", str_contains($msg, 'something that is not a sign-in code (HTTP 200)') && !str_contains($msg, 'not a token'), $msg);
+    }
+    mailConfig($appCfg());
+    $msg = $problemOf(['mail_oauth_authority' => 'https://127.0.0.1:' . $closedAt]);
+    ok('an address nothing listens on is reported as unreachable', str_contains($msg, 'Could not reach the Microsoft sign-in service') && !preg_match('/stream_socket_client|Warning|[^\x20-\x7E]/', $msg), $msg);
+    $before = count($requests('token_https'));
+    $msg = $problemOf(['mail_oauth_tenant' => '']);
+    ok('a setting that cannot work is reported without asking Microsoft anything', str_contains($msg, 'MAIL_OAUTH_TENANT is empty') && count($requests('token_https')) === $before, $msg);
+    $resetStore();
+    // A store that cannot be written is only a cache that cannot be kept.
+    file_put_contents($store, '{}');   // a path beneath a plain file can never be created, on any system
+    mailConfig($appCfg(['mail_oauth_store' => $store . '/below/mail-oauth.json']));
+    clearErrorLog();
+    $unsaved = MailOAuth::accessToken($net);
+    ok('a token store that cannot be written costs a request per message, not the message, and no PHP warning in the log', strlen($unsaved) > 800 && !preg_match('/PHP (Warning|Notice|Deprecated)/', errorLogText()), errorLogText());
+    $resetStore();
+
+    // ---------------------------------------------------------------- the whole thing: a message, signed in by token
+    echo "\n-- a message, signed in with an access token --\n";
+    mailConfig($appCfg());
+    clearErrorLog();
+    $beforeMsgs = count(sinkMessages($sink, 'oauth'));
+    $beforeTokens = count($requests('token_https'));
+    $sent = Mailer::send('office@example.com', 'Via OAuth · CTE-0A1B2C3D', $sample, 'visitor@example.org');
+    $got = array_slice(sinkMessages($sink, 'oauth'), $beforeMsgs);
+    ok('a message goes through a server that only takes OAuth (STARTTLS first, then AUTH XOAUTH2)', $sent === true && count($got) === 1 && ($got[0]['tls'] ?? false) === true, Mailer::lastError());
+    ok('the server knows who sent it (the mailbox in the sign-in string), and the envelope is the mailbox to the office', ($got[0]['authed'] ?? '') === $kit['mailbox'] && ($got[0]['mail_from'] ?? '') === $kit['mailbox'] && ($got[0]['rcpts'] ?? []) === ['office@example.com']);
+    $oauthEvents = sinkEvents($sink, 'oauth');
+    $okEvent = array_values(array_filter($oauthEvents, static fn($e) => ($e['event'] ?? '') === 'auth_ok'));
+    $usedToken = (string) end($okEvent)['token'];
+    ok('what it signed in with was the token Microsoft\'s service issued, over the encrypted connection, as XOAUTH2 and never as a password', $usedToken === (string) ($readStore()['app']['access_token'] ?? 'none') && end($okEvent)['mech'] === 'XOAUTH2' && end($okEvent)['tls'] === true && count($requests('token_https')) === $beforeTokens + 1);
+    $talk = implode("\n", Mailer::conversation());
+    $xoauthString = SmtpClient::xoauth2($kit['mailbox'], $usedToken);
+    ok('the conversation shows the sign-in, with neither the token nor the string it travelled in, in either encoding', str_contains($talk, 'AUTH XOAUTH2 ***') && !str_contains($talk, $usedToken) && !str_contains($talk, $xoauthString) && !str_contains($talk, base64_encode($usedToken)));
+    ok('...and says where the token came from (without it)', str_contains($talk, 'OAuth: got a new access token') && str_contains($talk, 'good for 59 minutes'));
+    $mh = parseMessage((string) ($got[0]['data'] ?? ''));
+    ok('the message itself is the same one every driver sends (subject, sender, reply-to, body)', decodeWords($mh['headers']['subject'][0] ?? '') === 'Via OAuth · CTE-0A1B2C3D' && str_ends_with($mh['headers']['from'][0] ?? '', '<' . $kit['mailbox'] . '>') && ($mh['headers']['reply-to'][0] ?? '') === 'visitor@example.org' && quoted_printable_decode($mh['body']) === crlf($sample) . "\r\n");
+    ok('a success leaves the error log empty', errorLogText() === '' && Mailer::lastError() === '', errorLogText());
+    $beforeTokens = count($requests('token_https'));
+    $sent = Mailer::send('office@example.com', 'Second', 'again');
+    $okEvent = array_values(array_filter(sinkEvents($sink, 'oauth'), static fn($e) => ($e['event'] ?? '') === 'auth_ok'));
+    ok('the second message signs in with the same saved token, and Microsoft is not asked again', $sent === true && end($okEvent)['token'] === $usedToken && count($requests('token_https')) === $beforeTokens && str_contains(implode("\n", Mailer::conversation()), 'saved earlier'));
+
+    // A token taken back before it expired: the server refuses it, the saved copy is dropped, one fresh token is tried.
+    $control('revoke');
+    clearErrorLog();
+    $beforeFail = sinkSaw($sink, 'oauth', 'auth_failed');
+    $beforeTokens = count($requests('token_https'));
+    $beforeMsgs = count(sinkMessages($sink, 'oauth'));
+    $sent = Mailer::send('office@example.com', 'After a revoked token', 'body');
+    $okEvent = array_values(array_filter(sinkEvents($sink, 'oauth'), static fn($e) => ($e['event'] ?? '') === 'auth_ok'));
+    ok('a saved token the server no longer accepts is replaced at once, and the message still goes (once)', $sent === true && sinkSaw($sink, 'oauth', 'auth_failed') === $beforeFail + 1 && count($requests('token_https')) === $beforeTokens + 1
+        && count(sinkMessages($sink, 'oauth')) === $beforeMsgs + 1 && end($okEvent)['token'] !== $usedToken && end($okEvent)['token'] === ($readStore()['app']['access_token'] ?? ''), Mailer::lastError());
+    ok('...with nothing in the error log (it was recovered)', errorLogText() === '', errorLogText());
+
+    // Refused for good: the wrong mailbox. A fresh token is not retried; a saved one gets exactly one more chance.
+    $wrongBox = 'someone.else@contoso.test';
+    $resetStore();
+    mailConfig($appCfg(['mail_username' => $wrongBox, 'mail_from' => $wrongBox]));
+    clearErrorLog();
+    $beforeFail = sinkSaw($sink, 'oauth', 'auth_failed');
+    $beforeTokens = count($requests('token_https'));
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('a mailbox the token is not for is refused, in words, and a FRESH token is not tried twice', $sent === false && str_contains(Mailer::lastError(), 'OAuth sign-in was refused') && str_contains(Mailer::lastError(), '535 5.7.3') && sinkSaw($sink, 'oauth', 'auth_failed') === $beforeFail + 1 && count($requests('token_https')) === $beforeTokens + 1, Mailer::lastError());
+    ok('...with the exact things to check, naming Authenticated SMTP, the mailbox address and the service principal', str_contains(Mailer::hint(Mailer::lastError()), 'Authenticated SMTP') && str_contains(Mailer::hint(Mailer::lastError()), 'MAIL_USERNAME') && str_contains(Mailer::hint(Mailer::lastError()), 'service principal'), Mailer::hint(Mailer::lastError()));
+    ok('...and exactly one plain line in the error log, free of the token', substr_count(errorLogText(), 'Mail not sent (smtp): OAuth sign-in was refused') === 1 && substr_count(rtrim(errorLogText()), "\n") === 0 && !str_contains(errorLogText(), (string) ($readStore()['app']['access_token'] ?? 'none')), errorLogText());
+    $beforeFail = sinkSaw($sink, 'oauth', 'auth_failed');
+    $beforeTokens = count($requests('token_https'));
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('a SAVED token that is refused gets exactly one more try, with a new one, and then the failure is reported (no loop)', $sent === false && sinkSaw($sink, 'oauth', 'auth_failed') === $beforeFail + 2 && count($requests('token_https')) === $beforeTokens + 1, Mailer::lastError());
+
+    // Other servers, other ways of saying no.
+    $resetStore();
+    mailConfig($appCfg(['mail_port' => $port('oauth334')]));
+    MailOAuth::accessToken($net);
+    $control('revoke');   // the saved token is now one the server will refuse, with a 334 explanation first
+    $beforeMsgs = count(sinkMessages($sink, 'oauth334'));
+    $beforeChallenge = sinkSaw($sink, 'oauth334', 'challenge_answered');
+    $sent = Mailer::send('office@example.com', 'Gmail style', 'body');
+    $challenges = array_values(array_filter(sinkEvents($sink, 'oauth334'), static fn($e) => ($e['event'] ?? '') === 'challenge_answered'));
+    ok('a server that explains a refusal with a 334 gets the empty line the protocol asks for (without it the real 535 never arrives), and the message still goes after the retry',
+        $sent === true && count(sinkMessages($sink, 'oauth334')) === $beforeMsgs + 1 && sinkSaw($sink, 'oauth334', 'challenge_answered') === $beforeChallenge + 1 && end($challenges)['line'] === '', Mailer::lastError());
+    mailConfig($appCfg(['mail_port' => $port('oauth334'), 'mail_username' => $wrongBox, 'mail_from' => $wrongBox]));
+    $resetStore();
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('...and when the refusal is for good, the 535 behind the 334 is what is reported, with the server\'s explanation decoded in the conversation', $sent === false && str_contains(Mailer::lastError(), 'OAuth sign-in was refused') && str_contains(Mailer::lastError(), '535 5.7.8')
+        && str_contains(implode("\n", Mailer::conversation()), 'explanation, decoded') && str_contains(implode("\n", Mailer::conversation()), 'Bearer'), Mailer::lastError());
+
+    $resetStore();
+    mailConfig($appCfg(['mail_port' => $port('oauthoff')]));
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('"Authenticated SMTP is switched off" (535 5.7.139) is recognised, and the hint is where to switch it on', $sent === false && str_contains(Mailer::lastError(), '5.7.139') && str_contains(Mailer::hint(Mailer::lastError()), 'Manage email apps') && str_contains(Mailer::hint(Mailer::lastError()), 'Authenticated SMTP'), Mailer::lastError());
+
+    $resetStore();
+    clearErrorLog();
+    mailConfig($appCfg(['mail_port' => $port('oauthecho'), 'mail_username' => $wrongBox, 'mail_from' => $wrongBox]));
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    $saved = (string) ($readStore()['app']['access_token'] ?? 'none');
+    $everything = Mailer::lastError() . ' ' . errorLogText() . ' ' . implode(' ', Mailer::conversation());
+    $lastXoauth = SmtpClient::xoauth2($wrongBox, $saved);
+    ok('a careless server that echoes the token back, plain and in base64, in a long reply, leaves it nowhere: not on the page, in the log or in the conversation',
+        $sent === false && $saved !== 'none' && !str_contains($everything, $saved) && !str_contains($everything, base64_encode($saved)) && !str_contains($everything, $lastXoauth) && !str_contains($everything, base64_encode($lastXoauth)) && str_contains(Mailer::lastError(), 'OAuth sign-in was refused'), substr(Mailer::lastError(), 0, 200));
+    // Real tokens are far longer than the 300 characters of a message, so whether the end of one slips through
+    // cannot be seen from a whole-token comparison: look for pieces of it, and ask the masking directly.
+    $piece = static fn(string $s): string => substr($s, 20, 40);
+    ok('...not even a piece of the token, of its base64 or of the string it travelled in', !str_contains($everything, $piece($saved)) && !str_contains($everything, $piece(base64_encode($saved))) && !str_contains($everything, substr($lastXoauth, 100, 40)) && str_contains(Mailer::lastError(), '***'), substr(Mailer::lastError(), 0, 300));
+    $longToken = 'EwB' . str_repeat('ey', 300) . '.' . str_repeat('Zm', 200);
+    $wholeAndPartial = SmtpClient::maskSecret('a ' . $longToken . ' b ' . base64_encode($longToken) . ' c ' . urlencode('Sup3r~Secret.Value+0123456789/x') . ' d ' . substr(base64_encode($longToken), 0, 500), $longToken);
+    ok('masking hides a secret in the forms a careless server echoes it (as sent, base64), whole or cut short in the middle of a piece', $wholeAndPartial === 'a *** b *** c ' . urlencode('Sup3r~Secret.Value+0123456789/x') . ' d ***', $wholeAndPartial);
+    $spec = 'Sup3r~Secret.Value+0123456789/x';
+    $encodedForms = SmtpClient::maskSecret('x=' . urlencode($spec) . '&y=' . rawurlencode($spec) . '&z=' . base64_encode($spec) . '&w=' . $spec, $spec);
+    ok('...URL-encoded (both ways) and base64 too, so a proxy that echoes a request body leaks nothing', $encodedForms === 'x=***&y=***&z=***&w=***', $encodedForms);
+    ok('...and leaves text without the secret alone, an empty secret alone, and cannot be sent into a loop by a secret that looks like its own mask',
+        SmtpClient::maskSecret('nothing to hide here', $longToken) === 'nothing to hide here' && SmtpClient::maskSecret('abc', '') === 'abc' && SmtpClient::maskSecret('x *** y ***** z', '*****') === 'x *** y *** z');
+    $scrub = new ReflectionMethod(SmtpClient::class, 'scrub');
+    $masked = $scrub->invoke(new SmtpClient(['host' => 'x.example', 'username' => 'a@b.example', 'token' => $longToken]), 'before ' . $longToken . ' middle ' . base64_encode($longToken) . ' end');
+    ok('a token is masked wherever it stands in a server\'s text, plain and in base64, before the text is cut to length', $masked === 'before *** middle *** end', $masked);
+    ok('...as printable text, cut to a sensible length', !preg_match('/[^\x20-\x7E]/', Mailer::lastError()) && strlen(Mailer::lastError()) <= 400, (string) strlen(Mailer::lastError()));
+
+    // A password, aimed at a server that wants OAuth or has stopped taking passwords.
+    mailConfig(['mail_port' => $port('basicoff'), 'mail_encryption' => 'tls', 'mail_cafile' => $sink['cert'], 'mail_username' => $kit['mailbox'], 'mail_password' => 'a-password-microsoft-no-longer-takes', 'mail_oauth_provider' => '']);
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('a password set-up meeting Microsoft\'s "Basic authentication is not supported" (550 5.7.30) is told what has happened and exactly what to set instead', $sent === false && str_contains(Mailer::lastError(), '5.7.30')
+        && str_contains(Mailer::hint(Mailer::lastError()), 'MAIL_OAUTH_PROVIDER=microsoft') && str_contains(Mailer::hint(Mailer::lastError()), 'docs/EMAIL.md'), Mailer::lastError());
+    mailConfig(['mail_port' => $port('oauth'), 'mail_encryption' => 'tls', 'mail_cafile' => $sink['cert'], 'mail_username' => $kit['mailbox'], 'mail_password' => 'a-password-for-a-server-that-wants-oauth', 'mail_oauth_provider' => '']);
+    $beforeAttempts = sinkSaw($sink, 'oauth', 'auth_attempt');
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('a password aimed at a server that takes only OAuth is refused before anything is sent, with the way out', $sent === false && str_contains(Mailer::lastError(), 'only accepts OAuth sign-in') && sinkSaw($sink, 'oauth', 'auth_attempt') === $beforeAttempts && str_contains(Mailer::hint(Mailer::lastError()), 'MAIL_OAUTH_PROVIDER=microsoft'), Mailer::lastError());
+    $resetStore();
+    mailConfig($appCfg(['mail_port' => $port('starttls')]));
+    $beforeAttempts = sinkSaw($sink, 'starttls', 'auth_attempt');
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('OAuth aimed at a server that offers only passwords says so, lists what it does offer, and sends no token', $sent === false && str_contains(Mailer::lastError(), 'does not offer OAuth sign-in (XOAUTH2); it offers PLAIN, LOGIN') && sinkSaw($sink, 'starttls', 'auth_attempt') === $beforeAttempts && str_contains(Mailer::hint(Mailer::lastError()), 'smtp.office365.com'), Mailer::lastError());
+    $resetStore();
+    mailConfig($appCfg(['mail_port' => $port('oauthnotls')]));
+    $beforeAttempts = sinkSaw($sink, 'oauthnotls', 'auth_attempt');
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('a token is never sent over a connection that was not encrypted when encryption was asked for', $sent === false && str_contains(Mailer::lastError(), 'STARTTLS') && sinkSaw($sink, 'oauthnotls', 'auth_attempt') === $beforeAttempts, Mailer::lastError());
+
+    // ---------------------------------------------------------------- the token, a person's way (device code)
+    echo "\n-- the connect way (a person signs in once) --\n";
+    $resetStore();
+    mailConfig($userCfg());
+    $beforeTokens = count($requests('token_https'));
+    ok('before anyone has connected, sending says so and asks Microsoft nothing', Mailer::send('office@example.com', 'x', 'y') === false && str_contains(Mailer::lastError(), 'is not connected yet') && str_contains(Mailer::hint(Mailer::lastError()), 'press Connect') && count($requests('token_https')) === $beforeTokens, Mailer::lastError());
+    ok('...and the settings report it before anything is pressed', (bool) array_filter(Mailer::problems(), static fn($p) => str_contains($p, 'is not connected yet')));
+    $beforeDev = count($requests('token_https'));
+    $device = MailOAuth::beginDeviceLogin($net);
+    $seen = array_slice($requests('token_https'), $beforeDev);
+    ok('connecting asks for a device code with the app\'s client ID and the SMTP.Send permission, a refresh token and the identity scopes, and no secret',
+        count($seen) === 1 && $seen[0]['path'] === '/contoso/oauth2/v2.0/devicecode' && $seen[0]['form'] === ['client_id' => $kit['user_client_id'], 'scope' => 'https://outlook.office.com/SMTP.Send offline_access openid profile'], json_encode($seen));
+    ok('what comes back is the short code to type, the page to open, a lifetime and a polling interval, all within sane bounds', $device['user_code'] === 'AB12CD34' && $device['verification_uri'] === 'https://microsoft.com/devicelogin' && $device['expires_at'] > time() + 600 && $device['expires_at'] <= time() + 900 && $device['interval'] === 5 && strlen($device['device_code']) > 40);
+    $beforeDev = count($requests('token_https'));
+    $state = MailOAuth::pollDeviceLogin($device, $net);
+    $seen = array_slice($requests('token_https'), $beforeDev);
+    ok('asking before the person has signed in is "pending", and the question is the standard device-code grant with no secret',
+        $state['state'] === 'pending' && count($seen) === 1 && $seen[0]['form'] === ['grant_type' => 'urn:ietf:params:oauth:grant-type:device_code', 'client_id' => $kit['user_client_id'], 'device_code' => $device['device_code']], json_encode($seen));
+    ok('...and nothing is saved yet', !MailOAuth::settings()['connected'] && $readStore() === []);
+    $control('approve');
+    $state = MailOAuth::pollDeviceLogin($device, $net);
+    ok('once the person has signed in, the next question connects: the account is read from the answer', $state['state'] === 'connected' && $state['account'] === $kit['mailbox'], json_encode($state));
+    $saved = $readStore()['user'] ?? [];
+    ok('the refresh token and the account are saved in a file only the owner can read', strlen((string) ($saved['refresh_token'] ?? '')) > 60 && ($saved['account'] ?? '') === $kit['mailbox'] && (PHP_OS_FAMILY === 'Windows' || (fileperms($store) & 0077) === 0));
+    ok('...and the website now knows it is connected, as that account', MailOAuth::settings()['connected'] && MailOAuth::settings()['account'] === $kit['mailbox'] && Mailer::settings()['username'] === $kit['mailbox'] && Mailer::settings()['from'] === $kit['mailbox'], json_encode(MailOAuth::settings()));
+    ok('...with nothing left to fix in the settings', Mailer::problems() === [], implode(' | ', Mailer::problems()));
+    ok('...and describe() says which account', str_contains(Mailer::describe(), 'Microsoft 365 OAuth as ' . $kit['mailbox']), Mailer::describe());
+
+    clearErrorLog();
+    $beforeMsgs = count(sinkMessages($sink, 'oauth'));
+    $beforeTokens = count($requests('token_https'));
+    $sent = Mailer::send('office@example.com', 'Sent as the connected account', 'body');
+    ok('a message goes out with the token the sign-in already produced, without another request', $sent === true && count(sinkMessages($sink, 'oauth')) === $beforeMsgs + 1 && count($requests('token_https')) === $beforeTokens && errorLogText() === '', Mailer::lastError());
+    // Expiry: the saved access token has run out, so the saved refresh token is used, and Microsoft's new one replaces it.
+    $data = $readStore();
+    $oldRefresh = (string) $data['user']['refresh_token'];
+    $data['user']['expires_at'] = time() - 5;
+    $writeStore($data);
+    $beforeDev = count($requests('token_https'));
+    $sent = Mailer::send('office@example.com', 'After the token expired', 'body');
+    $seen = array_slice($requests('token_https'), $beforeDev);
+    $after = $readStore()['user'] ?? [];
+    ok('when the access token has run out, the refresh token gets a new one (refresh grant, with the SMTP scopes, no secret) and the message goes',
+        $sent === true && count($seen) === 1 && ($seen[0]['form']['grant_type'] ?? '') === 'refresh_token' && ($seen[0]['form']['refresh_token'] ?? '') === $oldRefresh && ($seen[0]['form']['client_id'] ?? '') === $kit['user_client_id']
+        && !isset($seen[0]['form']['client_secret']) && str_contains((string) $seen[0]['form']['scope'], 'https://outlook.office.com/SMTP.Send'), Mailer::lastError() . ' ' . json_encode($seen));
+    ok('Microsoft\'s replacement refresh token is kept in place of the old one, with the account and the date it was connected', ($after['refresh_token'] ?? '') !== $oldRefresh && strlen((string) ($after['refresh_token'] ?? '')) > 60 && ($after['account'] ?? '') === $kit['mailbox'] && ($after['connected_at'] ?? '') === ($data['user']['connected_at'] ?? 'x'));
+    // A connection Microsoft no longer honours.
+    $data = $readStore();
+    $data['user']['refresh_token'] = '0.Abogus-refresh-token-Microsoft-never-issued';
+    $data['user']['expires_at'] = time() - 5;
+    $writeStore($data);
+    $sent = Mailer::send('office@example.com', 'x', 'y');
+    ok('a lapsed connection (a refresh token Microsoft no longer honours) is explained, and the way out is to connect again', $sent === false && str_contains(Mailer::lastError(), 'expired because it was not used') && str_contains(Mailer::hint(Mailer::lastError()), 'Connect again'), Mailer::lastError());
+    ok('...without showing the refresh token', !str_contains(Mailer::lastError(), 'bogus-refresh-token') && !str_contains(errorLogText(), 'bogus-refresh-token'));
+    mailConfig($userCfg(['mail_oauth_client_id' => '33333333-3333-4333-8333-333333333333']));
+    ok('a connection made with another app registration is not offered for this one', !MailOAuth::settings()['connected']);
+    mailConfig($userCfg(['mail_oauth_tenant' => 'evilurl']));
+    $device = MailOAuth::beginDeviceLogin($net);
+    ok('a sign-in page address that is not https (a javascript: address, say) is never offered as a link: Microsoft\'s own is used instead', $device['verification_uri'] === 'https://microsoft.com/devicelogin', $device['verification_uri']);
+    mailConfig($userCfg(['mail_oauth_tenant' => 'evilquote']));
+    $device = MailOAuth::beginDeviceLogin($net);
+    ok('...nor one with a quote or a bracket in it (it would end the link and start markup)', $device['verification_uri'] === 'https://microsoft.com/devicelogin', $device['verification_uri']);
+    mailConfig($userCfg(['mail_oauth_tenant' => 'evilcode']));
+    try { MailOAuth::beginDeviceLogin($net); $why = ''; } catch (RuntimeException $e) { $why = $e->getMessage(); }
+    ok('a sign-in code that is not plain letters and digits (markup, say) is refused, not shown', $why !== '' && !str_contains($why, '<script>'), $why);
+    mailConfig($userCfg());
+    $badCode = ['device_code' => 'a-device-code-nobody-issued', 'expires_at' => time() + 600];
+    try { MailOAuth::pollDeviceLogin($badCode, $net); $why = ''; } catch (RuntimeException $e) { $why = $e->getMessage(); }
+    ok('a sign-in code Microsoft does not know is refused in words', str_contains($why, 'did not recognise that sign-in code'), $why);
+    try { MailOAuth::pollDeviceLogin(['device_code' => 'x', 'expires_at' => time() - 1], $net); $why = ''; } catch (RuntimeException $e) { $why = $e->getMessage(); }
+    ok('a code that has expired is refused without asking Microsoft', str_contains($why, 'has expired'), $why);
+    mailConfig($appCfg());
+    try { MailOAuth::beginDeviceLogin($net); $why = ''; } catch (RuntimeException $e) { $why = $e->getMessage(); }
+    ok('there is nothing to connect when the website signs in as an app', str_contains($why, 'nothing to connect'), $why);
+    mailConfig($userCfg(['mail_oauth_client_id' => '99999999-9999-4999-8999-999999999999']));
+    try { MailOAuth::beginDeviceLogin($net); $why = ''; } catch (RuntimeException $e) { $why = $e->getMessage(); }
+    ok('connecting with a client ID Microsoft does not know says so, pointing at the Overview page', str_contains($why, 'Microsoft would not issue an access token') && str_contains(Mailer::hint($why), 'Overview'), $why);
+    mailConfig($userCfg());
+    MailOAuth::disconnect();
+    ok('disconnecting forgets the account: not connected, and a message says so', !MailOAuth::settings()['connected'] && (Mailer::send('office@example.com', 'x', 'y') === false) && str_contains(Mailer::lastError(), 'is not connected yet'));
+
+    // ---------------------------------------------------------------- the buttons on the Settings page
+    echo "\n-- the sign-in card on the Settings page --\n";
+    $admin = ['id' => 987655, 'name' => 'Test Administrator', 'email' => 'owner@example.org'];
+    $oauthKey = 'mailoauth|' . $admin['id'];
+    RateLimiter::clear($oauthKey);
+    $_SESSION = [];
+    $resetStore();
+    mailConfig($userCfg());
+    $renderCard = static function (): string {
+        $settings = [];
+        $mail = ['enabled' => Mailer::enabled(), 'describe' => Mailer::describe(), 'problems' => Mailer::problems(), 'to' => 'owner@example.org', 'oauth' => (new ReflectionMethod(AdminController::class, 'mailOAuthView'))->invoke(null)];
+        ob_start();
+        include ROOT_PATH . '/app/views/admin/settings.php';
+        return (string) ob_get_clean();
+    };
+    $page = $renderCard();
+    ok('not connected: the card says so and offers Connect, in a form of its own with a CSRF token', str_contains($page, 'id="mail-oauth"') && str_contains($page, 'Not connected') && str_contains($page, 'value="oauth-connect"') && !str_contains($page, 'value="oauth-check"')
+        && preg_match('/<form[^>]*method="post"[^>]*>\s*<input type="hidden" name="_token" value="[a-f0-9]+">\s*<div class="admin-card admin-form" id="mail-oauth">/', $page) === 1 && substr_count($page, '<form') === substr_count($page, '</form>'));
+    $r = AdminController::mailOAuthStep($admin, 'oauth-connect');
+    $deviceCode = (string) ($_SESSION['mail_oauth_device']['device_code'] ?? 'none');
+    ok('Connect keeps the long device code in the session and tells the person only the short code', $r['ok'] && str_contains($r['message'], 'AB12CD34') && strlen($deviceCode) > 40 && !str_contains($r['message'], $deviceCode), json_encode($r));
+    $page = $renderCard();
+    $noteAt = strpos($page, 'gave the sign-in code AB12CD34. Follow the steps below.');
+    ok('the answer to the press is shown inside the card (under its heading, above the steps), not flashed at the top of the page', $noteAt !== false && $noteAt > strpos($page, 'id="mail-oauth"') && $noteAt < strpos($page, 'class="oauth-steps"') && !isset($_SESSION['flash']) && !isset($_SESSION['mail_oauth_note']));
+    ok('...once: showing the page again does not show it again', !str_contains($renderCard(), 'gave the sign-in code'));
+    $prettyBefore = $GLOBALS['config']['pretty_urls'] ?? true;
+    $landing = [];
+    foreach ([true, false] as $pretty) { $GLOBALS['config']['pretty_urls'] = $pretty; $landing[] = AdminController::mailOAuthLanding(); }
+    $GLOBALS['config']['pretty_urls'] = $prettyBefore;
+    ok('after a press the person is sent to the card itself, with either kind of link the site uses (the "#" is never encoded into the route)', $landing === ['/admin/settings#mail-oauth', '/index.php?route=admin%2Fsettings#mail-oauth'], json_encode($landing));
+    $providerBefore = $GLOBALS['config']['mail_oauth_provider'] ?? '';
+    $GLOBALS['config']['mail_oauth_provider'] = '';
+    ok('...and with OAuth off, to the plain Settings page (there is no card to land on)', AdminController::mailOAuthLanding() === '/admin/settings');
+    $GLOBALS['config']['mail_oauth_provider'] = $providerBefore;
+    ok('the card now shows the steps: the page to open, the code to type, and the button to press afterwards', str_contains($page, 'https://microsoft.com/devicelogin') && str_contains($page, 'AB12CD34') && str_contains($page, 'value="oauth-check"') && str_contains($page, 'I have signed in') && str_contains($page, 'value="oauth-cancel"') && str_contains($page, 'target="_blank" rel="noopener noreferrer"'));
+    ok('...and no secret, token or device code anywhere on the page', !str_contains($page, $deviceCode) && !str_contains($page, $kit['app_secret']) && !str_contains($page, 'refresh_token') && !str_contains($page, 'access_token'));
+    $r = AdminController::mailOAuthStep($admin, 'oauth-check');
+    $page = $renderCard();
+    ok('pressing it too early is not an error: the page says Microsoft has not seen the sign-in yet and keeps the code', $r === ['ok' => true, 'message' => ''] && str_contains($page, 'has not seen the sign-in yet') && str_contains($page, 'AB12CD34'), json_encode($r));
+    // A network failure leaves the code usable; a refusal ends it.
+    mailConfig($userCfg(['mail_oauth_authority' => 'https://127.0.0.1:' . $closedAt]));
+    $r = AdminController::mailOAuthStep($admin, 'oauth-check');
+    $page = $renderCard();
+    ok('a failure is shown in the card as a failure (the error colours and the alert icon), with what to try', preg_match('/<div class="notice notice-error" role="status">.*?Could not reach the Microsoft sign-in service.*?What to try:/s', $page) === 1);
+    $_SESSION['mail_oauth_note'] = ['ok' => false, 'message' => 'left over from a time when OAuth was on'];
+    mailConfig($userCfg(['mail_oauth_provider' => '']));
+    ok('with OAuth off there is no card to show a note, and a note left over is dropped, not saved for later', !str_contains($renderCard(), 'left over') && !isset($_SESSION['mail_oauth_note']));
+    mailConfig($userCfg());
+    ok('if Microsoft cannot be reached the person is told what to try, and the code stays usable', $r['ok'] === false && str_contains($r['message'], 'Could not reach the Microsoft sign-in service') && str_contains($r['message'], 'What to try:') && isset($_SESSION['mail_oauth_device']), $r['message']);
+    mailConfig($userCfg());
+    $control('approve');
+    $r = AdminController::mailOAuthStep($admin, 'oauth-check');
+    ok('once Microsoft has the sign-in, checking connects, and says which account and what to do next', $r['ok'] === true && str_contains($r['message'], 'is connected as ' . $kit['mailbox']) && str_contains($r['message'], 'Send a test email') && !isset($_SESSION['mail_oauth_device']) && MailOAuth::settings()['connected'], json_encode($r));
+    ok('...and the connection is in the activity log, without a token', (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'settings.mail_oauth' AND details = ?", ['Connected Microsoft 365 as ' . $kit['mailbox']]) >= 1);
+    $page = $renderCard();
+    ok('the card then says Connected, as whom and since when, and offers Connect again and Disconnect', str_contains($page, 'Connected</strong> as <strong>' . $kit['mailbox']) && str_contains($page, date('j F Y')) && str_contains($page, 'value="oauth-disconnect"') && str_contains($page, 'Connect again'), strip_tags(substr($page, (int) strpos($page, 'id="mail-oauth"'), 900)));
+    $_SESSION['mail_oauth_device'] = ['device_code' => 'a-device-code-nobody-issued', 'user_code' => 'ZZ99ZZ99', 'verification_uri' => 'https://microsoft.com/devicelogin', 'expires_at' => time() + 600, 'interval' => 5, 'checked_at' => 0];
+    $r = AdminController::mailOAuthStep($admin, 'oauth-check');
+    ok('a code Microsoft refuses ends the attempt: the message says why, and the code is dropped from the session', $r['ok'] === false && str_contains($r['message'], 'did not recognise that sign-in code') && !isset($_SESSION['mail_oauth_device']), $r['message']);
+    $noteOfFailure = (string) Database::value("SELECT details FROM audit_logs WHERE action = 'settings.mail_oauth' AND details LIKE 'Microsoft 365 sign-in failed:%' ORDER BY id DESC LIMIT 1");
+    ok('...and the refusal is in the activity log, in words and without the device code', str_contains($noteOfFailure, 'did not recognise that sign-in code') && !str_contains($noteOfFailure, 'a-device-code-nobody-issued'), $noteOfFailure);
+    $r = AdminController::mailOAuthStep($admin, 'oauth-check');
+    ok('checking when nothing is waiting says so', $r['ok'] === false && str_contains($r['message'], 'No sign-in is waiting'), $r['message']);
+    $_SESSION['mail_oauth_device'] = ['device_code' => 'x', 'user_code' => 'AB12CD34', 'verification_uri' => 'https://microsoft.com/devicelogin', 'expires_at' => time() - 1, 'interval' => 5, 'checked_at' => 0];
+    ok('a code past its time is not shown on the page', !str_contains($renderCard(), 'AB12CD34') && !isset($_SESSION['mail_oauth_device']));
+    $r = AdminController::mailOAuthStep($admin, 'oauth-disconnect');
+    ok('Disconnect forgets the account, says what that means, and is recorded', $r['ok'] === true && str_contains($r['message'], 'Disconnected') && !MailOAuth::settings()['connected'] && (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'settings.mail_oauth' AND details = 'Disconnected Microsoft 365'") >= 1, json_encode($r));
+    $r = AdminController::mailOAuthStep($admin, 'oauth-cancel');
+    ok('cancelling needs nothing said', $r === ['ok' => true, 'message' => '']);
+    $r = AdminController::mailOAuthStep($admin, 'oauth-nonsense');
+    ok('a button this page does not know is refused', $r['ok'] === false && str_contains($r['message'], 'not one this page knows'));
+    mailConfig($appCfg());
+    $page = $renderCard();
+    $notesBefore = (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'settings.mail_oauth'");
+    $r = AdminController::mailOAuthStep($admin, 'oauth-connect');
+    ok('...and pressing it anyway is turned away before anything is called or written down', (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'settings.mail_oauth'") === $notesBefore);
+    ok('with the app way there is nothing to connect: the card shows the app and the mailbox, offers no button, and a press is refused', str_contains($page, 'No password is used') && str_contains($page, $kit['app_client_id']) && str_contains($page, $kit['mailbox']) && !str_contains($page, 'value="oauth-connect"') && !str_contains($page, $kit['app_secret']) && $r['ok'] === false && str_contains($r['message'], 'nothing to connect'), $r['message']);
+    mailConfig($appCfg(['mail_oauth_provider' => '']));
+    $page = $renderCard();
+    $r = AdminController::mailOAuthStep($admin, 'oauth-connect');
+    ok('with OAuth off the card is not there at all, and a press is refused', !str_contains($page, 'id="mail-oauth"') && $r['ok'] === false && str_contains($r['message'], 'not switched on'));
+    mailConfig($userCfg());
+    RateLimiter::clear($oauthKey);
+    $results = [];
+    for ($i = 0; $i < 32; $i++) $results[] = AdminController::mailOAuthStep($admin, 'oauth-cancel');
+    ok('thirty presses in ten minutes are allowed, the next is refused (Microsoft is not hammered)', count(array_filter($results, static fn($x) => $x['ok'])) === 30 && str_contains($results[30]['message'], 'enough sign-in attempts'));
+    RateLimiter::clear($oauthKey);
+    $escaped = (static function (): string {
+        $settings = [];
+        $mail = ['enabled' => true, 'describe' => 'x', 'problems' => [], 'to' => 'a@b.example', 'oauth' => ['label' => 'Microsoft 365', 'flow' => 'user', 'client_id' => 'c', 'mailbox' => '', 'connected' => true,
+            'account' => '"><script>alert(1)</script>', 'connected_at' => '2026-11-23T10:00:00+01:00', 'supported' => true, 'device' => null]];
+        ob_start();
+        include ROOT_PATH . '/app/views/admin/settings.php';
+        return (string) ob_get_clean();
+    })();
+    ok('whatever the account is called, it is escaped on the page', !str_contains($escaped, '<script>alert(1)</script>') && str_contains($escaped, '&lt;script&gt;'));
+    $escapedNote = (static function (): string {
+        $settings = [];
+        $mail = ['enabled' => true, 'describe' => 'x', 'problems' => [], 'to' => 'a@b.example', 'oauth' => ['label' => 'Microsoft 365', 'flow' => 'user', 'client_id' => 'c', 'mailbox' => '', 'connected' => false,
+            'account' => '', 'connected_at' => '', 'supported' => true, 'device' => null, 'note' => ['ok' => false, 'message' => '<img src=x onerror=alert(1)> said no']]];
+        ob_start();
+        include ROOT_PATH . '/app/views/admin/settings.php';
+        return (string) ob_get_clean();
+    })();
+    ok('...and the note is text too: markup in what Microsoft said is shown, not run', !str_contains($escapedNote, '<img src=x') && str_contains($escapedNote, '&lt;img src=x onerror=alert(1)&gt; said no'));
+    $escapedSteps = (static function (): string {
+        $settings = [];
+        $mail = ['enabled' => true, 'describe' => 'x', 'problems' => [], 'to' => 'a@b.example', 'oauth' => ['label' => 'Microsoft 365', 'flow' => 'user', 'client_id' => 'c', 'mailbox' => '', 'connected' => false,
+            'account' => '', 'connected_at' => '', 'supported' => true,
+            'device' => ['user_code' => '<b>AB12</b>', 'verification_uri' => 'https://x.example/a"><script>alert(1)</script>', 'checked' => true, 'minutes_left' => 1]]];
+        ob_start();
+        include ROOT_PATH . '/app/views/admin/settings.php';
+        return (string) ob_get_clean();
+    })();
+    ok('...and so are the code and the address in the sign-in steps, even if something upstream let markup through', !str_contains($escapedSteps, '<script>alert(1)</script>') && !str_contains($escapedSteps, '<b>AB12</b>')
+        && str_contains($escapedSteps, '&lt;b&gt;AB12&lt;/b&gt;') && str_contains($escapedSteps, '&quot;&gt;&lt;script&gt;') && str_contains($escapedSteps, '1 more minute.'), substr($escapedSteps, (int) strpos($escapedSteps, 'oauth-steps'), 700));
+    Database::query("DELETE FROM audit_logs WHERE action = 'settings.mail_oauth'");
+    $_SESSION = [];
+    $resetStore();
+    mailConfig();
+}
+
 // ================================================================== the callers
 echo "\n== The two things the site actually emails ==\n";
 if ($sink === null) {
@@ -873,10 +1480,12 @@ if (!$cliCan) {
     skipped('the command-line check', $sink === null ? 'needs the SMTP sink'
         : (is_file($root . '/config.local.php') ? 'config.local.php exists here and would override the settings this check passes in (and could send real email)' : 'cannot start a child PHP here'));
 } else {
-    $run = static function (array $env, array $args) use ($root): array {
+    $run = static function (array $env, array $args, string $script = 'mail-test.php') use ($root): array {
         $clean = ['MAIL_ENABLED' => '', 'MAIL_DRIVER' => '', 'MAIL_HOST' => '', 'MAIL_PORT' => '', 'MAIL_ENCRYPTION' => '', 'MAIL_USERNAME' => '',
-                  'MAIL_PASSWORD' => '', 'MAIL_FROM' => '', 'MAIL_VERIFY_PEER' => '', 'MAIL_CAFILE' => '', 'MAIL_TIMEOUT' => '', 'APP_ENV' => 'local'];
-        $proc = proc_open(array_merge([PHP_BINARY, $root . '/bin/mail-test.php'], $args), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, $root,
+                  'MAIL_PASSWORD' => '', 'MAIL_FROM' => '', 'MAIL_VERIFY_PEER' => '', 'MAIL_CAFILE' => '', 'MAIL_TIMEOUT' => '', 'APP_ENV' => 'local',
+                  'MAIL_OAUTH_PROVIDER' => '', 'MAIL_OAUTH_FLOW' => '', 'MAIL_OAUTH_TENANT' => '', 'MAIL_OAUTH_CLIENT_ID' => '', 'MAIL_OAUTH_CLIENT_SECRET' => '',
+                  'MAIL_OAUTH_AUTHORITY' => '', 'MAIL_OAUTH_STORE' => ''];
+        $proc = proc_open(array_merge([PHP_BINARY, $root . '/bin/' . $script], $args), [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes, $root,
             array_merge(getenv(), $clean, array_map('strval', $env)));
         if (!is_resource($proc)) return ['could not start php', -1];
         fclose($pipes[0]);
@@ -906,6 +1515,79 @@ if (!$cliCan) {
     $logged = $root . '/storage/logs/mail.log';
     ok('the log driver needs no server at all, and says where the message went', str_contains($out, 'ACCEPTED') && str_contains($out, 'mail.log') && is_file($logged) && str_contains((string) file_get_contents($logged), 'To: someone@example.org'), $out);
     if (is_file($logged)) unlink($logged);
+
+    // ---- the same, with OAuth: bin/mail-test.php signs in with a token, bin/mail-oauth.php connects a person
+    if (!isset($kit, $https)) {
+        skipped('the command-line OAuth checks', 'the running sink has no token service (an older tests/fixtures/smtp-sink.py?)');
+    } else {
+        $cliStore = sys_get_temp_dir() . '/cedar-oauth-cli-' . bin2hex(random_bytes(4)) . '.json';
+        $oauthEnv = ['MAIL_ENABLED' => 'true', 'MAIL_HOST' => '127.0.0.1', 'MAIL_PORT' => $port('oauth'), 'MAIL_ENCRYPTION' => 'tls', 'MAIL_CAFILE' => $sink['cert'], 'MAIL_TIMEOUT' => 3,
+                     'MAIL_OAUTH_PROVIDER' => 'microsoft', 'MAIL_OAUTH_TENANT' => 'contoso', 'MAIL_OAUTH_AUTHORITY' => $https, 'MAIL_OAUTH_STORE' => $cliStore];
+        $cliApp = array_replace($oauthEnv, ['MAIL_OAUTH_FLOW' => 'app', 'MAIL_OAUTH_CLIENT_ID' => $kit['app_client_id'], 'MAIL_OAUTH_CLIENT_SECRET' => $kit['app_secret'], 'MAIL_USERNAME' => $kit['mailbox']]);
+        $cliUser = array_replace($oauthEnv, ['MAIL_OAUTH_FLOW' => 'user', 'MAIL_OAUTH_TENANT' => 'auto', 'MAIL_OAUTH_CLIENT_ID' => $kit['user_client_id']]);
+        $cliSaved = static function () use ($cliStore): array { return (array) json_decode(is_file($cliStore) ? (string) file_get_contents($cliStore) : '[]', true); };
+        $before = count(sinkMessages($sink, 'oauth'));
+        [$out, $code] = $run($cliApp, ['someone@example.org']);
+        $used = (string) ($cliSaved()['app']['access_token'] ?? 'none');
+        ok('the check signs in with OAuth as an app, from environment variables alone: ACCEPTED, exit 0, and the server received it from the mailbox',
+            str_contains($out, 'ACCEPTED') && $code === 0 && count(sinkMessages($sink, 'oauth')) === $before + 1 && (sinkMessages($sink, 'oauth')[$before]['authed'] ?? '') === $kit['mailbox'], $out . " (exit {$code})");
+        ok('...saying how it signed in, and printing neither the client secret nor the token it got', preg_match('/Sign-in:\s+Microsoft 365 OAuth, the website signs in as an app \(no password\)/', $out) === 1 && str_contains($out, 'Microsoft 365 OAuth as ' . $kit['mailbox']) && $used !== 'none' && !str_contains($out, $kit['app_secret']) && !str_contains($out, $used), $out);
+        [$out] = $run($cliApp, ['someone@example.org', '--verbose']);
+        ok('--verbose shows the OAuth sign-in with the token and its XOAUTH2 string masked, in both encodings', str_contains($out, 'AUTH XOAUTH2 ***') && $used !== 'none' && !str_contains($out, $used) && !str_contains($out, SmtpClient::xoauth2($kit['mailbox'], $used)) && !str_contains($out, base64_encode($used)), $out);
+        [$out, $code] = $run(array_replace($cliApp, ['MAIL_OAUTH_CLIENT_SECRET' => 'Wr0ng~Sentinel.Secret-42']), ['someone@example.org']);
+        ok('a wrong client secret says NOT SENT, in Microsoft\'s words and plain ones, with what to try, exit 1, and without printing the secret',
+            str_contains($out, 'NOT SENT') && str_contains($out, 'client secret is wrong') && str_contains($out, 'What to try') && $code === 1 && !str_contains($out, 'Wr0ng~Sentinel.Secret-42'), $out . " (exit {$code})");
+        [$out, $code] = $run($cliUser, ['someone@example.org']);
+        ok('connect-by-person mail before anyone has connected: NOT SENT, "not connected yet", exit 1', str_contains($out, 'NOT SENT') && str_contains($out, 'is not connected yet') && $code === 1, $out . " (exit {$code})");
+
+        [$out] = $run($cliUser, [], 'status.php');
+        ok('status.php names the way in when nobody has connected: the warning, and the same step from a terminal', str_contains($out, 'is not connected yet') && str_contains($out, 'php bin/mail-oauth.php connect'), $out);
+        [$out] = $run($cliApp, [], 'status.php');
+        ok('...and says nothing of the kind for the app way, which has nothing to connect', str_contains($out, 'Microsoft 365 OAuth as ' . $kit['mailbox']) && !str_contains($out, 'bin/mail-oauth.php connect') && !str_contains($out, 'WARNING'), $out);
+        [$out, $code] = $run($cliUser, ['status'], 'mail-oauth.php');
+        ok('mail-oauth status before connecting says NOT connected and exits 1', str_contains($out, 'NOT connected') && $code === 1, $out . " (exit {$code})");
+        [$out, $code] = $run($cliUser, ['connect', '--poll=2'], 'mail-oauth.php');
+        ok('connect prints the code and the page to open, waits for the sign-in, saves it, and exits 0', str_contains($out, 'AB12CD34') && str_contains($out, 'https://microsoft.com/devicelogin') && str_contains($out, 'CONNECTED as ' . $kit['mailbox']) && $code === 0, $out . " (exit {$code})");
+        $saved = $cliSaved()['user'] ?? [];
+        ok('...the file holds the refresh token and the account, readable only by its owner, and the output shows no token', strlen((string) ($saved['refresh_token'] ?? '')) > 60 && ($saved['account'] ?? '') === $kit['mailbox']
+            && (PHP_OS_FAMILY === 'Windows' || (fileperms($cliStore) & 0077) === 0) && !str_contains($out, (string) ($saved['refresh_token'] ?? 'none')) && !str_contains($out, (string) ($saved['access_token'] ?? 'none')));
+        [$out, $code] = $run($cliUser, ['status'], 'mail-oauth.php');
+        ok('status then says connected, as whom, and exits 0', str_contains($out, 'is connected as ' . $kit['mailbox']) && $code === 0, $out . " (exit {$code})");
+        $before = count(sinkMessages($sink, 'oauth'));
+        [$out, $code] = $run($cliUser, ['someone@example.org']);
+        ok('the connected account then sends the check email (exit 0), and the check says whose sign-in it used', str_contains($out, 'ACCEPTED') && preg_match('/Sign-in:\s+Microsoft 365 OAuth, connected as ' . preg_quote($kit['mailbox'], '/') . '/', $out) === 1 && $code === 0 && count(sinkMessages($sink, 'oauth')) === $before + 1, $out . " (exit {$code})");
+        // Housekeeping uses the connection once a day so that a quiet site does not lose it to Microsoft's 90 days.
+        $data = $cliSaved();
+        $data['user']['expires_at'] = time() - 5;
+        file_put_contents($cliStore, json_encode($data));
+        $oldRefresh = (string) $data['user']['refresh_token'];
+        $beforeRequests = count($requests('token_https'));
+        [$out, $code] = $run($cliUser, [], 'maintenance.php');
+        $asked = array_slice($requests('token_https'), $beforeRequests);
+        ok('bin/maintenance.php uses a saved connection (so Microsoft\'s 90 days of silence never start): it reports "renewed", asked Microsoft once with the refresh token, and kept the new one',
+            str_contains($out, 'Microsoft 365 sign-in') && str_contains($out, 'renewed') && str_contains($out, 'Done.') && count($asked) === 1 && ($asked[0]['form']['refresh_token'] ?? '') === $oldRefresh
+            && ($cliSaved()['user']['refresh_token'] ?? $oldRefresh) !== $oldRefresh && !str_contains($out, $oldRefresh), $out);
+        [$out, $code] = $run(array_replace($cliUser, ['MAIL_OAUTH_CLIENT_ID' => $kit['user_client_id'], 'MAIL_ENABLED' => 'false']), [], 'maintenance.php');
+        ok('...and does nothing of the sort when email is switched off', str_contains($out, 'Done.') && !str_contains($out, 'sign-in'), $out);
+        [$out, $code] = $run($cliUser, ['disconnect'], 'mail-oauth.php');
+        ok('disconnect says so and exits 0', str_contains($out, 'Disconnected') && $code === 0, $out . " (exit {$code})");
+        [$out, $code] = $run($cliUser, ['status'], 'mail-oauth.php');
+        ok('...after which status says NOT connected again, and the saved sign-in is gone from the file', str_contains($out, 'NOT connected') && $code === 1 && !isset($cliSaved()['user']), $out . " (exit {$code})");
+        [$out, $code] = $run($cliApp, ['connect'], 'mail-oauth.php');
+        ok('with the app way there is nothing to connect: said so, exit 2', str_contains($out, 'nothing to connect') && $code === 2, $out . " (exit {$code})");
+        [$out, $code] = $run($cliApp, ['status'], 'mail-oauth.php');
+        ok('...and status says the website signs in as an app, and points at the mail check (exit 0)', str_contains($out, 'signs in as an app') && str_contains($out, 'bin/mail-test.php') && $code === 0, $out . " (exit {$code})");
+        [$out, $code] = $run([], ['status'], 'mail-oauth.php');
+        ok('with OAuth switched off it says so and exits 2', str_contains($out, 'not switched on') && $code === 2, $out . " (exit {$code})");
+        [$out, $code] = $run($cliUser, ['frobnicate'], 'mail-oauth.php');
+        ok('a command it does not know exits 2 with the usage line', str_contains($out, 'Unknown command frobnicate') && str_contains($out, 'Usage:') && $code === 2, $out . " (exit {$code})");
+        [$out, $code] = $run(array_replace($cliUser, ['MAIL_OAUTH_CLIENT_ID' => '99999999-9999-4999-8999-999999999999']), ['connect', '--poll=2'], 'mail-oauth.php');
+        ok('connect with a client ID Microsoft does not know says NOT CONNECTED, why and what to try, exit 1, without waiting', str_contains($out, 'NOT CONNECTED') && str_contains($out, 'What to try') && !str_contains($out, 'Waiting for you') && $code === 1, $out . " (exit {$code})");
+        [$out, $code] = $run(array_replace($cliUser, ['MAIL_OAUTH_TENANT' => '']), ['connect'], 'mail-oauth.php');
+        ok('a setting that cannot work is named, and nothing is asked of Microsoft (exit 2)', str_contains($out, 'MAIL_OAUTH_TENANT is empty') && !str_contains($out, 'Waiting') && $code === 2, $out . " (exit {$code})");
+        foreach (array_merge([$cliStore], glob($cliStore . '.*') ?: []) as $f) if (is_file($f)) unlink($f);
+        Database::query("DELETE FROM audit_logs WHERE action = 'settings.mail_oauth'");
+    }
 }
 
 // ================================================================== done

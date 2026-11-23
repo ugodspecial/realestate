@@ -80,6 +80,12 @@ hosting plan because they live in a plain file), then run
 **[docs/EMAIL.md](docs/EMAIL.md)** covers cPanel, a VPS, Gmail and the common mail services,
 the spam folder, and what every failure message means.
 
+**Microsoft 365 mailboxes** are moving to OAuth-only sign-in for SMTP (no more mailbox
+password). The website supports that: it can sign in to Microsoft as an app, or as a person
+who connects once from **Settings**, and no password is stored. The steps, and what has and
+has not been verified, are in [docs/EMAIL.md](docs/EMAIL.md#microsoft-365-mail-that-needs-oauth);
+`php bin/mail-oauth.php` connects from a terminal.
+
 ## Upgrading
 
 Existing test and production sites upgrade with `php bin/upgrade.php`, which
@@ -96,7 +102,7 @@ app/
   config.php           Production defaults (env-overridable) + config.local.php merge
   routes.php           Front-controller routing table
   Core/                Database, Auth (+RBAC), RateLimiter, Audit, Properties,
-                       Enquiries, Uploads, Mailer (+SmtpClient), PublicController, AdminController
+                       Enquiries, Uploads, Mailer (+SmtpClient, MailOAuth, HttpClient), PublicController, AdminController
   views/               Public templates, reusable components, auth, admin dashboard
 bin/                   CLI installer (schema + seed + admin) and upgrader (backup + migrations)
 database/              Portable MySQL/SQLite schema, versioned migrations, demo seed

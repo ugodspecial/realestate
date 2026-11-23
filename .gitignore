@@ -3,6 +3,7 @@
 /storage/sessions/*
 /storage/logs/*
 /storage/demo-credentials.json
+/storage/mail-oauth.json*
 /storage/backups/*
 /public/uploads/*
 !/public/uploads/.htaccess

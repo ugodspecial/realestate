@@ -1,8 +1,8 @@
 # Email — Cedar Tranquility Real Estate
 
 This page says how the website sends email, how to set it up on your own computer
-(Laragon) and on a live hosting plan, how to check that it works, and what to do when
-it does not.
+(Laragon) and on a live hosting plan, including **Microsoft 365**, which needs OAuth
+instead of a password, how to check that it works, and what to do when it does not.
 
 ## What the website emails
 
@@ -58,6 +58,9 @@ Set `MAIL_ENABLED=true` and pick a method with `MAIL_DRIVER`:
 Left empty, the method is `smtp` when `MAIL_HOST` is set and `mail` otherwise, so a site
 that already sent mail through `mail()` keeps working unchanged.
 
+Mail that accepts **only OAuth**, such as Microsoft 365, is `smtp` plus `MAIL_OAUTH_PROVIDER`:
+see [Microsoft 365](#microsoft-365-mail-that-needs-oauth).
+
 ## Settings
 
 Each setting can be an **environment variable** (left column) or a line in
@@ -76,6 +79,13 @@ Each setting can be an **environment variable** (left column) or a line in
 | `MAIL_VERIFY_PEER` | `'mail_verify_peer'` | Check the server's certificate (default `true`). Set `false` only while testing; the Settings page and `php bin/status.php` flag it. |
 | `MAIL_CAFILE` | `'mail_cafile'` | Path to a CA bundle, for a PHP that has none (usually PHP on Windows). |
 | `MAIL_TIMEOUT` | `'mail_timeout'` | Seconds to wait for the mail server (default 8). |
+| `MAIL_OAUTH_PROVIDER` | `'mail_oauth_provider'` | `microsoft` signs in with OAuth instead of a password (**[Microsoft 365](#microsoft-365-mail-that-needs-oauth)**). Empty, the default: a password, as before. Naming it also selects SMTP, `smtp.office365.com`, port 587 and STARTTLS, so `MAIL_HOST`, `MAIL_PORT` and `MAIL_ENCRYPTION` can stay empty. `MAIL_USERNAME` is then the mailbox, and `MAIL_PASSWORD` is not used. |
+| `MAIL_OAUTH_FLOW` | `'mail_oauth_flow'` | `app` (the website signs in as an app; needs a client secret) or `user` (a person connects once in Settings). Empty: `app` when a client secret is set, otherwise `user`. |
+| `MAIL_OAUTH_TENANT` | `'mail_oauth_tenant'` | Your **Directory (tenant) ID** (a GUID), from the app's Overview page in Microsoft Entra. |
+| `MAIL_OAUTH_CLIENT_ID` | `'mail_oauth_client_id'` | The app's **Application (client) ID**, from the same page. |
+| `MAIL_OAUTH_CLIENT_SECRET` | `'mail_oauth_client_secret'` | The app's client secret **Value** (`app` flow only). A password: never in Settings or in git. |
+| `MAIL_OAUTH_AUTHORITY` | `'mail_oauth_authority'` | Leave empty. The address of Microsoft's sign-in service (`https://login.microsoftonline.com`) is built in; this exists for the tests, and for Microsoft's national clouds, which have other addresses (not tried). |
+| `MAIL_OAUTH_STORE` | `'mail_oauth_store'` | Leave empty. Where the website keeps the access token it was given and a connected person's sign-in: `storage/mail-oauth.json`. Set a path only if `storage/` cannot be written. |
 
 With encryption on, the website refuses to send the password to a server that does not
 offer it: it stops with a message instead of quietly falling back to plain text.
@@ -183,6 +193,151 @@ the values, but providers change them.
 | Mailgun | `smtp.mailgun.org` (`smtp.eu.mailgun.org` in the EU) | 587 `tls` | `postmaster@your-sending-domain`, and its SMTP password |
 | SendGrid | `smtp.sendgrid.net` | 587 or 2525 `tls`, 465 `ssl` | The word `apikey`, and an API key |
 | Amazon SES | `email-smtp.<region>.amazonaws.com` | 587 `tls` or 465 `ssl` | The SMTP credentials made in the SES console (not your AWS password) |
+| Microsoft 365 | `smtp.office365.com` (built in) | 587 `tls` | **No password: OAuth.** Microsoft is switching password sign-in off for SMTP; see [Microsoft 365](#microsoft-365-mail-that-needs-oauth). |
+
+## Microsoft 365 (mail that needs OAuth)
+
+Some mail systems no longer let a program sign in with a mailbox address and a password.
+**Microsoft 365** (Exchange Online) is the one that matters here. Microsoft's published plan,
+as of November 2026: from the **end of December 2026** password sign-in for SMTP is **off by
+default for existing organisations** (an administrator can switch it back on for a while),
+it is **not available at all to organisations created after that**, and it will be removed
+completely on a date Microsoft has not announced yet (second half of 2027). A password setup
+then fails with `550 5.7.30 Basic authentication is not supported for Client Submission`.
+Dates like these have moved before: check Microsoft's current notice for your organisation.
+
+The website can sign in **with OAuth instead**. Nobody types a password. The website asks
+Microsoft for an *access token* (a key for this one job, good for about an hour), shows it
+to Microsoft's mail server, and sends. It asks again when the key runs out, not for every
+email.
+
+**You do not have to send through Microsoft.** If your domain's mailboxes are in Microsoft
+365 but nobody wants to do the work below, send the website's email through one of the mail
+services in the table above (Brevo, Mailgun, SendGrid, Amazon SES). That takes about ten
+minutes, is not touched by Microsoft's change, and needs the SPF and DKIM records the
+service gives you added to your domain. Use OAuth when the mail really has to leave from a
+Microsoft 365 mailbox.
+
+### Two ways to sign in
+
+| | **App** (`MAIL_OAUTH_FLOW=app`) | **Person** (`MAIL_OAUTH_FLOW=user`) |
+|---|---|---|
+| How | The website signs in as an app registered in your Microsoft Entra. | A person signs in as the mailbox once, and the website keeps the permission it was given. |
+| One-off work | An administrator: an app registration, a client secret, a permission, three PowerShell commands, one switch on the mailbox. | An administrator registers the app (no secret, no PowerShell). The mailbox owner presses **Connect** and signs in. |
+| Afterwards | Nothing, until the client secret expires (24 months at most when made in the portal): put the date in a calendar. | It lasts while the website sends something now and then. It ends when the mailbox's password is changed, when an administrator revokes the person's sessions, or after 90 days with no mail: press **Connect** again. |
+| Choose it for | A live site you want to forget about. | When nobody can run the PowerShell commands, or to try this today. |
+
+Both need **Authenticated SMTP** switched on for the mailbox, and mail goes out **as that
+mailbox**. `MAIL_FROM` is therefore the mailbox itself (left empty, that is what is used);
+Microsoft 365 refuses any other sender unless the mailbox has been given *Send As*
+permission for it.
+
+### The app way, step by step
+
+Do this once, signed in to Microsoft as an administrator. The screens are Microsoft's and
+get renamed from time to time; the names below are the ones its documentation uses.
+
+1. **Register the app.** Microsoft Entra admin center → *App registrations* → *New
+   registration*. Name it (for example `Cedar website email`), choose *Accounts in this
+   organizational directory only*, and register. On the app's **Overview** page copy the
+   **Directory (tenant) ID** and the **Application (client) ID**.
+2. **Make a client secret.** *Certificates & secrets* → *New client secret*. Choose the
+   longest expiry and note the date. Copy the **Value** straight away: Microsoft shows it once.
+   Do not copy the *Secret ID* next to it, which looks similar and gives the error
+   *The client secret is wrong*.
+3. **Give the app the SMTP permission.** *API permissions* → *Add a permission* → *APIs my
+   organization uses* → **Office 365 Exchange Online** → *Application permissions* →
+   **SMTP.SendAsApp** → *Add*. Then press **Grant admin consent**.
+4. **Let that app use the mailbox.** In Exchange Online PowerShell (install it once with
+   `Install-Module ExchangeOnlineManagement`):
+
+   ```powershell
+   Connect-ExchangeOnline -Organization <Directory (tenant) ID>
+   New-ServicePrincipal -AppId <Application (client) ID> -ObjectId <Object ID>
+   Add-MailboxPermission -Identity "noreply@yourcompany.com" -User <Object ID> -AccessRights FullAccess
+   ```
+
+   Take `<Object ID>` from **Enterprise applications** → your app → *Overview*, **not** from
+   *App registrations*. The two pages show different IDs, and using the wrong one is the
+   usual reason for `535 5.7.3 Authentication unsuccessful`.
+5. **Switch on Authenticated SMTP for the mailbox.** Microsoft 365 admin center → *Users* →
+   *Active users* → the mailbox → *Mail* → *Manage email apps* → tick **Authenticated SMTP** →
+   *Save*. (Microsoft's *security defaults*, or an authentication policy that blocks SMTP, can
+   keep it off even after this: see Microsoft's article *Enable or disable SMTP AUTH in
+   Exchange Online*.) Changes in Exchange Online can take a little while to apply.
+6. **Tell the website.** `docs/config-examples/microsoft365.php` has these lines ready to copy
+   into `config.local.php`. Fill in the mailbox, the two IDs and the secret's Value:
+
+   ```php
+   'mail_enabled' => true,
+   'mail_driver' => 'smtp',
+   'mail_oauth_provider' => 'microsoft',
+   'mail_oauth_flow' => 'app',
+   'mail_username' => 'noreply@yourcompany.com',
+   'mail_from' => 'noreply@yourcompany.com',
+   'mail_oauth_tenant' => '<Directory (tenant) ID>',
+   'mail_oauth_client_id' => '<Application (client) ID>',
+   'mail_oauth_client_secret' => '<the secret Value>',
+   ```
+
+   There is no host, port or password: Microsoft's server (`smtp.office365.com`, port 587,
+   STARTTLS) is built in, and no password is used.
+7. **Test it:** `php bin/mail-test.php you@yourcompany.com`, or the **Send a test email**
+   button. When the secret is replaced later, the new one is tried at once; the website never
+   reuses a token that was obtained with the old one.
+
+### The person way, step by step
+
+1. **Register the app** as in step 1 above, then open *Authentication* and set **Allow public
+   client flows** to **Yes**. There is no client secret.
+2. *API permissions* → *Add a permission* → **Microsoft Graph** → *Delegated permissions* →
+   add **SMTP.Send** and **offline_access** (and *openid* and *profile*, if they are not
+   already listed). Grant admin consent if your organisation requires it.
+3. **Switch on Authenticated SMTP** for the mailbox (step 5 above).
+4. **Tell the website.** The secret, the username and `mail_from` are left out: they come from
+   the person who signs in.
+
+   ```php
+   'mail_enabled' => true,
+   'mail_driver' => 'smtp',
+   'mail_oauth_provider' => 'microsoft',
+   'mail_oauth_flow' => 'user',
+   'mail_oauth_tenant' => '<Directory (tenant) ID>',
+   'mail_oauth_client_id' => '<Application (client) ID>',
+   ```
+
+5. **Connect.** Sign in to the dashboard as the Super Administrator → **Settings** → **Email
+   delivery** → *Microsoft 365 sign-in* → **Connect**. The page shows a short code and a Microsoft
+   address. Open the address (on any device), type the code, sign in **as the mailbox that
+   should send the email**, accept, come back and press **I have signed in**. From a terminal
+   the same thing is `php bin/mail-oauth.php connect`.
+6. **Test it** as above.
+
+What is kept is Microsoft's *refresh token*, in `storage/mail-oauth.json`. It is a secret like
+`config.local.php`: created readable by its owner only, refused by `.htaccess`, ignored by git.
+`php bin/mail-oauth.php status` says whether the site is connected and as whom;
+**Disconnect** (or `php bin/mail-oauth.php disconnect`) makes the website forget it. That
+does not withdraw the permission at Microsoft: an administrator does that in Microsoft Entra
+(*Enterprise applications* → the app → *Permissions*), or by revoking the person's sessions.
+If you schedule `php bin/maintenance.php` (see [DEPLOYMENT.md](DEPLOYMENT.md)) it also uses
+the connection once a day, so a quiet site does not lose it to the 90 days.
+
+### Good to know
+
+- **Speed.** A new token costs one extra request to Microsoft, about once an hour, not per
+  email; the website gives up on it after `MAIL_TIMEOUT` seconds. Mail is still sent while
+  the visitor waits for the thank-you page.
+- **Limits.** Microsoft limits SMTP submission to about 30 messages a minute and 10,000
+  recipients a day per mailbox. A website that emails its own team is nowhere near either.
+- **Nothing secret leaks.** The client secret, tokens and the refresh token are never shown
+  on a page, printed by `--verbose`, or written to the error log or Activity log. With
+  encryption on, the default, a token is never sent to a mail server before the connection
+  is encrypted (Settings warns if you switch encryption off).
+- **Not included.** Sending through the Microsoft Graph API (HTTPS) instead of SMTP; a
+  "Sign in with Microsoft" button that sends the browser away and back; and OAuth for Google
+  (a Gmail or Google Workspace mailbox still uses an app password, above). Personal
+  Outlook.com accounts are not covered either, nor is going out to Microsoft through an
+  HTTP proxy: the website connects to it directly.
 
 ## Getting out of the spam folder
 
@@ -219,6 +374,16 @@ Deliverability**; a mail service: its *domain authentication* page). Then:
 | *The server refused the recipient address* | Check the address. A server also refuses other domains until you sign in, so set the username and password. |
 | *PHP's mail() could not pass the message to a mail program* | This server has none set up. Use `MAIL_DRIVER=smtp` with a mailbox, or `log` while developing. |
 | *MAIL_DRIVER=log is for local development only* | In production use `smtp`. |
+| *Microsoft would not issue an access token: The client secret is wrong* (or *has expired*) | The secret's **Value**, not its Secret ID, goes in `MAIL_OAUTH_CLIENT_SECRET`. For an expired one, make a new secret in Microsoft Entra (*Certificates & secrets*). |
+| *Microsoft would not issue an access token: No app with that client ID exists in that tenant* | `MAIL_OAUTH_CLIENT_ID` and `MAIL_OAUTH_TENANT` both come from the app's Overview page in Microsoft Entra. |
+| *Microsoft would not issue an access token* (a consent or permission message) | *API permissions* → **Grant admin consent**, and check that **SMTP.SendAsApp** (app way) or **SMTP.Send** (person way) is listed. |
+| *OAuth sign-in was refused* (the reply that follows starts with 535 5.7.3) | In this order: Authenticated SMTP is ticked for the mailbox; `MAIL_USERNAME` is its exact address; for the app way, `New-ServicePrincipal` was given the **Enterprise application's** Object ID and `Add-MailboxPermission` gave it `FullAccess`. Exchange can take a little while to apply a change. |
+| *… 5.7.139 … SmtpClientAuthentication is disabled* | Switch on Authenticated SMTP, for the mailbox (*Manage email apps*) or for the whole organisation. |
+| *… 550 5.7.30 Basic authentication is not supported* | Microsoft has switched off password sign-in for this organisation. Use OAuth: [Microsoft 365](#microsoft-365-mail-that-needs-oauth). |
+| *Microsoft 365 is not connected yet*, or *Microsoft no longer accepts the saved sign-in* | Settings → **Email delivery** → **Connect** (or *Connect again*). The person way needs this after a password change on the mailbox, after sessions are revoked, or after 90 days with no mail. |
+| *Could not reach the Microsoft sign-in service* | The server must be able to open `login.microsoftonline.com` on port 443 (and `smtp.office365.com` on port 587). Check its internet access and firewall. |
+| *The Microsoft sign-in service answered with something that is not …* (a token, or a sign-in code) | Something between this server and Microsoft is answering with a page of its own: a proxy, a filter, or a firewall's sign-in page. The server has to reach `login.microsoftonline.com` directly on port 443. |
+| *A Conditional Access rule … blocked this sign-in* | A Microsoft 365 administrator must exclude this app, or this server's address, from that rule. |
 
 ## What has and has not been tested
 
@@ -233,3 +398,25 @@ still work when mail fails, and the **Send a test email** button.
 They cannot reach your host's mail server, your domain's DNS records, or a Windows PC.
 That is why the test above exists: run it once on the real machine, and treat a message
 in your inbox as the proof.
+
+OAuth sign-in is tested against **stand-ins written from Microsoft's published
+documentation**, not against Microsoft: a fake token service (over HTTPS, with real web
+framing: chunked and cut-off answers, redirects, over-long headers, oversized and hostile
+replies) and fake SMTP servers that only accept `XOAUTH2`, including the Gmail-style `334`
+challenge, "Authenticated SMTP is switched off" and "Basic authentication is not supported".
+They prove the website's half: the exact requests, the `XOAUTH2` sign-in string (compared byte
+for byte with the examples in Microsoft's and Google's documents), saving and reusing a
+token, the refresh after it runs out, the retry after a server refuses a saved token, the
+connect-a-person steps in Settings and on the command line, and that no secret reaches a page,
+a log or a message.
+
+They **cannot** show that a particular Microsoft 365 organisation is set up the way Microsoft
+expects, which is why the test button exists. Nobody has yet run either way end to end against
+a real organisation, so three things are still taken from documentation alone: the exact
+wording of Microsoft's error messages (the plain-words versions are keyed on the codes it
+documents), the address of the delegated permission (`https://outlook.office.com/SMTP.Send`,
+as in Microsoft's IMAP/POP/SMTP OAuth article; one third-party guide uses
+`outlook.office365.com` instead, and if Microsoft refuses it at **Connect**, `SCOPE_USER` in
+`app/Core/MailOAuth.php` is the single line to change), and the PowerShell steps, which follow
+the same article. If something here differs from what you see, trust Microsoft's page and
+tell us.

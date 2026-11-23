@@ -225,6 +225,26 @@ foreach ([['a content editor', $ce], ['a listing manager', $lm]] as [$who, $jarF
 $r = http('POST', $base . '/admin/settings', jar(), ['action' => 'test-mail', '_token' => 'anything']);
 check('someone who is not signed in is sent to sign in, not to the mailer', $r['code'] === 303 && str_contains($r['location'], 'login'), 'got ' . $r['code'] . ' ' . $r['location']);
 check('none of those requests got as far as the mailer', $mailTests() === $mailTestsBefore);
+// The sign-in buttons under Email delivery (Connect, I have signed in, Cancel, Disconnect) post to the same
+// address with action=oauth-*. Connect makes the server call Microsoft and Disconnect deletes a saved
+// connection, so they meet the same bar. A request that got through would leave an entry in the activity log.
+$oauthNotes = static fn(): int => (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'settings.mail_oauth'");
+$oauthNotesBefore = $oauthNotes();
+foreach (['oauth-connect', 'oauth-check', 'oauth-cancel', 'oauth-disconnect'] as $oauthAction) {
+    $r = http('POST', $base . '/admin/settings', $sa, ['action' => $oauthAction]);
+    check("\"{$oauthAction}\" without a token is refused", $r['code'] === 419, 'got ' . $r['code']);
+    $r = http('POST', $base . '/admin/settings', $sa, ['action' => $oauthAction, '_token' => str_repeat('a', 64)]);
+    check("...and with a forged token", $r['code'] === 419, 'got ' . $r['code']);
+    foreach ([['a content editor', $ce], ['a listing manager', $lm]] as [$who, $jarFile]) {
+        $r = http('POST', $base . '/admin/settings', $jarFile, ['action' => $oauthAction, '_token' => csrf($base . '/admin', $jarFile)]);
+        check("{$who} cannot press \"{$oauthAction}\", even with a genuine token", $r['code'] === 403, 'got ' . $r['code']);
+    }
+    $r = http('POST', $base . '/admin/settings', jar(), ['action' => $oauthAction, '_token' => 'anything']);
+    check("someone who is not signed in is sent to sign in, not to \"{$oauthAction}\"", $r['code'] === 303 && str_contains($r['location'], 'login'), 'got ' . $r['code'] . ' ' . $r['location']);
+}
+$r = http('POST', $base . '/admin/settings', $sa, ['action' => 'oauth-connect', '_token' => $token]);
+check('the Super Administrator pressing Connect on a site that does not use OAuth is told so and sent back to Settings (nothing is called)', $r['code'] === 303 && str_contains($r['location'], 'admin/settings'), 'got ' . $r['code'] . ' ' . $r['location']);
+check('none of those requests did anything: no sign-in entry in the activity log', $oauthNotes() === $oauthNotesBefore);
 $settingsPage = http('GET', $base . '/admin/settings', $sa)['body'];
 check('the test button sits in a form of its own that carries a CSRF token (forms cannot nest)',
     (bool) preg_match('/<form[^>]*method="post"[^>]*>\s*<input type="hidden" name="_token" value="[a-f0-9]+">\s*<input type="hidden" name="action" value="test-mail">/', $settingsPage)

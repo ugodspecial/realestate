@@ -23,9 +23,24 @@ can check the message byte for byte. Once every listener is up it writes {scenar
   hostile     refuses sign-in with a reply that holds control characters, bytes that are not text, a very long
               tail, and the password it was sent, in plain and in base64: the way a careless server behaves
   greylist    defers the message after DATA (451)
+  oauth       Microsoft 365 style: STARTTLS first, then only AUTH XOAUTH2, which takes an access token that
+              the token service below issued (a refused one is a plain 535)
+  oauth334    Gmail style: a refused token is answered with 334 and a base64 explanation; the client must send
+              an empty line before the 535 arrives (a client that does not waits until it times out)
+  oauthoff    Authenticated SMTP switched off for the mailbox (535 5.7.139)
+  oauthecho   refuses a token with a reply that holds the token and its base64, the careless server again
+  basicoff    Microsoft 365 after password sign-in is switched off: AUTH LOGIN is answered 550 5.7.30
+  oauthnotls  offers AUTH XOAUTH2 on a connection with no STARTTLS (a token must never be sent over that)
 
 Sign-in everywhere is  mailer / s3cret-pass.  The certificate (CN=localhost, SAN localhost and
 127.0.0.1) is generated with openssl at start and written to <outdir>/cert.pem.
+A second kind of listener stands in for Microsoft's sign-in service (login.microsoftonline.com): one plain HTTP
+port ("token_http") and one HTTPS port ("token_https", the same certificate). Which behaviour a request gets
+is chosen by the tenant in its path, /<tenant>/oauth2/v2.0/token, the way a real service would be chosen by
+address; see TENANTS. The access tokens it issues are the only ones the oauth* scenarios above accept, because
+both live in this one process. POST /_control/approve approves every pending device sign-in, and
+POST /_control/revoke takes every access token back (a token that expires early or is withdrawn).
+
 Needs only python3 (3.8+) and, for the TLS scenarios, the openssl command (found on PATH, or inside Git for Windows).
 """
 import argparse
@@ -33,6 +48,7 @@ import base64
 import json
 import os
 import re
+import secrets
 import shutil
 import socket
 import ssl
@@ -40,8 +56,17 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 
 USER, PASSWORD = "mailer", "s3cret-pass"
+
+# The OAuth side. The mailbox the oauth* scenarios expect in the sign-in string, the app registrations the
+# token service knows, and what it hands out. Values are made up for the tests; nothing here is real.
+OAUTH_MAILBOX = "mailbox@contoso.test"
+APP_CLIENT_ID, APP_SECRET = "11111111-1111-4111-8111-111111111111", "Sup3r~Secret.Value-0123456789"
+USER_CLIENT_ID = "22222222-2222-4222-8222-222222222222"
+SCOPE_APP = "https://outlook.office365.com/.default"
+SCOPE_USER_NEEDS = ("https://outlook.office.com/SMTP.Send", "offline_access")
 
 SCENARIOS = {
     "plain": {},
@@ -60,7 +85,25 @@ SCENARIOS = {
     "garbage": {"garbage": True},
     "hostile": {"auth": True, "require_auth": True, "hostile": True},
     "greylist": {"data_reply": "451 4.7.1 Greylisted, please try again later"},
+    "oauth": {"starttls": True, "auth": True, "auth_needs_tls": True, "require_auth": True, "require_tls": True, "auth_mechs": "XOAUTH2"},
+    "oauth334": {"starttls": True, "auth": True, "auth_needs_tls": True, "require_auth": True, "require_tls": True,
+                 "auth_mechs": "LOGIN PLAIN XOAUTH2", "oauth_challenge": True},
+    "oauthoff": {"starttls": True, "auth": True, "auth_needs_tls": True, "require_auth": True, "require_tls": True,
+                 "auth_mechs": "XOAUTH2", "oauth_refuse_all": True,
+                 "oauth_error": "535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled for the Tenant. "
+                                "Visit https://aka.ms/smtp_auth_disabled for more information."},
+    "oauthecho": {"starttls": True, "auth": True, "auth_needs_tls": True, "require_auth": True, "require_tls": True,
+                  "auth_mechs": "XOAUTH2", "oauth_echo": True},
+    "oauthnotls": {"auth": True, "auth_mechs": "XOAUTH2"},
+    "basicoff": {"starttls": True, "auth": True, "auth_needs_tls": True, "require_auth": True, "require_tls": True,
+                 "auth_mechs": "LOGIN XOAUTH2", "basic_error": "550 5.7.30 Basic authentication is not supported for Client Submission. "
+                                                                "For more information see https://aka.ms/smtp_auth_disabled"},
 }
+
+# Access and refresh tokens the token service issued, shared with the SMTP scenarios (one process).
+ACCESS = {}    # access token -> {"user": mailbox, "expires": unix time}
+REFRESH = {}   # refresh token -> {"user": mailbox}
+DEVICES = {}   # device_code -> {"approved": bool, "user_code": str}
 
 lock = threading.Lock()
 last_activity = time.time()
@@ -224,6 +267,13 @@ class Session:
         if mech not in self.opts.get("auth_mechs", "PLAIN LOGIN").split():
             self.send("504 5.5.4 Unrecognized authentication type")
             return
+        if mech == "XOAUTH2":
+            self.authenticate_oauth(parts)
+            return
+        if self.opts.get("basic_error"):
+            self.event("auth_failed", user="", mech=mech)
+            self.send(self.opts["basic_error"])
+            return
         try:
             if mech == "PLAIN":
                 blob = parts[2] if len(parts) > 2 else None
@@ -256,6 +306,52 @@ class Session:
             self.event("auth_failed", user=user, mech=mech)
             self.send("535 5.7.8 Authentication credentials invalid")
 
+    def authenticate_oauth(self, parts):
+        """AUTH XOAUTH2 <base64>: user=<mailbox> ^A auth=Bearer <token> ^A ^A (RFC-less, but Microsoft's and Google's documents agree)."""
+        blob = parts[2] if len(parts) > 2 else None
+        if blob is None:
+            self.send("334 ")
+            raw = self.readline()
+            blob = raw.decode() if raw is not None else ""
+        try:
+            text = base64.b64decode(blob, validate=True).decode("utf-8", "replace")
+        except Exception:
+            self.send("501 5.5.2 Cannot decode credentials")
+            return
+        m = re.fullmatch(r"user=(.*)\x01auth=Bearer (.*)\x01\x01", text, re.S)
+        if not m:
+            self.event("auth_failed", user="", mech="XOAUTH2", why="malformed")
+            self.send("535 5.7.3 Authentication unsuccessful")
+            return
+        user, token = m.group(1), m.group(2)
+        with lock:
+            entry = ACCESS.get(token)
+            good = entry is not None and entry["expires"] > time.time() and user == OAUTH_MAILBOX and entry["user"] == OAUTH_MAILBOX
+        # "oauth_refuse_all": a perfectly good token is refused too (Authenticated SMTP switched off for the mailbox).
+        if good and not self.opts.get("oauth_refuse_all"):
+            self.authed = user
+            self.event("auth_ok", user=user, mech="XOAUTH2", token=token)
+            self.send("235 2.7.0 Authentication successful")
+            return
+        self.event("auth_failed", user=user, mech="XOAUTH2", token=token)
+        o = self.opts
+        if o.get("oauth_error"):
+            self.send(o["oauth_error"])
+        elif o.get("oauth_echo"):
+            self.sock.sendall(("535 5.7.3 Authentication unsuccessful for " + user + " with token " + token + " (" + base64.b64encode(token.encode()).decode()
+                               + ") and " + blob + "\x00\x07\xff").encode("latin-1", "replace") + b"\r\n")
+        elif o.get("oauth_challenge"):
+            # Google's behaviour: explain with a 334, wait for the client's empty line, then refuse for good.
+            explanation = base64.b64encode(json.dumps({"status": "401", "schemes": "Bearer", "scope": "https://mail.google.com/"}).encode()).decode()
+            self.send("334 " + explanation)
+            answer = self.readline()
+            self.event("challenge_answered", line=None if answer is None else answer.decode("latin-1"))
+            if answer is None:
+                return
+            self.send("535 5.7.8 Username and Password not accepted. For more information, go to https://support.google.com/mail/?p=BadCredentials")
+        else:
+            self.send("535 5.7.3 Authentication unsuccessful [CO1PR00CA0001.namprd00.prod.outlook.com 2026-11-23T10:00:00]")
+
     def take_message(self):
         chunks = []
         size = 0
@@ -282,6 +378,244 @@ class Session:
                    ehlo=self.ehlo, data=data.decode("latin-1"))
         self.mail_from, self.rcpts = None, []
         self.send("250 2.0.0 Queued as TEST%04d" % (int(time.time()) % 10000))
+
+
+def jwt(payload):
+    def part(data):
+        return base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip("=")
+    return part({"typ": "JWT", "alg": "none"}) + "." + part(payload) + "." + secrets.token_urlsafe(24)
+
+
+def new_access(user, lives):
+    token = "EwB" + secrets.token_urlsafe(48) + "." + secrets.token_urlsafe(700)   # long, as the real ones are
+    with lock:
+        ACCESS[token] = {"user": user, "expires": time.time() + lives}
+    return token
+
+
+def aad_error(status, error, code, text):
+    body = {"error": error, "error_description": "AADSTS%d: %s Trace ID: 0a0a0a0a-0000-0000-0000-000000000000 Correlation ID: "
+            "1b1b1b1b-0000-0000-0000-000000000000 Timestamp: 2026-11-23 10:00:00Z" % (code, text), "error_codes": [code]}
+    return status, json.dumps(body).encode(), {}
+
+
+# Which tenant name in the path gets which behaviour: "contoso" is the well-behaved one; "short" issues tokens that
+# last two minutes; "auto" approves device sign-ins as soon as they are asked for; slow, dropped, garbage, redirect, html, badjson, huge, echo, chunked, closedelim, longheader
+# hugeheader, hugeclose and hugechunk each misbehave in the way their name says (see TokenSession.run); evilurl and evilcode answer a
+# device sign-in with a javascript: address, an address with markup in it, and markup for a code.
+
+
+class TokenSession:
+    def __init__(self, sock, outdir, tls_name):
+        self.sock, self.outdir, self.tls_name = sock, outdir, tls_name
+        self.buf = b""
+
+    def event(self, kind, **extra):
+        record(self.outdir, self.tls_name, dict(event=kind, **extra))
+
+    def readline(self):
+        while b"\n" not in self.buf:
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                return None
+            self.buf += chunk
+        line, self.buf = self.buf.split(b"\n", 1)
+        return line.rstrip(b"\r")
+
+    def read_request(self):
+        request = self.readline()
+        if request is None:
+            return None
+        headers = {}
+        while True:
+            line = self.readline()
+            if line is None:
+                return None
+            if line == b"":
+                break
+            k, _, v = line.decode("latin-1").partition(":")
+            headers[k.strip().lower()] = v.strip()
+        length = int(headers.get("content-length", "0") or 0)
+        while len(self.buf) < length:
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                return None
+            self.buf += chunk
+        body, self.buf = self.buf[:length], self.buf[length:]
+        return request.decode("latin-1"), headers, body.decode("utf-8", "replace")
+
+    def respond(self, status, body, extra=None):
+        reasons = {200: "OK", 302: "Found", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found"}
+        headers = {"Content-Type": "application/json; charset=utf-8"}
+        headers.update(extra or {})
+        if "Transfer-Encoding" not in headers:
+            headers["Content-Length"] = str(len(body))
+        headers["Connection"] = "close"
+        head = "HTTP/1.1 %d %s\r\n" % (status, reasons.get(status, "Status")) + "".join("%s: %s\r\n" % kv for kv in headers.items()) + "\r\n"
+        self.sock.sendall(head.encode("latin-1") + body)
+
+    def run(self):
+        self.sock.settimeout(15)
+        got = self.read_request()
+        if got is None:
+            return
+        request, headers, body = got
+        method, _, rest = request.partition(" ")
+        path = rest.split(" ")[0]
+        form = {k: v[0] for k, v in urllib.parse.parse_qs(body, keep_blank_values=True).items()}
+        self.event("request", method=method, path=path, host=headers.get("host", ""), ctype=headers.get("content-type", ""), form=form)
+        if path.startswith("/_control/"):
+            return self.control(path)
+        m = re.fullmatch(r"/([^/]+)/oauth2/v2\.0/(token|devicecode)", path.split("?")[0])
+        if method != "POST" or not m:
+            return self.respond(404, b'{"error":"not_found"}')
+        tenant, endpoint = m.group(1), m.group(2)
+        if tenant == "slow":
+            time.sleep(20)
+            return
+        if tenant == "dropped":
+            return
+        if tenant == "garbage":
+            self.sock.sendall(b"SSH-2.0-OpenSSH_9.6\r\n")
+            return
+        if tenant == "redirect":
+            return self.respond(302, b"", {"Location": "http://evil.example/steal"})
+        if tenant == "html":
+            return self.respond(200, b"<html><body>Sign in to your account</body></html>", {"Content-Type": "text/html"})
+        if tenant == "badjson":
+            return self.respond(200, b'{"access_token": ')
+        if tenant == "huge":
+            self.sock.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 5000000\r\nConnection: close\r\n\r\n" + b"x" * 600000)
+            return
+        if tenant == "hugeclose":
+            # No length at all: the body ends when the connection does. The client has to stop reading by itself.
+            self.sock.sendall(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n" + b"x" * 600000)
+            return
+        if tenant == "hugechunk":
+            # Chunks that are each modest and together far too much (6 x 100000 bytes; 0x186a0 is 100000).
+            pieces = b"".join(b"186a0\r\n" + b"x" * 100000 + b"\r\n" for _ in range(6)) + b"0\r\n\r\n"
+            self.sock.sendall(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n" + pieces)
+            return
+        if tenant == "echo":
+            # The request echoed as it travelled (URL-encoded) first, then as decoded values, then a lot of padding.
+            text = "Raw request: %s. The request carried client_secret=%s and refresh_token=%s and device_code=%s and this is wrong." % (
+                urllib.parse.urlencode(form), form.get("client_secret", ""), form.get("refresh_token", ""), form.get("device_code", "")) + " padding" * 400
+            return self.respond(*aad_error(400, "invalid_request", 900144, text)[:2])
+        if tenant == "hugeheader":
+            self.sock.sendall(b"HTTP/1.1 200 OK\r\nX-Far-Too-Long: " + b"a" * 200000 + b"\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+            return
+        status, body_bytes, extra = self.issue(tenant, endpoint, form)
+        if tenant == "longheader":
+            # What a real service sends: cookies and policy headers far longer than a line buffer.
+            extra = {**extra, "X-Long-Header": "a" * 5000, "Set-Cookie": "esctx=" + "b" * 3000 + "; path=/; secure; HttpOnly"}
+        if tenant == "chunked":
+            third = max(1, len(body_bytes) // 3)
+            pieces = [body_bytes[:third], body_bytes[third:2 * third], body_bytes[2 * third:]]
+            out = b"".join(("%x;ext=1\r\n" % len(p)).encode() + p + b"\r\n" for p in pieces if p) + b"0\r\nX-Trailer: yes\r\n\r\n"
+            return self.respond(status, out, {"Transfer-Encoding": "chunked"})
+        if tenant == "closedelim":
+            self.sock.sendall(b"HTTP/1.1 %d OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n" % status + body_bytes)
+            return
+        self.respond(status, body_bytes, extra)
+
+    def control(self, path):
+        with lock:
+            if path.startswith("/_control/approve"):
+                for d in DEVICES.values():
+                    d["approved"] = True
+            elif path.startswith("/_control/revoke"):
+                ACCESS.clear()
+        self.respond(200, b'{"ok":true}')
+
+    def issue(self, tenant, endpoint, form):
+        lives = 120 if tenant == "short" else 3599
+        grant = form.get("grant_type", "")
+        client = form.get("client_id", "")
+        if endpoint == "devicecode":
+            scope = form.get("scope", "")
+            if client != USER_CLIENT_ID:
+                return aad_error(400, "unauthorized_client", 700016, "Application with identifier '%s' was not found in the directory 'Contoso'." % client)
+            if not all(need in scope.split() for need in SCOPE_USER_NEEDS):
+                return aad_error(400, "invalid_scope", 70011, "The provided value for the input parameter 'scope' is not valid.")
+            device_code, user_code = secrets.token_urlsafe(60), "AB12CD34"
+            uri = "https://microsoft.com/devicelogin"
+            if tenant == "evilurl":
+                uri = "javascript:alert(document.cookie)"
+            if tenant == "evilquote":
+                uri = 'https://microsoft.com/devicelogin?x="><script>alert(1)</script>'
+            if tenant == "evilcode":
+                user_code = "<script>alert(1)</script>"
+            with lock:
+                # tenant "auto": the person signs in at once (for a command-line run nobody can press anything during)
+                DEVICES[device_code] = {"approved": tenant == "auto", "user_code": user_code}
+            return 200, json.dumps({"user_code": user_code, "device_code": device_code, "verification_uri": uri,
+                                    "expires_in": 900, "interval": 5, "message": "To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code."}).encode(), {}
+        if grant == "client_credentials":
+            if client != APP_CLIENT_ID:
+                return aad_error(400, "invalid_request", 700016, "Application with identifier '%s' was not found in the directory 'Contoso'." % client)
+            if form.get("client_secret", "") != APP_SECRET:
+                return aad_error(401, "invalid_client", 7000215, "Invalid client secret provided. Ensure the secret being sent in the request is the client secret value, not the client secret ID, for a secret added to app '%s'." % client)
+            if form.get("scope", "") != SCOPE_APP:
+                return aad_error(400, "invalid_scope", 70011, "The provided value for the input parameter 'scope' is not valid. The scope %s is not valid." % form.get("scope", ""))
+            return 200, json.dumps({"token_type": "Bearer", "expires_in": lives, "ext_expires_in": lives, "access_token": new_access(OAUTH_MAILBOX, lives)}).encode(), {}
+        if grant == "refresh_token":
+            if client != USER_CLIENT_ID:
+                return aad_error(400, "invalid_request", 700016, "Application with identifier '%s' was not found in the directory 'Contoso'." % client)
+            with lock:
+                known = form.get("refresh_token", "") in REFRESH
+            if not known:
+                return aad_error(400, "invalid_grant", 700082, "The refresh token has expired due to inactivity. The token was issued on 2026-08-01T00:00:00.0000000Z and was inactive for 90.00:00:00.")
+            fresh = "0.A" + secrets.token_urlsafe(90)
+            with lock:
+                REFRESH[fresh] = {"user": OAUTH_MAILBOX}
+            return 200, json.dumps({"token_type": "Bearer", "scope": " ".join(SCOPE_USER_NEEDS), "expires_in": lives, "access_token": new_access(OAUTH_MAILBOX, lives), "refresh_token": fresh}).encode(), {}
+        if grant == "urn:ietf:params:oauth:grant-type:device_code":
+            with lock:
+                device = DEVICES.get(form.get("device_code", ""))
+            if device is None:
+                return aad_error(400, "bad_verification_code", 70000, "The provided device code is not valid.")
+            if not device["approved"]:
+                return aad_error(400, "authorization_pending", 70016, "OAuth 2.0 device flow error. Authorization is pending. Continue polling.")
+            fresh = "0.A" + secrets.token_urlsafe(90)
+            with lock:
+                REFRESH[fresh] = {"user": OAUTH_MAILBOX}
+            idt = jwt({"preferred_username": OAUTH_MAILBOX, "name": "Mail Box", "aud": USER_CLIENT_ID})
+            return 200, json.dumps({"token_type": "Bearer", "scope": " ".join(SCOPE_USER_NEEDS), "expires_in": lives, "access_token": new_access(OAUTH_MAILBOX, lives),
+                                    "refresh_token": fresh, "id_token": idt}).encode(), {}
+        return aad_error(400, "unsupported_grant_type", 70003, "The app is configured with a grant type this endpoint does not support.")
+
+
+def serve_tokens(label, ctx, outdir, ready, ports):
+    global last_activity
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(16)
+    ports[label] = srv.getsockname()[1]
+    ready.release()
+    while True:
+        conn, _ = srv.accept()
+        last_activity = time.time()
+
+        def handle(conn=conn):
+            sess = None
+            try:
+                if ctx is not None:
+                    conn = ctx.wrap_socket(conn, server_side=True)
+                sess = TokenSession(conn, outdir, label)
+                sess.run()
+            except Exception as exc:  # a test server must not die on one odd client
+                try:
+                    record(outdir, label, {"event": "server_error", "why": repr(exc)[:160]})
+                except Exception:
+                    pass
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        threading.Thread(target=handle, daemon=True).start()
 
 
 def serve(name, opts, ctx, outdir, ready, ports):
@@ -366,11 +700,15 @@ def main():
     ready, ports = threading.Semaphore(0), {}
     for name in names:
         threading.Thread(target=serve, args=(name, SCENARIOS[name], ctx, args.outdir, ready, ports), daemon=True).start()
-    for _ in names:
+    token_listeners = [("token_http", None)] + ([("token_https", ctx)] if ctx is not None else [])
+    for label, tls in token_listeners:
+        threading.Thread(target=serve_tokens, args=(label, tls, args.outdir, ready, ports), daemon=True).start()
+    for _ in range(len(names) + len(token_listeners)):
         ready.acquire()
     tmp = args.state + ".tmp"
     with open(tmp, "w") as fh:
-        json.dump({"ports": ports, "cert": cert, "user": USER, "password": PASSWORD}, fh)
+        json.dump({"ports": ports, "cert": cert, "user": USER, "password": PASSWORD, "oauth": {
+            "mailbox": OAUTH_MAILBOX, "app_client_id": APP_CLIENT_ID, "app_secret": APP_SECRET, "user_client_id": USER_CLIENT_ID}}, fh)
     os.replace(tmp, args.state)  # appears complete or not at all
     print("READY", json.dumps(ports), flush=True)
 
