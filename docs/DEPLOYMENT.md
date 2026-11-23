@@ -49,6 +49,8 @@ set the file wins. In the file the names are lower case (`MAIL_HOST` is `'mail_h
 | `MAIL_VERIFY_PEER` | `true`         | Check the mail server's certificate. `false` only while testing |
 | `MAIL_CAFILE`  | `…`                | CA bundle file, for a PHP without one (typically PHP on Windows) |
 | `MAIL_TIMEOUT` | `8`                | Seconds to wait for the mail server    |
+| `MAIL_ALERT_LIMIT` | `60`           | Most enquiry alert emails sent in an hour, all visitors together; `0` = no limit. Enquiries are saved either way |
+| `MAIL_DEFER`   | `true`             | Answer the visitor before talking to the mail server, where PHP-FPM or LiteSpeed allows it. `false` = talk first |
 | `MAIL_OAUTH_PROVIDER` | `microsoft` | Sign in with OAuth instead of a password (Microsoft 365, whose password sign-in for SMTP is being switched off). Empty: password. Also selects `smtp.office365.com` on 587 |
 | `MAIL_OAUTH_FLOW` | `app`           | `app`: the website signs in as an app (needs the secret below). `user`: a person connects once in Settings. Empty: `app` if a secret is set, else `user` |
 | `MAIL_OAUTH_TENANT` | `…`           | Your Directory (tenant) ID, from the app's Overview page in Microsoft Entra |
@@ -58,7 +60,18 @@ set the file wins. In the file the names are lower case (`MAIL_HOST` is `'mail_h
 | `MAIL_OAUTH_STORE` | `…`            | Leave empty (saved token: `storage/mail-oauth.json`) |
 
 Email has its own guide, with recipes for Laragon, cPanel, a VPS and the common mail
-services, and a table of what each failure message means: **[docs/EMAIL.md](EMAIL.md)**.
+services, and a table of what each failure message means: **[docs/EMAIL.md](EMAIL.md)**. Its
+*Security and speed* section says what the mail code protects and why PHP-FPM or LiteSpeed
+(rather than `mod_php`) lets a visitor be answered before the mail server is spoken to.
+
+`config.local.php` holds the mail password (and the OAuth client secret): keep it out of git
+and out of the web root. Where PHP runs as the account that owns the files (PHP-FPM, LiteSpeed,
+suexec: the usual case on shared hosting) `chmod 600 config.local.php` keeps other accounts
+from reading it; where PHP runs as a different user (some `mod_php` setups) that would stop the
+site reading it too, so check the site still loads. The saved OAuth sign-in
+(`storage/mail-oauth.json`) looks after its own permissions and `php bin/status.php` says if
+they are loose; run `php bin/mail-oauth.php connect` as the account that runs the website
+(`sudo -u www-data php bin/mail-oauth.php connect`), or the website cannot read what it saved.
 
 Optional: `BASE_PATH` (if installed in a subdirectory), `PRETTY_URLS=false` (if
 `mod_rewrite` is unavailable — URLs fall back to `index.php?route=…`).
@@ -126,6 +139,15 @@ CEDAR_ADMIN_PASSWORD='choose-a-strong-password' php bin/install.php \
   and a password of at least 14 characters supplied via `--password`, `--password-file`,
   or the `CEDAR_ADMIN_PASSWORD` environment variable (preferred — keeps it out of
   shell history).
+- Saves the default website texts and the five property categories, and sets the public
+  and the notification email in Settings to `--email`, so enquiry alerts have somewhere to
+  go from the first day (change them under **Dashboard → Settings**). The administrator,
+  the settings and the categories are created together or not at all: if the installer
+  stops with an error nothing is left behind, and you can run it again once the cause is
+  fixed. (Before 1.10.1 it stopped at a duplicate setting on a fresh database, after
+  creating the administrator; a second run then said *Schema is ready* and the website
+  texts, the contact email and the categories were never saved. If you installed that way,
+  open **Settings** and fill them in.)
 - For a **local staging** copy with sample content: `php bin/install.php --demo`
   (refused automatically unless `APP_ENV=local`).
 

@@ -61,13 +61,13 @@ final class HttpClient {
         $host = (string) ($parts['host'] ?? '');
         $path = (string) ($parts['path'] ?? '/');
         if (isset($parts['query'])) $path .= '?' . $parts['query'];
-        if (!in_array($scheme, ['https', 'http'], true) || $host === '' || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])
-            || !preg_match('/^[\x21-\x7E]+$/', $path)) {
+        // The host goes into the Host header and onto the connection: letters, digits, dots and hyphens (or a bracketed IPv6
+        // address) and nothing else, so no value can add a header line or name a different machine than it appears to.
+        if (!in_array($scheme, ['https', 'http'], true) || !preg_match('/^(?:[A-Za-z0-9.\-]+|\[[0-9A-Fa-f:.]+\])$/D', $host)
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment']) || !preg_match('/^[\x21-\x7E]+$/D', $path)) {
             throw new RuntimeException('The sign-in address is not usable: it should look like https://login.microsoftonline.com.');
         }
-        $bare = strtolower(trim($host, '[]'));
-        $local = $bare === 'localhost' || $bare === '::1' || str_starts_with($bare, '127.');
-        if ($scheme === 'http' && !$local) {
+        if ($scheme === 'http' && !SmtpClient::isLoopback($host)) {
             throw new RuntimeException('Refusing to send sign-in details to ' . $this->show($host) . ' without encryption (the address must start with https://).');
         }
         $unavailable = SmtpClient::unavailable('ssl');

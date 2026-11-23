@@ -31,6 +31,9 @@ can check the message byte for byte. Once every listener is up it writes {scenar
   oauthecho   refuses a token with a reply that holds the token and its base64, the careless server again
   basicoff    Microsoft 365 after password sign-in is switched off: AUTH LOGIN is answered 550 5.7.30
   oauthnotls  offers AUTH XOAUTH2 on a connection with no STARTTLS (a token must never be sent over that)
+  oldtls      starttls, but a server whose newest TLS is 1.1 (a client that will not speak less than 1.2 must walk away
+              before sending the password); needs a Python/OpenSSL that can still serve TLS 1.1, and is left out where not
+  oldtlsimplicit  the same, from the first byte (port 465 style)
 
 Sign-in everywhere is  mailer / s3cret-pass.  The certificate (CN=localhost, SAN localhost and
 127.0.0.1) is generated with openssl at start and written to <outdir>/cert.pem.
@@ -39,7 +42,10 @@ port ("token_http") and one HTTPS port ("token_https", the same certificate). Wh
 is chosen by the tenant in its path, /<tenant>/oauth2/v2.0/token, the way a real service would be chosen by
 address; see TENANTS. The access tokens it issues are the only ones the oauth* scenarios above accept, because
 both live in this one process. POST /_control/approve approves every pending device sign-in, and
-POST /_control/revoke takes every access token back (a token that expires early or is withdrawn).
+POST /_control/revoke takes every access token back (a token that expires early or is withdrawn). Tenant
+"racedisconnect" does what a person pressing Disconnect while a token request is in flight does: the file named in
+<outdir>/race-store loses its "user" entry just before the request is answered.
+Every event carries t, the time it happened (seconds since 1970), so a test can say what came before what.
 
 Needs only python3 (3.8+) and, for the TLS scenarios, the openssl command (found on PATH, or inside Git for Windows).
 """
@@ -95,6 +101,8 @@ SCENARIOS = {
     "oauthecho": {"starttls": True, "auth": True, "auth_needs_tls": True, "require_auth": True, "require_tls": True,
                   "auth_mechs": "XOAUTH2", "oauth_echo": True},
     "oauthnotls": {"auth": True, "auth_mechs": "XOAUTH2"},
+    "oldtls": {"starttls": True, "auth": True, "auth_needs_tls": True, "require_auth": True, "require_tls": True, "old_tls": True},
+    "oldtlsimplicit": {"implicit": True, "auth": True, "require_auth": True, "old_tls": True},
     "basicoff": {"starttls": True, "auth": True, "auth_needs_tls": True, "require_auth": True, "require_tls": True,
                  "auth_mechs": "LOGIN XOAUTH2", "basic_error": "550 5.7.30 Basic authentication is not supported for Client Submission. "
                                                                 "For more information see https://aka.ms/smtp_auth_disabled"},
@@ -110,6 +118,7 @@ last_activity = time.time()
 
 
 def record(outdir, name, entry):
+    entry = dict(entry, t=round(time.time(), 4))
     with lock:
         with open(os.path.join(outdir, name + ".jsonl"), "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry) + "\n")
@@ -470,6 +479,20 @@ class TokenSession:
         if method != "POST" or not m:
             return self.respond(404, b'{"error":"not_found"}')
         tenant, endpoint = m.group(1), m.group(2)
+        if tenant == "racedisconnect":
+            # Somebody presses Disconnect while this request is being answered: the saved sign-in is gone from its file
+            # by the time the answer arrives. (The test says which file in <outdir>/race-store.)
+            try:
+                with open(os.path.join(self.outdir, "race-store"), encoding="utf-8") as fh:
+                    target = fh.read().strip()
+                with open(target, encoding="utf-8") as fh:
+                    saved = json.load(fh)
+                saved.pop("user", None)
+                with open(target, "w", encoding="utf-8") as fh:
+                    json.dump(saved, fh)
+                self.event("race_disconnected")
+            except (OSError, ValueError):
+                self.event("race_not_set_up")
         if tenant == "slow":
             time.sleep(20)
             return
@@ -696,10 +719,27 @@ def main():
     if ctx is None:
         names = [n for n in names if not (SCENARIOS[n].get("starttls") or SCENARIOS[n].get("implicit"))]
         cert = ""
+    # A server that speaks nothing newer than TLS 1.1. Whether this Python and OpenSSL can still be one is found out, not
+    # assumed: where they cannot, the scenarios that need it are simply not offered, and the test says it skipped them.
+    old_ctx = None
+    if ctx is not None and any(SCENARIOS[n].get("old_tls") for n in names):
+        try:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                old_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                old_ctx.load_cert_chain(cert, key)
+                old_ctx.set_ciphers("ALL:@SECLEVEL=0")
+                old_ctx.minimum_version = ssl.TLSVersion.TLSv1
+                old_ctx.maximum_version = ssl.TLSVersion.TLSv1_1
+        except (ValueError, ssl.SSLError, OSError, AttributeError):
+            old_ctx = None
+    if old_ctx is None:
+        names = [n for n in names if not SCENARIOS[n].get("old_tls")]
 
     ready, ports = threading.Semaphore(0), {}
     for name in names:
-        threading.Thread(target=serve, args=(name, SCENARIOS[name], ctx, args.outdir, ready, ports), daemon=True).start()
+        threading.Thread(target=serve, args=(name, SCENARIOS[name], old_ctx if SCENARIOS[name].get("old_tls") else ctx, args.outdir, ready, ports), daemon=True).start()
     token_listeners = [("token_http", None)] + ([("token_https", ctx)] if ctx is not None else [])
     for label, tls in token_listeners:
         threading.Thread(target=serve_tokens, args=(label, tls, args.outdir, ready, ports), daemon=True).start()

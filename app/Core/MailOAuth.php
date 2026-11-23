@@ -56,12 +56,12 @@ final class MailOAuth {
      * For a token the mail server refused although it had not expired.
      */
     public static function forgetAccessToken(): void {
-        $store = self::readStore();
         $flow = self::settings()['flow'];
-        if (isset($store[$flow]) && is_array($store[$flow])) {
+        self::updateStore(static function (array $store) use ($flow): ?array {
+            if (!isset($store[$flow]) || !is_array($store[$flow])) return null;
             unset($store[$flow]['access_token'], $store[$flow]['expires_at']);
-            self::writeStore($store);
-        }
+            return $store;
+        });
         self::$fromStore = false;
     }
 
@@ -123,6 +123,10 @@ final class MailOAuth {
             if (!is_dir($dir) ? !is_writable(dirname($dir)) : !is_writable($dir)) {
                 $p[] = 'The folder for the saved sign-in (' . basename($dir) . '/) is not writable, so a connection could not be kept. Make it writable, or set MAIL_OAUTH_STORE to a file in a folder that is.';
             }
+        }
+        // The file is made private when it is written; a restored backup or an FTP upload can have changed that.
+        if ($s['provider'] === 'microsoft' && self::storeIsExposed()) {
+            $p[] = 'The saved sign-in (' . basename(self::storePath()) . ') can be read by other accounts on this server. Run  chmod 600 ' . self::storePath() . '  (it becomes private again by itself the next time a token is renewed).';
         }
         return $p;
     }
@@ -204,11 +208,20 @@ final class MailOAuth {
         }
         $token = (string) $json['access_token'];
         $lives = max(60, min(86400, (int) ($json['expires_in'] ?? 0) ?: 3600));
-        $slot = ['key' => self::keyFor($s), 'access_token' => $token, 'expires_at' => time() + $lives] + $slot;
         // A refresh token is replaced each time Microsoft sends a new one, so the connection keeps going.
-        if ($s['flow'] === 'user' && self::usable((string) ($json['refresh_token'] ?? ''))) $slot['refresh_token'] = (string) $json['refresh_token'];
-        $store[$s['flow']] = $slot;
-        self::writeStore($store); // only a cache: if it cannot be written, the next message asks again
+        $rotated = $s['flow'] === 'user' && self::usable((string) ($json['refresh_token'] ?? '')) ? (string) $json['refresh_token'] : '';
+        $key = self::keyFor($s);
+        // Written into the file as it is NOW, not as it was before Microsoft was asked (which took a while): if Disconnect was
+        // pressed meanwhile, that is the newer decision, and this answer must not bring the old sign-in back. Only a cache:
+        // if it cannot be written, the next message asks again.
+        self::updateStore(static function (array $store) use ($s, $key, $token, $lives, $rotated): ?array {
+            $current = is_array($store[$s['flow']] ?? null) ? $store[$s['flow']] : [];
+            if ($s['flow'] === 'user' && (($current['key'] ?? '') !== $key || !self::usable((string) ($current['refresh_token'] ?? '')))) return null;
+            $slot = ['key' => $key, 'access_token' => $token, 'expires_at' => time() + $lives] + (($current['key'] ?? '') === $key ? $current : []);
+            if ($rotated !== '') $slot['refresh_token'] = $rotated;
+            $store[$s['flow']] = $slot;
+            return $store;
+        });
         self::$note = 'OAuth: got a new access token from ' . (parse_url($s['authority'], PHP_URL_HOST) ?: 'the sign-in service') . ' (good for ' . intdiv($lives, 60) . ' minutes)';
         return $token;
     }
@@ -264,12 +277,14 @@ final class MailOAuth {
         $json = $answer['json'];
         if ($answer['status'] === 200 && is_array($json) && self::usable((string) ($json['access_token'] ?? '')) && self::usable((string) ($json['refresh_token'] ?? ''))) {
             $account = self::accountFrom((string) ($json['id_token'] ?? ''));
-            $store = self::readStore();
-            $store['user'] = [
+            $entry = [
                 'key' => self::keyFor($s), 'refresh_token' => (string) $json['refresh_token'], 'account' => $account, 'connected_at' => date('c'),
                 'access_token' => (string) $json['access_token'], 'expires_at' => time() + max(60, min(86400, (int) ($json['expires_in'] ?? 0) ?: 3600)),
             ];
-            if (!self::writeStore($store)) {
+            if (!self::updateStore(static function (array $store) use ($entry): array {
+                $store['user'] = $entry;
+                return $store;
+            })) {
                 throw new RuntimeException('Signed in, but the sign-in could not be saved: the folder ' . basename(dirname(self::storePath())) . '/ is not writable. Make it writable, or set MAIL_OAUTH_STORE to a file in a folder that is, and connect again.');
             }
             return ['state' => 'connected', 'account' => $account];
@@ -278,11 +293,17 @@ final class MailOAuth {
         throw new RuntimeException(self::refusal($answer, [$code]));
     }
 
-    /** Forget the saved sign-in. (Microsoft keeps the permission until it is removed in the account's app permissions.) */
-    public static function disconnect(): void {
-        $store = self::readStore();
-        unset($store['user']);
-        self::writeStore($store);
+    /**
+     * Forget the saved sign-in. (Microsoft keeps the permission until it is removed in the account's app permissions.)
+     *
+     * @return bool false when the file could not be changed: the sign-in is then still there, and the caller says so.
+     */
+    public static function disconnect(): bool {
+        return self::updateStore(static function (array $store): ?array {
+            if (!isset($store['user'])) return null;
+            unset($store['user']);
+            return $store;
+        });
     }
 
     // ------------------------------------------------------------------ talking to Microsoft
@@ -438,21 +459,78 @@ final class MailOAuth {
         return is_array($data) ? $data : [];
     }
 
-    /** Written beside, then renamed over: a reader sees the old file or the new one, never half of one. */
+    /**
+     * Change the saved sign-in file. $change is given what the file holds NOW, read while a lock is held, and returns what it should
+     * hold, or null to leave it alone; the result is written before the lock is let go.
+     *
+     * Reading, changing and writing as three separate steps lets two requests undo each other, and the one that matters here is
+     * Disconnect: asking Microsoft for a token takes a few hundred milliseconds, and had its answer been written over the file as it
+     * was read before them, a Disconnect pressed in that time would have been undone, without anyone being told.
+     *
+     * @param callable(array<string,mixed>):(array<string,mixed>|null) $change
+     * @return bool false when the file could not be changed (an unwritable folder, or the lock stayed taken for two seconds)
+     */
+    private static function updateStore(callable $change): bool {
+        $file = self::storePath();
+        $dir = dirname($file);
+        return (bool) self::quietly(static function () use ($file, $dir, $change): bool {
+            if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) return false;
+            $lock = self::privateHandle($file . '.lock');
+            if ($lock === null) return false;
+            try {
+                for ($waited = 0; !flock($lock, LOCK_EX | LOCK_NB); $waited += 20) {
+                    if ($waited >= 2000) return false;
+                    usleep(20000);
+                }
+                $new = $change(self::readStore());
+                return $new === null ? true : self::writeStore($new);
+            } finally {
+                fclose($lock); // and with it the lock
+            }
+        });
+    }
+
+    /**
+     * Written beside, then renamed over: a reader sees the old file or the new one, never half of one. The new file is made private
+     * BEFORE the secret is written into it (file_put_contents would have created it readable by others, and only then restricted it),
+     * and is created with 'x', which refuses a name that already exists, a link somebody left there included.
+     */
     private static function writeStore(array $data): bool {
         $file = self::storePath();
         $dir = dirname($file);
         return (bool) self::quietly(static function () use ($file, $dir, $data): bool {
             if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) return false;
+            $json = json_encode($data, JSON_UNESCAPED_SLASHES);
+            if ($json === false) return false;
             $temp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
-            if (file_put_contents($temp, json_encode($data, JSON_UNESCAPED_SLASHES), LOCK_EX) === false) return false;
-            chmod($temp, 0600);
-            if (!rename($temp, $file)) {
+            $handle = fopen($temp, 'xb');
+            if ($handle === false) return false;
+            $written = chmod($temp, 0600) && fwrite($handle, $json) === strlen($json);
+            $closed = fclose($handle);
+            if (!$written || !$closed || !rename($temp, $file)) {
                 unlink($temp);
                 return false;
             }
             return true;
         });
+    }
+
+    /** Open a file for locking, creating it readable by its owner only. @return resource|null */
+    private static function privateHandle(string $path) {
+        $existed = is_file($path);
+        $handle = fopen($path, 'cb');
+        if ($handle === false) return null;
+        if (!$existed) chmod($path, 0600);
+        return $handle;
+    }
+
+    /** Can another account on this server read the saved sign-in? (Not knowable on Windows, where file modes mean nothing.) */
+    private static function storeIsExposed(): bool {
+        $file = self::storePath();
+        if (PHP_OS_FAMILY === 'Windows' || !is_file($file)) return false;
+        clearstatcache(true, $file);
+        $mode = self::quietly(static fn() => fileperms($file));
+        return is_int($mode) && ($mode & 0077) !== 0;
     }
 
     /** Run $fn without letting a PHP warning (an unwritable folder, say) reach the error log. */
@@ -480,7 +558,7 @@ final class MailOAuth {
         if (!is_array($payload)) return '';
         foreach (['preferred_username', 'email', 'upn'] as $claim) {
             $value = trim((string) ($payload[$claim] ?? ''));
-            if ($value !== '' && strlen($value) <= 190 && filter_var($value, FILTER_VALIDATE_EMAIL)) return $value;
+            if ($value !== '' && strlen($value) <= 190 && Mailer::isAddress($value)) return $value;
         }
         return '';
     }

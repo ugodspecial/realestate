@@ -17,6 +17,9 @@ An enquiry is saved in the dashboard whether or not email works. If an alert can
 sent, the **Activity log** records an `enquiry.alert_failed` entry that gives the reason, and
 the reason is also written to `storage/logs/php-error.log`. The visitor still sees the normal
 thank-you page. A reset email that fails is recorded the same way, as `user.reset_mail_failed`.
+If more alerts are due in an hour than `MAIL_ALERT_LIMIT` allows (60 unless you change it), the
+rest are skipped, the enquiries are still saved, and one `enquiry.alert_suppressed` entry says
+so (see *Security and speed*).
 
 ## Check it in one minute
 
@@ -79,6 +82,8 @@ Each setting can be an **environment variable** (left column) or a line in
 | `MAIL_VERIFY_PEER` | `'mail_verify_peer'` | Check the server's certificate (default `true`). Set `false` only while testing; the Settings page and `php bin/status.php` flag it. |
 | `MAIL_CAFILE` | `'mail_cafile'` | Path to a CA bundle, for a PHP that has none (usually PHP on Windows). |
 | `MAIL_TIMEOUT` | `'mail_timeout'` | Seconds to wait for the mail server (default 8). |
+| `MAIL_ALERT_LIMIT` | `'mail_alert_limit'` | The most enquiry alert emails the website sends in an hour, all visitors together (default 60; `0` means no limit). Above it the enquiries are still saved and on the dashboard; only the alert is skipped, and the Activity log says so once. See [Security and speed](#security-and-speed). |
+| `MAIL_DEFER` | `'mail_defer'` | `true` (default): where the server allows it (PHP-FPM, LiteSpeed) the visitor is answered before the mail server is spoken to. `false`: talk to the mail server first, as before. See [Security and speed](#security-and-speed). |
 | `MAIL_OAUTH_PROVIDER` | `'mail_oauth_provider'` | `microsoft` signs in with OAuth instead of a password (**[Microsoft 365](#microsoft-365-mail-that-needs-oauth)**). Empty, the default: a password, as before. Naming it also selects SMTP, `smtp.office365.com`, port 587 and STARTTLS, so `MAIL_HOST`, `MAIL_PORT` and `MAIL_ENCRYPTION` can stay empty. `MAIL_USERNAME` is then the mailbox, and `MAIL_PASSWORD` is not used. |
 | `MAIL_OAUTH_FLOW` | `'mail_oauth_flow'` | `app` (the website signs in as an app; needs a client secret) or `user` (a person connects once in Settings). Empty: `app` when a client secret is set, otherwise `user`. |
 | `MAIL_OAUTH_TENANT` | `'mail_oauth_tenant'` | Your **Directory (tenant) ID** (a GUID), from the app's Overview page in Microsoft Entra. |
@@ -325,8 +330,8 @@ the connection once a day, so a quiet site does not lose it to the 90 days.
 ### Good to know
 
 - **Speed.** A new token costs one extra request to Microsoft, about once an hour, not per
-  email; the website gives up on it after `MAIL_TIMEOUT` seconds. Mail is still sent while
-  the visitor waits for the thank-you page.
+  email; the website gives up on it after `MAIL_TIMEOUT` seconds. Where the server allows it
+  the visitor does not wait for any of this (see [Security and speed](#security-and-speed)).
 - **Limits.** Microsoft limits SMTP submission to about 30 messages a minute and 10,000
   recipients a day per mailbox. A website that emails its own team is nowhere near either.
 - **Nothing secret leaks.** The client secret, tokens and the refresh token are never shown
@@ -338,6 +343,116 @@ the connection once a day, so a quiet site does not lose it to the 90 days.
   (a Gmail or Google Workspace mailbox still uses an app password, above). Personal
   Outlook.com accounts are not covered either, nor is going out to Microsoft through an
   HTTP proxy: the website connects to it directly.
+
+## Security and speed
+
+What the email code does to protect the site, what it deliberately leaves alone, and how it
+keeps a visitor from waiting for a mail server. The security notes for the whole site are in
+[SECURITY.md](SECURITY.md).
+
+### What a visitor can make the website send
+
+One kind of message: the **enquiry alert**, which always goes to the office address in
+Settings, never to an address the visitor typed. The visitor's own address is in the text, and
+is the *Reply-To* only when it is an ordinary address (letters, digits and `. _ % + -`);
+anything else is left out of the headers and the message still goes. A visitor cannot choose a
+recipient, a subject or a header.
+
+Two limits stop the form being used as a flood. Each network address may send 10 enquiries an
+hour, and all visitors together may cause **`MAIL_ALERT_LIMIT` alerts an hour** (60 unless you
+set it; `0` means no limit). Above that the enquiries are still saved and still on the
+dashboard; only the alert is skipped, and the Activity log says so once an hour
+(`enquiry.alert_suppressed`). The second limit matters more than it looks: a bot that fills the
+form in from many addresses would otherwise fill the inbox, use up the mail provider's
+allowance for the day (after which password-reset emails stop too) and get the sending account
+marked as a spammer.
+
+Password-reset requests are limited to 3 an hour per email address and 9 an hour per network
+address, and the page answers the same whether or not the address has an account. **Send a test
+email** goes only to the person who pressed it, 5 times in ten minutes; the OAuth buttons are
+limited to 30 presses in ten minutes. All of them need a signed-in Super Administrator and the
+form's token.
+
+### Addresses
+
+PHP's own e-mail check accepts some addresses that are unsafe to write into a message. A quoted
+local part may hold a line break, so `"a\<CR>\<LF>Bcc:someone@example.net"@example.com` passes
+it, and through PHP's `mail()` (as the sender) or the log file (as the recipient) it became a
+header line of its own. The SMTP driver already refused it. Everywhere an address is accepted
+that will one day be mailed to or from (Website settings, the staff form, the enquiry form, the
+command-line tools) it is now also held to this: visible ASCII only, no quotes, backslash or
+angle brackets, at most 254 characters. Every ordinary address passes; one that needs a quoted
+local part is refused. The SMTP client checks the envelope once more with a simpler rule of its
+own (not empty, visible ASCII, no angle brackets), so nothing handed to it directly can end or
+add a command, and it always sends CRLF as the line break whatever it is given, so no line of a
+message can be taken for a command by a server that is lenient about bare line feeds ("SMTP
+smuggling").
+
+### The connection
+
+- **TLS 1.2 or newer, always.** PHP's default would still agree to 1.0 and 1.1 with a server
+  that offers nothing better, over a connection that carries a password or an access token.
+  Microsoft 365, Google and every current provider already require 1.2. A very old mail server
+  of your own is refused with *The server only offers an old version of TLS* (see the table
+  below) instead of being used.
+- The server's certificate is checked unless `MAIL_VERIFY_PEER=false` (Settings and
+  `php bin/status.php` flag that).
+- With encryption on, a password or token is never sent before the connection is encrypted:
+  the site stops rather than fall back to plain text.
+- A host may skip encryption, as a mail catcher on your own computer does, only when it really
+  is this computer: `localhost`, `::1` or an address in `127.0.0.0/8`. A name that merely
+  begins with `127.` is somebody else's machine.
+- The OAuth sign-in service is reached over HTTPS only, takes no redirect, and is read for at
+  most 256 KB.
+
+### Secrets
+
+The password, the client secret and every token are never shown on a page, printed by
+`--verbose`, or written to the error log or the Activity log: what a mail server says back is
+cleaned and any secret in it removed, whether it is echoed as it was sent, in base64 or
+URL-encoded. They belong in the environment or in `config.local.php`, never in Settings or git.
+
+The saved OAuth sign-in (`storage/mail-oauth.json`) holds a token and, for a connected person, a
+refresh token good for 90 days. It is written readable by its owner only, and made private
+*before* the secret is put into it; it is replaced in one step, so a reader never sees half a
+file; and it is changed under a lock, so two requests cannot undo each other. In particular a
+**Disconnect** pressed while a token request is in flight stays disconnected. If another account
+on the machine could read the file (after restoring a backup, say), Settings and
+`php bin/status.php` say so and give the `chmod 600` that fixes it. The file is ignored by git
+and refused by `.htaccess`. Because only its owner can read it, run
+`php bin/mail-oauth.php connect` as the same account that runs the website (on a VPS, for
+example, `sudo -u www-data php bin/mail-oauth.php connect`), or connect from Settings, which
+always does.
+
+`MAIL_DRIVER=log` writes the whole message, a reset link included, to `storage/logs/mail.log`.
+That file is created readable by its owner only, and production refuses the driver altogether.
+
+### Speed
+
+A message takes about a dozen round trips to the mail server (nine replies, plus connecting and
+the TLS handshake). With the server 100 ms away that is over a second, and with a blocked port
+it is the whole `MAIL_TIMEOUT`, up to twice that. Where the server can, the website now
+**answers the visitor first and sends afterwards**. PHP-FPM and LiteSpeed can
+(`fastcgi_finish_request`, `litespeed_finish_request`); Apache's `mod_php`, CGI and `php -S`
+cannot. Where it cannot, nothing is lost: the message is sent before the answer, exactly as
+before.
+
+This is also what keeps a **password-reset request from telling a stranger which addresses have
+an account.** With the lookup, the token and the email all done after the answer, a request for
+an address nobody has takes the same time as one for a member of staff. Where the server cannot
+answer first the answers are still identical, but the time is not: a request for a real account
+takes as long as the mail server does, and a patient observer can measure the difference. The
+per-address and per-network limits make that slow work but not impossible; PHP-FPM or LiteSpeed
+removes it.
+
+How it works, in case you need to switch it off: the session is saved and released first (or the
+visitor's next page would wait for the mail), then the response is ended, then the message is
+sent; a failure is written to the Activity log and the error log, as before, and not shown.
+`MAIL_DEFER=false` sends first. The test button and the command-line tools always send first,
+because they exist to tell you the result.
+
+Not done, on purpose: keeping one connection open for several messages (a request sends one),
+and SMTP pipelining (it would save two of the dozen round trips and adds protocol risk).
 
 ## Getting out of the spam folder
 
@@ -365,9 +480,10 @@ Deliverability**; a mail service: its *domain authentication* page). Then:
 | *Email is switched off* | Set `MAIL_ENABLED=true` (or `'mail_enabled' => true`). |
 | *That host name could not be found* | Check `MAIL_HOST` for a typo. |
 | *Nothing is listening there (connection refused)* | Wrong `MAIL_HOST` or `MAIL_PORT`. For a local mail catcher, start it first. |
-| *The connection timed out* | The hosting plan or a firewall blocks that port. Use the SMTP host from your hosting panel, or port 587 or 2525 of a mail service. Until it is fixed every enquiry waits up to `MAIL_TIMEOUT` seconds (8 by default) before it is confirmed; lower it if you must live with the block for a while. |
+| *The connection timed out* | The hosting plan or a firewall blocks that port. Use the SMTP host from your hosting panel, or port 587 or 2525 of a mail service. Until it is fixed every enquiry waits up to `MAIL_TIMEOUT` seconds (8 by default) before it is confirmed, unless your server can answer first (see [Security and speed](#security-and-speed)); lower it if you must live with the block for a while. |
 | *Its TLS certificate could not be verified* | Use the host name the certificate names: on shared hosting that is the name your hosting panel gives for the mail server (often `mail.yourdomain.com`, sometimes the server's own name), never an IP address. On Windows PHP, set `MAIL_CAFILE` or `openssl.cafile` in `php.ini`. Last resort while testing: `MAIL_VERIFY_PEER=false`. |
 | *This server has switched off the PHP function …* | The host lists network functions in `disable_functions`. Ask the host to allow them, or use `MAIL_DRIVER=mail`. |
+| *The server only offers an old version of TLS* | The mail server cannot do TLS 1.2, and this site refuses 1.0 and 1.1 on purpose: they are no longer safe to send a password over. Ask whoever runs that server (your host) to switch on TLS 1.2 or newer, or use a mail service, which already does. |
 | *The server does not offer STARTTLS* | Try `MAIL_ENCRYPTION=ssl` with port 465, or `none` for a server on this computer. |
 | *Sign-in was refused* | Check `MAIL_USERNAME` and `MAIL_PASSWORD`. Many hosts want the full address; Gmail wants an app password. |
 | *The server refused the sender address* | `MAIL_FROM` must be an address on the account you sign in with. |
@@ -420,3 +536,16 @@ as in Microsoft's IMAP/POP/SMTP OAuth article; one third-party guide uses
 `app/Core/MailOAuth.php` is the single line to change), and the PowerShell steps, which follow
 the same article. If something here differs from what you see, trust Microsoft's page and
 tell us.
+
+The security measures above are tested the same way, against a hostile sample of each: an
+address with a line break hidden in a quoted local part, a host called `127.evil.example`, a
+mail server that speaks nothing newer than TLS 1.1 (it is walked away from before the password
+is sent; where a machine's Python cannot play such a server the test says it skipped), a message
+full of bare line feeds meant to be read as commands, a saved sign-in whose lock and permissions
+are watched step by step, a Disconnect that arrives while a token request is still being
+answered, and a flood of enquiries against the alert limit. Two things are **not** proven here.
+The answer-first behaviour is tested with a stand-in for `fastcgi_finish_request`, which proves
+the order (session released, visitor answered, then the mail server) and that a failure is
+still recorded, but no real PHP-FPM or LiteSpeed server has run it; `MAIL_DEFER=false` is the
+way back if one misbehaves. And the claim that a password-reset request cannot be told apart by
+timing holds where that behaviour applies; on other servers it does not (see above).

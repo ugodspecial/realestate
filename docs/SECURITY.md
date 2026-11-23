@@ -108,7 +108,11 @@ missing check can only ever damage test data.
 ## Password reset
 
 - A request always gets the same answer, whether or not the address exists, and
-  an inactive account is treated as unknown.
+  an inactive account is treated as unknown. The *time* it takes is the same too
+  where the server can answer before it sends (PHP-FPM, LiteSpeed; see *Email*
+  below): the lookup, the token and the mail all come after the response. Where it
+  cannot (`mod_php`, CGI, `php -S`) a request for a real account takes as long as
+  the mail server does, and a patient observer can tell the two apart.
 - Only `sha256(token)` is stored. The token itself exists only in the email.
 - One live token per user; requesting again invalidates the previous one.
 - Tokens expire after 60 minutes and are single use.
@@ -116,6 +120,37 @@ missing check can only ever damage test data.
   header (see *The Host header* below).
 - A completed reset bumps `session_version`, ending sessions elsewhere while
   leaving the device that made the change signed in.
+
+## Email
+
+Everything the mail code does to protect the site, with the evidence, is in
+[EMAIL.md](EMAIL.md#security-and-speed); `tests/mail.php` asserts it. In short:
+
+- **Nothing a visitor types chooses a recipient, a subject or a header.** The enquiry
+  alert goes to the office address in Settings; the visitor's address is only a
+  `Reply-To`, and only if it is an ordinary address. Names, messages and phone numbers
+  are length-capped and written as plain text (quoted-printable), never HTML.
+- **One address rule everywhere** (`Mailer::isAddress()`): PHP's `FILTER_VALIDATE_EMAIL`
+  accepts control characters inside a quoted local part, so an address with a line break
+  and a `Bcc:` line passes it. The Settings form, the staff form, the enquiry form, the
+  command-line tools and the mailer itself all refuse it; `SmtpClient` checks the
+  envelope again and normalises every line break to CRLF (SMTP smuggling).
+- **Floods are bounded.** 10 enquiries an hour per address, `MAIL_ALERT_LIMIT` alerts an
+  hour in all (enquiries are still saved), 3 reset requests an hour per address and 9 per
+  network address, 5 test emails per ten minutes, 30 OAuth button presses per ten minutes.
+- **TLS 1.2 or newer, certificate checked, no credential before encryption.** Only
+  `localhost`, `::1` and `127.0.0.0/8` may skip encryption; a name that starts with `127.`
+  is not one of them.
+- **Secrets stay out of every page and log**: the password, client secret and tokens are
+  masked wherever a mail server's reply is shown or recorded (as sent, base64, URL-encoded).
+- **The saved OAuth sign-in file** is private before it is written, replaced atomically,
+  changed under a lock (a Disconnect cannot be undone by a token request in flight), ignored
+  by git, refused by `.htaccess`, and reported by `bin/status.php` if its mode is loose.
+- **Admin mail actions** need `settings.manage` (Super Administrator) and a CSRF token; the
+  test email goes only to the person pressing the button.
+
+Not covered: SPF, DKIM and DMARC are DNS records, not code, and decide whether mail lands in
+an inbox. A MITM position on the network path can still stop mail (not read it, over TLS).
 
 ## Output, templates, and the database
 

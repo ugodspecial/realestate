@@ -30,7 +30,7 @@ foreach (array_slice($argv, 1) as $arg) {
     else $to = $arg;
 }
 if ($to === '') $to = Mailer::officeAddress();
-if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+if (!Mailer::isAddress($to)) {
     fwrite(STDERR, 'Say where to send it:  php bin/mail-test.php you@example.com' . PHP_EOL);
     exit(2);
 }

@@ -250,6 +250,28 @@ check('the test button sits in a form of its own that carries a CSRF token (form
     (bool) preg_match('/<form[^>]*method="post"[^>]*>\s*<input type="hidden" name="_token" value="[a-f0-9]+">\s*<input type="hidden" name="action" value="test-mail">/', $settingsPage)
     && substr_count($settingsPage, '<form') === substr_count($settingsPage, '</form>'));
 
+echo "\n== An address that PHP's own filter accepts but a message header cannot hold ==\n";
+// FILTER_VALIDATE_EMAIL accepts a quoted local part with control characters in it: this one has a CR and a LF, then "Bcc:". Written
+// unchecked into a From or To line it would be a header line of its own (mail() and the log driver did exactly that), so the places
+// that take an address - Website settings, the staff form, the enquiry form - hold it to the stricter rule in Mailer::isAddress().
+$forgedAddress = "\"a\\\r\\\nBcc:v@example.net\"@example.com";
+$emailBefore = $dbValue('email');
+$notifyBefore = $dbValue('notify_email');
+foreach (['email', 'notify_email'] as $field) {
+    $fields = ['_token' => $token, 'brand_name' => $settingsBefore, 'email' => $emailBefore, 'notify_email' => $notifyBefore, 'listings_per_page' => '9'];
+    $fields[$field] = $forgedAddress;
+    $r = http('POST', $base . '/admin/settings', $sa, $fields);
+    $shown = http('GET', $base . '/admin/settings', $sa)['body'];
+    check("Website settings refuses a $field like that, and says so", $r['code'] === 303 && str_contains($shown, 'Enter a valid email address.'), 'got ' . $r['code']);
+    check("...and saves nothing: neither address changed", $dbValue('email') === $emailBefore && $dbValue('notify_email') === $notifyBefore);
+}
+$usersBefore = (int) Database::value('SELECT COUNT(*) FROM users');
+$newPassword = 'Aa1-' . bin2hex(random_bytes(8));
+$r = http('POST', $base . '/admin/users/create', $sa, ['_token' => $token, 'name' => 'Forged Address', 'email' => $forgedAddress, 'role' => 'content_editor', 'password' => $newPassword, 'password_confirm' => $newPassword]);
+$shown = http('GET', $base . '/admin/users/new', $sa)['body'];
+check('the staff form refuses an address like that, and says so', $r['code'] === 303 && str_contains($shown, 'Enter a valid email address.'), 'got ' . $r['code']);
+check('...and no account is made for it', (int) Database::value('SELECT COUNT(*) FROM users') === $usersBefore && (int) Database::value("SELECT COUNT(*) FROM users WHERE email LIKE '%Bcc:%'") === 0);
+
 echo "\n== CSRF covers every state-changing route ==\n";
 // The checks above prove the token is enforced on ONE route. CSRF is enforced handler
 // by handler, so a handler added later that forgets verify_csrf() is silently open, and

@@ -55,9 +55,32 @@ final class Mailer {
     public static function pickOfficeAddress(string $notify, string $public): string {
         foreach ([$notify, $public] as $address) {
             $address = trim($address);
-            if ($address !== '' && filter_var($address, FILTER_VALIDATE_EMAIL)) return $address;
+            if ($address !== '' && self::isAddress($address)) return $address;
         }
         return '';
+    }
+
+    /**
+     * Is this an address that can safely be written into a message header and an SMTP command?
+     *
+     * PHP's FILTER_VALIDATE_EMAIL says yes to more than that. A quoted local part may hold control characters, so
+     *     "a\<CR>\<LF>Bcc:someone@example.net"@example.com
+     * passes it, and is a header line of its own in every place it is written without further checks (the From line of
+     * a message handed to mail(), the To line in a log file). This keeps the filter and adds what it leaves out: visible
+     * ASCII only (no space, no control character), no quote, no backslash, no angle bracket, at most 254 characters.
+     * Every ordinary address passes; one that needs a quoted local part does not. Use this wherever an address is
+     * accepted that will one day be mailed to or from.
+     *
+     * Which clause does the work (measured on PHP 8.5): the quote / backslash / bracket rule is the only one that refuses a
+     * quoted local part made of plain visible characters ("a@b"@example.com). The filter already refuses a space or a control
+     * character outside quotes, and a plain address longer than 254; the first two clauses say so again, so that the rule
+     * stays what this comment says if a later PHP changes the filter's pattern. They cost nothing and cannot be tested apart.
+     */
+    public static function isAddress(string $address): bool {
+        return strlen($address) <= 254
+            && preg_match('/^[\x21-\x7E]+$/D', $address) === 1
+            && preg_match('/["\\\\<>]/', $address) !== 1
+            && filter_var($address, FILTER_VALIDATE_EMAIL) !== false;
     }
 
     /**
@@ -69,7 +92,9 @@ final class Mailer {
      *         oauth is the provider's name when OAuth sign-in is on ("Microsoft 365"), else ''.
      */
     public static function settings(): array {
-        $oauth = MailOAuth::enabled();
+        // Asked once and kept in $sign: it reads the saved sign-in from disk, and the answer is needed twice below.
+        $sign = MailOAuth::enabled() ? MailOAuth::settings() : null;
+        $oauth = $sign !== null;
         // With OAuth the provider's own server is the default, so MAIL_HOST can stay empty.
         $host = trim((string) config('mail_host', '')) ?: MailOAuth::defaultHost();
         $driver = strtolower(trim((string) config('mail_driver', '')));
@@ -84,11 +109,11 @@ final class Mailer {
         };
         // Unset: port 465 means TLS from the first byte, a server on this machine needs no
         // encryption, anything else is expected to offer STARTTLS.
-        if ($encryption === '') $encryption = $port === 465 ? 'ssl' : (self::isLoopback($host) ? 'none' : 'tls');
+        if ($encryption === '') $encryption = $port === 465 ? 'ssl' : (SmtpClient::isLoopback($host) ? 'none' : 'tls');
         if ($port < 1 || $port > 65535) $port = $encryption === 'ssl' ? 465 : ($encryption === 'none' ? 25 : 587);
 
         // The mailbox: MAIL_USERNAME, or - for a person who connected their own account - that account.
-        $username = trim((string) config('mail_username', '')) ?: ($oauth ? MailOAuth::settings()['account'] : '');
+        $username = trim((string) config('mail_username', '')) ?: ($sign !== null ? $sign['account'] : '');
         return [
             'enabled' => self::enabled(),
             'driver' => $driver,
@@ -100,7 +125,7 @@ final class Mailer {
             'encryption' => $encryption,
             'username' => $username,
             'has_password' => (string) config('mail_password', '') !== '',
-            'oauth' => $oauth ? MailOAuth::settings()['label'] : '',
+            'oauth' => $sign !== null ? $sign['label'] : '',
             'verify_peer' => filter_var(config('mail_verify_peer', true), FILTER_VALIDATE_BOOLEAN),
             'cafile' => trim((string) config('mail_cafile', '')),
             'timeout' => max(1, min(60, (int) config('mail_timeout', 8) ?: 8)),
@@ -111,7 +136,7 @@ final class Mailer {
     public static function problems(): array {
         $s = self::settings();
         $p = [];
-        if (!filter_var($s['from'], FILTER_VALIDATE_EMAIL)) {
+        if (!self::isAddress($s['from'])) {
             $p[] = 'There is no valid sender address. Set MAIL_FROM (an address on your own domain), or fill in the public email under Website settings.';
         }
         switch ($s['driver']) {
@@ -134,8 +159,8 @@ final class Mailer {
                     }
                 }
                 if ($s['encryption'] !== 'none' && !extension_loaded('openssl')) $p[] = 'The PHP openssl extension is off, so encrypted SMTP cannot work. Enable extension=openssl in php.ini.';
-                if ($s['encryption'] === 'none' && ($s['username'] !== '' || $s['oauth'] !== '') && !self::isLoopback($s['host'])) $p[] = 'MAIL_ENCRYPTION is none while signing in: the ' . ($s['oauth'] !== '' ? 'access token' : 'password') . ' would cross the network unencrypted.';
-                if (!$s['verify_peer'] && !self::isLoopback($s['host'])) $p[] = 'MAIL_VERIFY_PEER is off, so the mail server\'s certificate is not checked. Use that only while testing.';
+                if ($s['encryption'] === 'none' && ($s['username'] !== '' || $s['oauth'] !== '') && !SmtpClient::isLoopback($s['host'])) $p[] = 'MAIL_ENCRYPTION is none while signing in: the ' . ($s['oauth'] !== '' ? 'access token' : 'password') . ' would cross the network unencrypted.';
+                if (!$s['verify_peer'] && !SmtpClient::isLoopback($s['host'])) $p[] = 'MAIL_VERIFY_PEER is off, so the mail server\'s certificate is not checked. Use that only while testing.';
                 break;
             case 'mail':
                 if ($s['oauth'] !== '') $p[] = 'MAIL_OAUTH_PROVIDER is set, but MAIL_DRIVER is mail, which cannot sign in with OAuth. Use MAIL_DRIVER=smtp.';
@@ -216,6 +241,7 @@ final class Mailer {
             str_contains($error, 'connection refused') => 'Nothing is listening on that port. Check MAIL_HOST and MAIL_PORT (587 for STARTTLS, 465 for SSL, 25 only for a server on this machine); for a local mail catcher, start it first.',
             str_contains($error, 'timed out') || str_contains($error, 'did not answer') || str_contains($error, 'too slow') => 'Many hosting plans block outgoing mail ports except to their own mail server. Use the SMTP host from your hosting panel\'s email settings.',
             str_contains($error, 'certificate') => 'Use the host name printed on the server\'s certificate (usually mail.yourdomain.com, not an IP address). On Windows PHP may need a CA bundle: set openssl.cafile in php.ini or MAIL_CAFILE. For local testing only, MAIL_VERIFY_PEER=false skips the check.',
+            str_contains($error, 'old version of TLS') => 'Ask whoever runs that mail server (your host, or whoever looks after it) to switch on TLS 1.2 or newer. This site refuses TLS 1.0 and 1.1 on purpose: they are no longer safe to send a password over. Mail providers such as Microsoft 365, Google, Brevo or Mailgun already offer it.',
             str_contains($error, 'does not offer STARTTLS') => 'Try MAIL_ENCRYPTION=ssl with port 465, or MAIL_ENCRYPTION=none for a server on this machine.',
             str_contains($error, 'wants encryption first') => 'Use MAIL_ENCRYPTION=tls with MAIL_PORT=587, or MAIL_ENCRYPTION=ssl with MAIL_PORT=465.',
             str_contains($error, 'Sign-in was refused') => 'Check MAIL_USERNAME and MAIL_PASSWORD. Many hosts want the full email address as the username; Gmail and Outlook need an app password.',
@@ -237,9 +263,9 @@ final class Mailer {
         self::$conversation = [];
         $s = self::settings();
         if (!$s['enabled']) return self::fail('Email is switched off (MAIL_ENABLED is not true).', false);
-        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return self::fail('The recipient address is not valid.');
+        if (!self::isAddress($to)) return self::fail('The recipient address is not valid.');
         if (preg_match('/[\r\n]/', $subject)) return self::fail('The subject contains a line break.');
-        if (!filter_var($s['from'], FILTER_VALIDATE_EMAIL)) return self::fail('There is no valid sender address (set MAIL_FROM, or the public email in Website settings).');
+        if (!self::isAddress($s['from'])) return self::fail('There is no valid sender address (set MAIL_FROM, or the public email in Website settings).');
         $subject = mb_substr($subject, 0, 150);
 
         $replyTo = (string) $replyTo;
@@ -249,6 +275,88 @@ final class Mailer {
             'log' => self::viaLog($s, $to, $subject, $body, $replyTo),
             default => self::fail('MAIL_DRIVER "' . $s['driver'] . '" is not one of mail, smtp or log.'),
         };
+    }
+
+    // ------------------------------------------------------------------ after the response
+
+    /** @var list<callable():void> */
+    private static array $later = [];
+    private static bool $hooked = false;
+    /** @var callable|null|false false: look for the server's own function; null or a callable: what a test says it has. */
+    private static $finisher = false;
+    /** @var callable|null What a test says closes the session; null: the real one. */
+    private static $releaser = null;
+
+    /**
+     * Run $job once the person who asked has their answer, where this server can answer first and carry on (PHP-FPM
+     * and LiteSpeed can: fastcgi_finish_request, litespeed_finish_request; Apache's mod_php, CGI and "php -S" cannot).
+     * Where it cannot, $job runs right now, exactly as it always did: nothing is skipped, only made to wait for.
+     *
+     * Why: a message takes about a dozen round trips to the mail server, so with the server 100 ms away a visitor
+     * waits over a second for a thank-you page, and a blocked mail port makes it eight to sixteen seconds. It also
+     * made a password-reset request for a real account measurably slower than one for an address nobody has, which
+     * tells a stranger who works here. MAIL_DEFER=false switches this off.
+     *
+     * $job must not write to the session (it is saved and closed first, so the person's next page does not wait for
+     * the mail) and should not throw: one that does is logged, never shown, and never stops the jobs after it.
+     *
+     * @param callable():void $job
+     * @return bool true when the job was left for later, false when it has already run
+     */
+    public static function afterResponse(callable $job): bool {
+        $finish = filter_var(config('mail_defer', true), FILTER_VALIDATE_BOOLEAN) ? self::finisher() : null;
+        if ($finish === null) {
+            self::runJob($job);
+            return false;
+        }
+        self::$later[] = $job;
+        if (!self::$hooked) {
+            self::$hooked = true;
+            register_shutdown_function([self::class, 'runLater']);
+        }
+        return true;
+    }
+
+    /** What PHP calls when the request is over, and what a test calls to stand in for that. Public for those two. */
+    public static function runLater(): void {
+        $jobs = self::$later;
+        self::$later = [];
+        if ($jobs === []) return;
+        // In this order. First the session is saved and unlocked: its file stays locked while this request lives, and
+        // the browser is about to ask for the next page with the same session, so answering first and unlocking later
+        // would only move the wait to that page. Then the answer goes out. Then the work.
+        if (self::$releaser !== null) (self::$releaser)();
+        elseif (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+        $finish = self::finisher();
+        if ($finish !== null) $finish();
+        ignore_user_abort(true);
+        foreach ($jobs as $job) self::runJob($job);
+    }
+
+    /**
+     * For tests: say this server has (a callable) or has not (null) a way to answer first; false goes back to looking. $release
+     * stands in for closing the session, so that the ORDER of the three steps can be seen without a real session.
+     */
+    public static function answerFirstWith(callable|false|null $finish, ?callable $release = null): void {
+        self::$finisher = $finish;
+        self::$releaser = $release;
+    }
+
+    /** @return callable|null The server's way to end the response and keep working, or null when it has none. */
+    private static function finisher(): ?callable {
+        if (self::$finisher !== false) return self::$finisher;
+        foreach (['fastcgi_finish_request', 'litespeed_finish_request'] as $name) {
+            if (function_exists($name)) return $name;
+        }
+        return null;
+    }
+
+    private static function runJob(callable $job): void {
+        try {
+            $job();
+        } catch (Throwable $e) {
+            error_log('A job that waits for the mail server failed: ' . get_class($e) . ': ' . self::tidy($e->getMessage()));
+        }
     }
 
     // ------------------------------------------------------------------ drivers
@@ -338,6 +446,12 @@ final class Mailer {
         try {
             if (!is_dir($dir)) mkdir($dir, 0775, true);
             if (is_file($file) && filesize($file) > 1048576) rename($file, $file . '.1'); // keep it small
+            // It will hold live reset links on a machine other people may log in to: private from the first byte, not
+            // made private after the first message is in it.
+            if (!is_file($file)) {
+                touch($file);
+                chmod($file, 0600);
+            }
             $ok = file_put_contents($file, $text, FILE_APPEND | LOCK_EX) !== false;
         } finally {
             restore_error_handler();
@@ -434,11 +548,6 @@ final class Mailer {
     private static function plainAddress(string $address): string {
         $address = trim($address);
         return strlen($address) <= 254 && preg_match('/^[A-Za-z0-9._%+\-]+@[A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?\.[A-Za-z]{2,}$/D', $address) ? $address : '';
-    }
-
-    private static function isLoopback(string $host): bool {
-        $host = strtolower(trim($host, '[]'));
-        return $host === 'localhost' || $host === '::1' || str_starts_with($host, '127.');
     }
 
     // ------------------------------------------------------------------ failure

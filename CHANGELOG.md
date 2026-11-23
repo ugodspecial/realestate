@@ -1,5 +1,154 @@
 # Changelog
 
+## 1.10.1 — 2026-11-23
+
+**An audit of the email feature: what a visitor can make it send, what it will talk to, what
+it keeps on disk, and how long a visitor waits for it. Nine weaknesses were found by trying
+to break it; each is fixed, and each is now caught by a test that fails without the fix. A
+broken step in the production installer turned up while checking the audit's last line, and
+is fixed too.**
+
+*Nothing here changes how a working setup looks.* The ways it can now behave differently
+are listed last, under *What may be different for you*.
+
+*What was found, and what was done.*
+
+1. **Old TLS was allowed.** PHP's default agrees to TLS 1.0 or 1.1 with a mail server that
+   offers nothing newer (measured against a test server that speaks only 1.1), over a
+   connection that carries a password or an access token. The site now asks for TLS 1.2 or
+   newer on every connection it makes: mail from the first byte, the STARTTLS upgrade, and
+   the call to Microsoft for a token. A server that offers less is left before anything
+   secret is sent, with a sentence that says so and what to ask its owner.
+2. **A quoted address could carry a header.** PHP's own e-mail check accepts a line break
+   inside a quoted local part, so `"a\<CR>\<LF>Bcc:someone@example.net"@example.com` passed
+   it. Through PHP's `mail()` (as the sender) it became a `Bcc:` header of its own, and in the
+   log driver's file (as the recipient) a forged line. The SMTP driver already refused it.
+   One rule, `Mailer::isAddress()` (visible ASCII, no quotes, backslash or angle brackets, at
+   most 254 characters), now stands behind the sender and recipient of every message, the
+   Settings emails, the staff form, the enquiry form, the command-line tools, the installer
+   and the account read from a Microsoft sign-in. Every ordinary address passes.
+3. **A password-reset request told a stranger which addresses have accounts, by timing.** A
+   request for a real account waited for the mail server (a few hundred milliseconds, or the
+   whole time-out); one for an unknown address did not. The visitor also waited, and the
+   session file stayed locked, so their next page waited too. Where PHP-FPM or LiteSpeed
+   can answer first (`fastcgi_finish_request`, `litespeed_finish_request`), the lookup, the
+   token and the message now all come *after* the answer, in that order: the session is
+   released, the answer is sent, then the work is done; a failure is still written to the
+   Activity log and the error log. Enquiry alerts are sent the same way, so a thank-you page
+   no longer waits for a mail server. Where the server cannot (Apache's `mod_php`, CGI,
+   `php -S`) nothing changes, and the guides now say plainly that the content of the answer
+   is identical but its timing is not. `MAIL_DEFER=false` switches it off.
+4. **The saved sign-in file** (`storage/mail-oauth.json`) was written with default
+   permissions and then restricted, and was read, changed and written back as three steps
+   around a call to Microsoft: a **Disconnect** pressed while a token request was in flight
+   was silently undone. The file is now created private before anything is written to it
+   (and refuses a name that already exists, a planted link included), replaced in one step,
+   and changed under a lock after re-reading what it holds. Disconnect says so when it could
+   not do it (Settings, the Activity log, and exit code 1 from `bin/mail-oauth.php`).
+   Settings and `bin/status.php` warn, with the `chmod 600` that fixes it, if another account
+   on the machine could read the file.
+5. **`127.evil.example` was treated as this computer**, so it got the no-encryption default
+   and port 25, and the token client would send to it over plain `http`. Only `localhost`,
+   `::1` and a real `127.x.x.x` address count now, in one place used by both.
+6. **The token client did not check the characters of a host** before putting it in a
+   request. It does (letters, digits, dots and hyphens, or a bracketed IPv6 address).
+7. **The enquiry form could be used to flood the office's mailbox.** Each address was held
+   to ten enquiries an hour, but a bot using many addresses was not, and a flood also uses up
+   the provider's allowance for the day, after which reset emails stop. At most
+   `MAIL_ALERT_LIMIT` alerts an hour (60 unless you set it; `0` means no limit) are sent
+   from all visitors together; the enquiries are still saved and on the dashboard, and the
+   Activity log says once an hour that alerts were held back (`enquiry.alert_suppressed`).
+8. **`storage/logs/mail.log`** (the development driver, which holds reset links, and which
+   production refuses) was created readable by others. It is created private.
+9. **`SmtpClient` trusted its caller for line endings.** A bare line feed in a message can
+   be taken for the end of a line by one server and not by another, which is how a line of
+   a message gets read as a command ("SMTP smuggling"). The client now sends CRLF and nothing
+   else, whatever it is given, and checks the envelope addresses itself.
+
+*Also fixed: the production installer.* `php bin/install.php --email … ` on a fresh database
+stopped with `UNIQUE constraint failed: settings.key_name`: migration 002 writes the brand
+settings, and the installer inserted them again. It stopped after creating the administrator
+and before saving the contact email, the website texts and the categories, and a second run
+said *Schema is ready* and left it that way. So a site installed as DEPLOYMENT.md describes
+had no public or notification email, and the enquiry alert had nowhere to go until someone
+filled Settings in. The installer now keeps what a migration wrote, adds what is missing,
+and does the administrator, settings and categories together or not at all. (Seen on SQLite;
+MySQL has the same key on that table. Every test before this one installed with `--demo`,
+which takes another route.) A site installed before this should have its **Settings** page
+checked: re-running the installer will not repair it.
+
+*Guides.* `docs/EMAIL.md` has a new *Security and speed* chapter (what a visitor can make the
+site send, addresses, the connection, secrets, why PHP-FPM or LiteSpeed matters, and what was
+left alone on purpose), a new table row for the TLS refusal, and a longer *What has and has not
+been tested*. `docs/SECURITY.md` has an *Email* section and says what is and is not true of the
+password-reset answer. `docs/DEPLOYMENT.md` documents `MAIL_ALERT_LIMIT` and `MAIL_DEFER`, the
+installer, and `chmod 600` for `config.local.php`. The suite checks the settings tables and the
+failure table of the guides against the code.
+
+*Speed.* The cost of sending is the network, not the code: a message takes about a dozen
+round trips (nine replies, plus connecting and the TLS handshake): about 170 ms on loopback
+in the PHP used here (indicative only), seconds at a real distance, and a blocked port costs
+the whole time-out. Item 3
+takes that off the visitor's path where the server allows it. In the code, `Mailer::settings()`
+read the saved sign-in file twice on the person flow and now reads it once (counted: 2 reads
+to 1, and 4 to 3 for the settings check); sending a message one read fewer. Everything else
+measured at under 200 microseconds a call and was left alone.
+
+*What was looked at and found sound:* the Reply-To and `-f` handling, dot-stuffing, the
+quoted-printable body, subject and sender-name quoting, secret masking in every output, the
+CSRF, permission and rate limit on every admin mail action, escaping in the Settings views,
+the https-only sign-in page link, that the token URL comes only from configuration, that the
+saved sign-in is ignored by git and refused by `.htaccess`, and the length caps on every
+enquiry field.
+
+*Deliberately not done, and why:* a circuit breaker that stops trying after failures (it
+would silently lose alerts); SMTP pipelining (saves two round trips, adds protocol risk); the
+`Content-Length: 0` trick to answer first under `mod_php` (cannot be tested here); keeping one
+connection for several messages (a request sends one); a warning about the mode of
+`config.local.php` (the usual fix, `chmod 600`, can lock out a site on hosts where PHP runs
+as another user, so the guide explains it instead); a global cap on reset emails (an attacker
+could use it up to lock staff out).
+
+*What may be different for you.* An address that needs a quoted local part (`"a b"@example.com`)
+is now refused by the forms and the mailer; ordinary addresses are unaffected. A mail server
+that offers nothing newer than TLS 1.1 is refused with an explanation (ask its owner for TLS 1.2).
+More than 60 enquiries in an hour send no more alerts until the hour has gone by (the enquiries
+are saved; raise or switch off `MAIL_ALERT_LIMIT` if that is wrong for you). Under PHP-FPM or
+LiteSpeed a failed alert or reset email is found in the Activity log, not in the visitor's page,
+exactly as before, but later; `MAIL_DEFER=false` restores the old order.
+
+*Proven here, and how.* `tests/mail.php` runs 587 checks (619 with the command-line part, which
+needs a PHP that can start another PHP; CI runs those too), 121 more than before: every case above
+against hostile input, with real sockets where the claim is about the wire. That includes a
+mail server that speaks nothing newer than TLS 1.1 (both STARTTLS and TLS from the first byte), a
+message full of bare line feeds, a saved sign-in whose lock, permissions and rename are watched
+step by step, a Disconnect that arrives while a token request is still being answered, a flood
+against the alert limit, and the answer-first order (session released, visitor answered, then
+the mail server). `tests/security.php` has 6 more checks (the forged address through the real
+Settings and staff forms), `tests/migrations.php` 9 more (the installer, run for real on a fresh
+database, including a failure halfway; 11 where the runner reports exit codes). The new checks
+were run against the code as it was before this release (with four small stand-in functions, so
+that they can call it): 70 of them fail there. 49 new deliberate
+breakages of the code and the guides (a weaker address rule, the TLS floor left out of one of its
+three places, a host check removed, line endings left alone, the file made private after the
+secret is written, the lock not taken, a Disconnect that fails but reports success, the alert
+limit or its note removed, the answer sent after the work, a default changed, and so on) were
+tried: 47 fail at least one check. The other two are clauses of the address rule that PHP's own
+check already enforces (a space or control character outside quotes, and a plain address over
+254 characters), so removing one changes nothing anyone can observe; they are kept as a written
+statement of the rule and are labelled so in the code. Of the installer's 8 breakages, 7 are
+caught, the eighth being an explicit `rollBack()` just before the process ends. The 45 breakages
+of 1.9.0 and the 65 of 1.10.0 are all still caught.
+
+*Not proven here.* The answer-first behaviour is tested with a stand-in for
+`fastcgi_finish_request`, which proves the order and that a failure is still recorded, but no
+real PHP-FPM or LiteSpeed server has run it (`MAIL_DEFER=false` is the way back if one
+misbehaves). The old-TLS tests need a Python and OpenSSL that can still serve TLS 1.1; where
+they cannot, the test says it skipped. File-mode checks are for POSIX systems. PHP 8.1 to 8.4
+were not run on this machine (it has 8.5); CI runs them. A real Microsoft 365 organisation, a
+host's own `mail()` and ports, SPF, DKIM and DMARC, and Windows PHP were not reachable from here.
+The installer fix was run on SQLite only.
+
 ## 1.10.0 — 2026-11-23
 
 **The website can send email through Microsoft 365 with OAuth, which is what Microsoft

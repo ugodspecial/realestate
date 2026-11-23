@@ -563,6 +563,217 @@ foreach ([
 }
 ok('nothing unhelpful is invented for an error with no known advice', Mailer::hint('The server did not accept the message: 451 try later') === '');
 
+// ================================================================== audit: addresses, hosts, TLS, files
+echo "\n== Audit: what may be an address, a trusted host, a TLS version and a log file ==\n";
+// Addresses PHP's own FILTER_VALIDATE_EMAIL accepts although they are not safe to write into a header (found by trying it,
+// not assumed): a quoted local part may hold control characters. The first is a header line of its own, with a CR and a LF
+// in it, wherever it was written unchecked: through mail() as the From line, in the log file as the To line.
+$audForged = [
+    'a quoted local part holding a CR and a LF, then Bcc:' => "\"a\\\r\\\nBcc:v@example.net\"@example.com",
+    'a raw control character inside quotes' => "\"a\x01b\"@example.com",
+    'an escaped NUL inside quotes' => "\"a\\\0b\"@example.com",
+    'a quoted local part with an escaped space' => '"a\\ b"@example.com',
+    // ...and the quoted forms made only of visible characters. Nothing in them is dangerous by itself; they are refused because
+    // a header, an envelope and a log line would each have to understand quoting, and one that did not would be fooled.
+    'a quoted local part, even of plain letters' => '"ab"@example.com',
+    'a quoted local part holding an at sign' => '"a@b"@example.com',
+    'a quoted local part holding angle brackets' => '"a<b>c"@example.com',
+    'a quoted local part with an escaped at sign' => '"a\\@b"@example.com',
+    'a quoted local part with an escaped quote' => '"a\\"b"@example.com',
+    'a quoted local part holding a comma' => '"a,b"@example.com',
+    'a display name with angle brackets' => 'Bob <bob@example.com>',
+    'a trailing line feed' => "bob@example.com\n",
+    'a tab inside' => "bo\tb@example.com",
+    'a non-ASCII letter' => "b\u{00F3}b@example.com",
+    'more than 254 characters' => str_repeat('a', 60) . '@' . str_repeat('b', 60) . '.' . str_repeat('c', 60) . '.' . str_repeat('d', 60) . '.' . str_repeat('e', 20) . '.example.com',
+    'nothing' => '',
+];
+foreach (['info@example.com', 'first.last+tag@sub.example.co.uk', "o'brien@example.com", 'a_b-c%d@example.org', 'someone@example.ng'] as $audGood) {
+    ok('an ordinary address is accepted: ' . $audGood, Mailer::isAddress($audGood));
+}
+foreach ($audForged as $audWhy => $audBad) {
+    ok('not accepted as an address: ' . $audWhy, !Mailer::isAddress($audBad));
+}
+$audForgedTo = $audForged['a quoted local part holding a CR and a LF, then Bcc:'];
+$audLog = sys_get_temp_dir() . '/cedar-mail-forged-' . bin2hex(random_bytes(4)) . '.log';
+mailConfig(['mail_driver' => 'log', 'mail_log_file' => $audLog, 'app_env' => 'local']);
+clearErrorLog();
+@unlink($audLog);
+ok('a recipient like that is refused, and nothing is written (the log driver used to write the forged Bcc line)',
+    Mailer::send($audForgedTo, 'x', 'y') === false && str_contains(Mailer::lastError(), 'recipient') && !is_file($audLog), Mailer::lastError());
+mailConfig(['mail_driver' => 'log', 'mail_log_file' => $audLog, 'app_env' => 'local', 'mail_from' => $audForgedTo]);
+ok('a sender like that is refused, and nothing is written', Mailer::send('office@example.com', 'x', 'y') === false && str_contains(Mailer::lastError(), 'sender') && !is_file($audLog), Mailer::lastError());
+ok('the settings check names a sender like that as the problem', array_filter(Mailer::problems(), static fn(string $p): bool => str_contains($p, 'no valid sender')) !== []);
+ok('the office address passes over a notification address like that, to the public one; if both are like that there is none',
+    Mailer::pickOfficeAddress($audForgedTo, 'front-desk@example.com') === 'front-desk@example.com' && Mailer::pickOfficeAddress($audForgedTo, $audForgedTo) === '');
+ok('a Reply-To like that is still dropped, not written (the earlier protection stands)', Mailer::render('noreply@example.com', 'Site', 'office@example.com', 'x', 'y', $audForgedTo) !== '' && !str_contains(Mailer::render('noreply@example.com', 'Site', 'office@example.com', 'x', 'y', $audForgedTo), 'Reply-To'));
+
+// A host that merely STARTS with 127. is somebody else's machine; only the real loopback is trusted with no encryption.
+foreach (['localhost' => true, 'LOCALHOST' => true, '::1' => true, '[::1]' => true, '127.0.0.1' => true, '127.255.255.254' => true,
+          '127.evil.example' => false, '127.0.0.1.nip.io' => false, '127.0.0.256' => false, '128.0.0.1' => false, 'mail.example.com' => false, '' => false] as $audHost => $audLocal) {
+    ok('"' . $audHost . '" is ' . ($audLocal ? '' : 'not ') . 'this machine', SmtpClient::isLoopback((string) $audHost) === $audLocal);
+}
+mailConfig(['mail_driver' => '', 'mail_host' => '127.evil.example', 'mail_encryption' => '', 'mail_port' => 0]);
+ok('a host called 127.evil.example is not given the no-encryption default of a mail catcher on this machine', Mailer::settings()['encryption'] === 'tls' && Mailer::settings()['port'] === 587, json_encode(Mailer::settings()));
+mailConfig(['mail_driver' => '', 'mail_host' => '127.0.0.1', 'mail_encryption' => '', 'mail_port' => 0]);
+ok('127.0.0.1 still is', Mailer::settings()['encryption'] === 'none' && Mailer::settings()['port'] === 25);
+mailConfig(['mail_driver' => 'smtp', 'mail_host' => '127.evil.example', 'mail_encryption' => 'none', 'mail_username' => 'mailer', 'mail_password' => 'secret-word']);
+ok('and with a password and no encryption, a host like that is warned about',
+    array_filter(Mailer::problems(), static fn(string $p): bool => str_contains($p, 'MAIL_ENCRYPTION is none')) !== []);
+foreach ([
+    'http://127.evil.example/t/oauth2/v2.0/token' => 'without encryption',
+    'https://exa_mple.example/t' => 'not usable',
+    "https://a.example\r\nX-Evil: 1/t" => 'not usable',
+    'https://a.example%0d%0aX-Evil:1/t' => 'not usable',
+    'https://user:pass@a.example/t' => 'not usable',
+] as $audUrl => $audSays) {
+    try {
+        HttpClient::postForm((string) $audUrl, ['a' => 'b'], ['timeout' => 1]);
+        $audGot = 'it went ahead';
+    } catch (RuntimeException $e) {
+        $audGot = $e->getMessage();
+    }
+    ok('the token client refuses ' . json_encode((string) $audUrl) . ' before it connects to anything', str_contains($audGot, $audSays), $audGot);
+}
+
+// The oldest TLS this site speaks. (Whether it really walks away from an old server is checked below, against one.)
+$audHas = static fn(int $mask, int $method): bool => ($mask & ($method & ~1)) !== 0;
+foreach ([true, false] as $audVerify) {
+    $audMask = (int) (stream_context_get_options(SmtpClient::tlsContext('mail.example.com', $audVerify))['ssl']['crypto_method'] ?? 0);
+    ok('a TLS context asks for 1.2' . ($audVerify ? '' : ' (certificate checks off as well)'), $audHas($audMask, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT), (string) $audMask);
+    ok('...and not for 1.0 or 1.1' . ($audVerify ? '' : ' (certificate checks off as well)'), !$audHas($audMask, STREAM_CRYPTO_METHOD_TLSv1_0_CLIENT) && !$audHas($audMask, STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT), (string) $audMask);
+}
+ok('the same floor is what a STARTTLS upgrade is given', SmtpClient::tlsMethod() === $audMask && (!defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT') || $audHas($audMask, STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT)));
+foreach (['tlsv1 alert protocol version', 'error:0A000102:SSL routines::unsupported protocol', 'wrong version number', 'no protocols available'] as $audRaw) {
+    ok('"' . $audRaw . '" is explained as a server that only knows old TLS', str_contains(SmtpClient::explain($audRaw), 'TLS 1.2 or newer'), SmtpClient::explain($audRaw));
+}
+ok('PHP\'s own warning for it is turned into that sentence',
+    str_contains(SmtpClient::failureReason('', ["stream_socket_client(): SSL operation failed with code 1. OpenSSL Error messages:\nerror:1409442E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version"]), 'TLS 1.2 or newer'));
+ok('and the advice says what to ask for, and that the refusal is on purpose',
+    str_contains(Mailer::hint('Could not switch to an encrypted connection: the server only offers an old version of TLS, and this site needs TLS 1.2 or newer [x]'), 'TLS 1.2')
+    && str_contains(Mailer::hint('Could not switch to an encrypted connection: the server only offers an old version of TLS, and this site needs TLS 1.2 or newer [x]'), 'on purpose'));
+
+ok('MAIL_DEFER is on unless it is switched off', ($baseConfig['mail_defer'] ?? null) === true);
+// The account the website sends as is read from what Microsoft answered, and is used as the sender: an ordinary address only.
+$audJwt = static fn(array $claims): string => 'x.' . rtrim(strtr(base64_encode((string) json_encode($claims)), '+/', '-_'), '=') . '.y';
+ok('the account read from a sign-in answer is used only if it is an ordinary address',
+    MailOAuth::accountFrom($audJwt(['preferred_username' => 'mailbox@contoso.test'])) === 'mailbox@contoso.test'
+    && MailOAuth::accountFrom($audJwt(['preferred_username' => $audForgedTo])) === ''
+    && MailOAuth::accountFrom($audJwt(['preferred_username' => '"a\\ b"@contoso.test', 'email' => 'real@contoso.test'])) === 'real@contoso.test');
+
+// The log driver's file holds live reset links on a machine other people may log in to: private from the first byte.
+$audPrivate = sys_get_temp_dir() . '/cedar-mail-private-' . bin2hex(random_bytes(4)) . '.log';
+@unlink($audPrivate);
+mailConfig(['mail_driver' => 'log', 'mail_log_file' => $audPrivate, 'app_env' => 'local']);
+Mailer::send('office@example.com', 'Reset your password', "Open this link:\nhttp://localhost/reset-password?token=abc123");
+if (PHP_OS_FAMILY === 'Windows') {
+    skipped('the log file is private to its owner', 'file modes mean nothing on Windows');
+} else {
+    ok('the log file is created readable by its owner only', is_file($audPrivate) && (fileperms($audPrivate) & 0077) === 0, is_file($audPrivate) ? decoct(fileperms($audPrivate) & 0777) : 'no file');
+}
+foreach ([$audLog, $audPrivate, $audPrivate . '.1'] as $audFile) if (is_file($audFile)) unlink($audFile);
+
+// The saved sign-in file. Its contents are a bearer token and, for a connected person, a refresh token good for 90 days. A stream
+// wrapper that remembers what was done to the files lets the test see ORDER, which is the point: the new file has to be private
+// before the secret is written into it, not after (file_put_contents creates it readable by others, and only then is it restricted).
+final class AuditVfs {
+    /** @var array<string,array{data:string,mode:int}> */
+    public static array $files = [];
+    /** @var list<array{0:string,1:string,2:int}> [what, which file, that file's mode at that moment] */
+    public static array $log = [];
+    public $context;
+    private string $path = '';
+    private int $pos = 0;
+    private static function key(string $url): string { return rtrim(substr($url, strlen('vfs://')), '/'); }
+    public function stream_open(string $url, string $mode, int $options, ?string &$opened): bool {
+        $k = self::key($url);
+        $exists = isset(self::$files[$k]);
+        if (($mode[0] === 'x' && $exists) || ($mode[0] === 'r' && !$exists)) return false;
+        if (!$exists) { self::$files[$k] = ['data' => '', 'mode' => 0644]; self::$log[] = ['create', basename($k), 0644]; }
+        elseif ($mode[0] === 'w') self::$files[$k]['data'] = '';
+        self::$log[] = ['open ' . $mode, basename($k), self::$files[$k]['mode']];
+        $this->path = $k;
+        $this->pos = $mode[0] === 'a' ? strlen(self::$files[$k]['data']) : 0;
+        return true;
+    }
+    public function stream_read(int $count): string|false { $chunk = substr(self::$files[$this->path]['data'], $this->pos, $count); $this->pos += strlen($chunk); return $chunk; }
+    public function stream_write(string $data): int {
+        self::$log[] = ['write', basename($this->path), self::$files[$this->path]['mode']];
+        $held = &self::$files[$this->path]['data'];
+        $held = substr($held, 0, $this->pos) . $data . substr($held, $this->pos + strlen($data));
+        $this->pos += strlen($data);
+        return strlen($data);
+    }
+    public function stream_eof(): bool { return $this->pos >= strlen(self::$files[$this->path]['data']); }
+    public function stream_stat(): array|false { return ['size' => strlen(self::$files[$this->path]['data']), 'mode' => 0100000 | self::$files[$this->path]['mode']]; }
+    public function stream_lock(int $operation): bool { self::$log[] = ['lock ' . $operation, basename($this->path), self::$files[$this->path]['mode']]; return true; }
+    public function stream_flush(): bool { return true; }
+    public function stream_close(): void {}
+    public function stream_set_option(int $option, int $arg1, ?int $arg2): bool { return false; }
+    public function stream_metadata(string $url, int $option, mixed $value): bool {
+        $k = self::key($url);
+        if ($option !== STREAM_META_ACCESS || !isset(self::$files[$k])) return false;
+        self::$files[$k]['mode'] = (int) $value & 0777;
+        self::$log[] = ['chmod', basename($k), (int) $value & 0777];
+        return true;
+    }
+    public function url_stat(string $url, int $flags): array|false {
+        $k = self::key($url);
+        if (isset(self::$files[$k])) return ['size' => strlen(self::$files[$k]['data']), 'mode' => 0100000 | self::$files[$k]['mode']];
+        return $k === 'store' ? ['size' => 0, 'mode' => 040755] : false;
+    }
+    public function rename(string $from, string $to): bool {
+        $a = self::key($from);
+        $b = self::key($to);
+        if (!isset(self::$files[$a])) return false;
+        self::$files[$b] = self::$files[$a];
+        unset(self::$files[$a]);
+        self::$log[] = ['rename', basename($a) . ' -> ' . basename($b), self::$files[$b]['mode']];
+        return true;
+    }
+    public function unlink(string $url): bool { $k = self::key($url); if (!isset(self::$files[$k])) return false; unset(self::$files[$k]); return true; }
+}
+stream_wrapper_register('vfs', AuditVfs::class);
+AuditVfs::$files = ['store/mail-oauth.json' => ['mode' => 0600, 'data' => json_encode([
+    'user' => ['key' => 'k1', 'refresh_token' => '0.A' . str_repeat('r', 80), 'account' => 'mailbox@contoso.test'],
+    'app' => ['key' => 'k2', 'access_token' => 'eyJ' . str_repeat('a', 80), 'expires_at' => time() + 3000],
+])]];
+mailConfig(['mail_oauth_provider' => 'microsoft', 'mail_oauth_store' => 'vfs://store/mail-oauth.json']);
+$audDisconnected = MailOAuth::disconnect();
+$audSaved = (array) json_decode(AuditVfs::$files['store/mail-oauth.json']['data'] ?? '[]', true);
+$audWrites = array_values(array_filter(AuditVfs::$log, static fn(array $e): bool => $e[0] === 'write' && str_ends_with($e[1], '.tmp')));
+ok('through a store the test can watch, Disconnect removes the person\'s sign-in and keeps the other entry', $audDisconnected === true && !isset($audSaved['user']) && isset($audSaved['app']), json_encode($audSaved));
+ok('the new file holding the secret is made private BEFORE anything is written into it', $audWrites !== [] && array_filter($audWrites, static fn(array $e): bool => ($e[2] & 0077) !== 0) === [], json_encode(AuditVfs::$log));
+ok('...and put in place by renaming it over the old one, a private file all the way', ($audRename = array_values(array_filter(AuditVfs::$log, static fn(array $e): bool => $e[0] === 'rename'))) !== [] && ($audRename[0][2] & 0077) === 0 && (AuditVfs::$files['store/mail-oauth.json']['mode'] & 0077) === 0, json_encode(AuditVfs::$log));
+ok('...with its lock file private too, and nothing else left behind', (AuditVfs::$files['store/mail-oauth.json.lock']['mode'] & 0077) === 0 && count(AuditVfs::$files) === 2, json_encode(array_keys(AuditVfs::$files)));
+$audKinds = array_map(static fn(array $e): string => $e[0] . ' ' . $e[1], AuditVfs::$log);
+$audLockAt = (int) array_search(true, array_map(static fn(string $k): bool => str_starts_with($k, 'lock ') && str_ends_with($k, 'mail-oauth.json.lock'), $audKinds), true);
+$audRenameAt = (int) array_search(true, array_map(static fn(string $k): bool => str_starts_with($k, 'rename '), $audKinds), true);
+ok('the lock on the lock file is taken before the store is read or changed, and still held when the new file is put in place',
+    array_filter($audKinds, static fn(string $k): bool => str_starts_with($k, 'lock ') && str_ends_with($k, 'mail-oauth.json.lock')) !== [] && $audLockAt < $audRenameAt
+    && ($audReadAt = (int) array_search('open rb mail-oauth.json', $audKinds, true)) > $audLockAt, json_encode($audKinds));
+ok('the temporary file is opened for exclusive creation: a name that already exists, a planted link included, is refused rather than written through',
+    array_filter($audKinds, static fn(string $k): bool => str_starts_with($k, 'open xb ') && str_ends_with($k, '.tmp')) !== [], json_encode($audKinds));
+$audDisconnected = MailOAuth::disconnect();
+ok('disconnecting again, with nothing to disconnect, changes nothing and says it worked', $audDisconnected === true && count(array_filter(AuditVfs::$log, static fn(array $e): bool => $e[0] === 'rename')) === 1);
+stream_wrapper_unregister('vfs');
+
+// A saved sign-in that other accounts on the machine can read (a restored backup, an FTP upload) is reported, with the fix.
+$audStore = sys_get_temp_dir() . '/cedar-oauth-mode-' . bin2hex(random_bytes(4)) . '.json';
+file_put_contents($audStore, json_encode(['app' => ['key' => 'x', 'access_token' => 'tok', 'expires_at' => time() + 100]]));
+mailConfig(['mail_driver' => 'smtp', 'mail_host' => 'smtp.office365.com', 'mail_encryption' => 'tls', 'mail_oauth_provider' => 'microsoft', 'mail_oauth_flow' => 'app', 'mail_oauth_tenant' => 'contoso',
+    'mail_oauth_client_id' => '11111111-1111-4111-8111-111111111111', 'mail_oauth_client_secret' => 'a-client-secret-value', 'mail_oauth_store' => $audStore, 'mail_username' => 'mailbox@contoso.test']);
+$audExposed = static fn(): array => array_values(array_filter(Mailer::problems(), static fn(string $p): bool => str_contains($p, 'can be read by other accounts')));
+if (PHP_OS_FAMILY === 'Windows') {
+    skipped('a saved sign-in readable by other accounts is reported', 'file modes mean nothing on Windows');
+} else {
+    chmod($audStore, 0644);
+    ok('a saved sign-in that other accounts can read is reported, with the command that fixes it', count($audExposed()) === 1 && str_contains($audExposed()[0], 'chmod 600 ' . $audStore), json_encode($audExposed()));
+    chmod($audStore, 0600);
+    ok('...and the report goes once it is private', $audExposed() === [] && Mailer::problems() === [], json_encode(Mailer::problems()));
+}
+@unlink($audStore);
+
 // ================================================================== real SMTP
 echo "\n== SMTP against a real server ==\n";
 $sink = startSink($root);
@@ -618,6 +829,23 @@ if ($sink === null) {
     $sentRaw = $client->send('noreply@example.com', 'office@example.com', $raw);
     $rawGot = sinkMessages($sink, 'plain')[$beforeCount]['data'] ?? '';
     ok('a lone dot, a leading dot and two leading dots in a raw message arrive exactly as written (dot-stuffing), and the message is not cut short', $sentRaw === true && $rawGot === $raw . "\r\n", json_encode($rawGot));
+    // Whatever the caller built, the server is given CRLF and nothing else as a line break. A server that is lenient about a bare LF
+    // (this one is, as many are) would otherwise end the message at "<LF>.<LF>" and read the rest as commands: "SMTP smuggling".
+    $smuggle = "Subject: smuggling\r\n\r\nfirst\n.\nMAIL FROM:<intruder@example.net>\nRCPT TO:<victim@example.net>\nDATA\nSmuggled\n.\rQUIT\rlast";
+    $client = new SmtpClient(['host' => '127.0.0.1', 'port' => $port('plain'), 'encryption' => 'none', 'timeout' => 3]);
+    $beforeCount = count(sinkMessages($sink, 'plain'));
+    $sentSmuggle = $client->send('noreply@example.com', 'office@example.com', $smuggle);
+    $gotSmuggle = array_slice(sinkMessages($sink, 'plain'), $beforeCount);
+    ok('a message with bare line feeds and carriage returns in it is sent as ONE message: no line of it is taken for a command',
+        $sentSmuggle === true && count($gotSmuggle) === 1 && ($gotSmuggle[0]['mail_from'] ?? '') === 'noreply@example.com' && ($gotSmuggle[0]['rcpts'] ?? []) === ['office@example.com'], json_encode($gotSmuggle));
+    ok('...and it arrived whole, every line break a CRLF',
+        ($gotSmuggle[0]['data'] ?? '') === "Subject: smuggling\r\n\r\nfirst\r\n.\r\nMAIL FROM:<intruder@example.net>\r\nRCPT TO:<victim@example.net>\r\nDATA\r\nSmuggled\r\n.\r\nQUIT\r\nlast\r\n", json_encode($gotSmuggle[0]['data'] ?? null));
+    foreach (["bob@example.com\r\nRCPT TO:<victim@example.net>", 'bob@example.com RCPT TO:<victim@example.net>', "bob@example.com\tx", "b\u{00F3}b@example.com", '<bob@example.com>', ''] as $badEnvelope) {
+        $beforeConnects = sinkSaw($sink, 'plain', 'connect');
+        $client = new SmtpClient(['host' => '127.0.0.1', 'port' => $port('plain'), 'encryption' => 'none', 'timeout' => 3]);
+        ok('the client refuses an envelope address that is not a plain run of visible characters, before it connects: ' . json_encode($badEnvelope),
+            $client->send('noreply@example.com', $badEnvelope, "Subject: x\r\n\r\ny") === false && str_contains($client->error(), 'envelope') && sinkSaw($sink, 'plain', 'connect') === $beforeConnects, $client->error());
+    }
     ok('the subject arrived intact', decodeWords($received['headers']['subject'][0] ?? '') === $subject);
     ok('a success clears the last error and leaves the error log empty', Mailer::lastError() === '' && errorLogText() === '', errorLogText());
     ok('the conversation is kept for diagnosis', in_array('C: DATA', Mailer::conversation(), true) && (bool) array_filter(Mailer::conversation(), static fn($l) => str_starts_with($l, 'S: 250')));
@@ -700,6 +928,22 @@ if ($sink === null) {
     ok('an unverifiable certificate is refused here too, and nothing is delivered', $sent === false && str_contains(Mailer::lastError(), 'certificate') && count(sinkMessages($sink, 'implicit')) === 1, Mailer::lastError());
     mailConfig($base('implicit', $auth + ['mail_host' => 'localhost', 'mail_encryption' => 'ssl', 'mail_verify_peer' => true, 'mail_cafile' => $sink['cert']]));
     ok('...and accepted once the certificate is trusted', Mailer::send('office@example.com', 'Trusted TLS', 'body') === true, Mailer::lastError());
+
+    // --- a server whose newest TLS is 1.1: walked away from, before the password or the message goes anywhere
+    foreach (['oldtls' => 'tls', 'oldtlsimplicit' => 'ssl'] as $oldName => $oldEncryption) {
+        if ($port($oldName) === 0) {
+            echo "SKIP  a mail server that only speaks TLS 1.1 is refused ($oldName) :: this Python/OpenSSL cannot serve TLS 1.1, so the sink does not offer it (the TLS floor itself is still checked above)\n";
+            continue;
+        }
+        mailConfig($base($oldName, $auth + ['mail_encryption' => $oldEncryption, 'mail_verify_peer' => false]));
+        clearErrorLog();
+        $mark = count(sinkEvents($sink, $oldName));
+        $sent = Mailer::send('office@example.com', 'Over TLS 1.1', 'body');
+        $after = array_slice(sinkEvents($sink, $oldName), $mark);
+        ok("a mail server that only speaks TLS 1.1 is refused ($oldName), in words", $sent === false && str_contains(Mailer::lastError(), 'old version of TLS') && str_contains(Mailer::lastError(), 'TLS 1.2 or newer'), Mailer::lastError());
+        ok('...before the password or the message is sent anywhere', !array_filter($after, static fn($e) => in_array($e['event'] ?? '', ['auth_attempt', 'auth_ok', 'message'], true)) && sinkMessages($sink, $oldName) === []);
+        ok('...with advice that says what to ask for, and no PHP warning in the log', str_contains(Mailer::hint(Mailer::lastError()), 'TLS 1.2') && !preg_match('/PHP (Warning|Notice|Deprecated)/', errorLogText()), errorLogText());
+    }
 
     // --- encryption demanded, not offered: never downgrade
     mailConfig($base('nostarttls', $auth + ['mail_encryption' => 'tls']));
@@ -1200,6 +1444,14 @@ if ($sink === null || empty($sink['oauth']) || empty($sink['ports']['token_https
     ok('a code past its time is not shown on the page', !str_contains($renderCard(), 'AB12CD34') && !isset($_SESSION['mail_oauth_device']));
     $r = AdminController::mailOAuthStep($admin, 'oauth-disconnect');
     ok('Disconnect forgets the account, says what that means, and is recorded', $r['ok'] === true && str_contains($r['message'], 'Disconnected') && !MailOAuth::settings()['connected'] && (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'settings.mail_oauth' AND details = 'Disconnected Microsoft 365'") >= 1, json_encode($r));
+    $lockPath = $store . '.lock';
+    if (is_file($lockPath)) unlink($lockPath);
+    mkdir($lockPath);   // the lock cannot be taken: the file that holds the sign-in cannot be changed
+    $r = AdminController::mailOAuthStep($admin, 'oauth-disconnect');
+    rmdir($lockPath);
+    ok('a Disconnect that could not be saved says so and is recorded as such: it does not pretend',
+        $r['ok'] === false && str_contains($r['message'], 'Could not disconnect') && !str_contains($r['message'], 'Disconnected.')
+        && (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'settings.mail_oauth' AND details LIKE ?", ['%could not be disconnected%']) >= 1, json_encode($r));
     $r = AdminController::mailOAuthStep($admin, 'oauth-cancel');
     ok('cancelling needs nothing said', $r === ['ok' => true, 'message' => '']);
     $r = AdminController::mailOAuthStep($admin, 'oauth-nonsense');
@@ -1249,6 +1501,52 @@ if ($sink === null || empty($sink['oauth']) || empty($sink['ports']['token_https
     })();
     ok('...and so are the code and the address in the sign-in steps, even if something upstream let markup through', !str_contains($escapedSteps, '<script>alert(1)</script>') && !str_contains($escapedSteps, '<b>AB12</b>')
         && str_contains($escapedSteps, '&lt;b&gt;AB12&lt;/b&gt;') && str_contains($escapedSteps, '&quot;&gt;&lt;script&gt;') && str_contains($escapedSteps, '1 more minute.'), substr($escapedSteps, (int) strpos($escapedSteps, 'oauth-steps'), 700));
+
+    // ---------------------------------------------------------------- the saved sign-in file, used by two requests at once
+    echo "\n-- a Disconnect pressed while Microsoft is being asked for a token --\n";
+    $resetStore();
+    mailConfig($userCfg(['mail_oauth_tenant' => 'racedisconnect']));
+    $device = MailOAuth::beginDeviceLogin($net);
+    $control('approve');
+    $state = MailOAuth::pollDeviceLogin($device, $net);
+    ok('(set-up) a person is connected, through the tenant that disconnects them mid-request', $state['state'] === 'connected' && MailOAuth::settings()['connected'], json_encode($state));
+    $data = $readStore();
+    $data['user']['expires_at'] = time() - 5;   // the saved access token has run out, so Microsoft is asked for a new one
+    $writeStore($data);
+    file_put_contents($sink['dir'] . '/race-store', $store);   // tells the sink which file to take the sign-in out of
+    $beforeRaces = sinkSaw($sink, 'token_https', 'race_disconnected');
+    try { $raced = MailOAuth::accessToken($net); $racedWhy = ''; } catch (RuntimeException $e) { $raced = ''; $racedWhy = $e->getMessage(); }
+    @unlink($sink['dir'] . '/race-store');
+    ok('(set-up) the sign-in was taken out of the file while Microsoft was still answering', sinkSaw($sink, 'token_https', 'race_disconnected') === $beforeRaces + 1);
+    ok('a Disconnect pressed in that time stays disconnected: the answer is not written back over it', !isset($readStore()['user']) && !MailOAuth::settings()['connected'], json_encode(array_keys($readStore())));
+    ok('...and the message that was already on its way still goes out with the token it asked for', $racedWhy === '' && strlen($raced) > 800, $racedWhy);
+    $resetStore();
+    mailConfig($userCfg());
+    $device = MailOAuth::beginDeviceLogin($net);
+    $control('approve');
+    MailOAuth::pollDeviceLogin($device, $net);
+    $lockFile = $store . '.lock';
+    ok('an ordinary refresh still works, replaces the refresh token, and leaves a private lock file and no temporary file behind',
+        (function () use ($readStore, $writeStore, $net, $store, $lockFile): bool {
+            $data = $readStore();
+            $old = (string) $data['user']['refresh_token'];
+            $data['user']['expires_at'] = time() - 5;
+            $writeStore($data);
+            $token = MailOAuth::accessToken($net);
+            $now = $readStore()['user'] ?? [];
+            return strlen($token) > 800 && ($now['refresh_token'] ?? $old) !== $old && ($now['access_token'] ?? '') === $token
+                && is_file($lockFile) && glob($store . '.*.tmp') === [] && (PHP_OS_FAMILY === 'Windows' || ((fileperms($lockFile) & 0077) === 0 && (fileperms($store) & 0077) === 0));
+        })());
+    $before = $readStore();
+    ok('Disconnect that cannot be saved says so instead of pretending: nothing is lost and false is returned',
+        (function () use ($store, $lockFile): bool {
+            // a folder that is not writable (root ignores modes, so this one is made impossible instead: the lock "file" is a directory)
+            if (is_file($lockFile)) unlink($lockFile);
+            mkdir($lockFile);
+            try { return MailOAuth::disconnect() === false; } finally { rmdir($lockFile); }
+        })() && ($readStore()['user'] ?? null) === ($before['user'] ?? 'x'), json_encode(array_keys($readStore())));
+    $resetStore();
+
     Database::query("DELETE FROM audit_logs WHERE action = 'settings.mail_oauth'");
     $_SESSION = [];
     $resetStore();
@@ -1286,14 +1584,22 @@ if ($sink === null) {
     ok('replying to the alert answers the visitor (Reply-To), while it is still sent from the site', ($alert['headers']['reply-to'][0] ?? '') === 'visitor@example.org' && str_ends_with($alert['headers']['from'][0] ?? '', '<noreply@example.com>') && ($got[0]['mail_from'] ?? '') === 'noreply@example.com');
     ok('a delivered alert leaves nothing in the failure log', $failedAlerts((int) $result['id']) === []);
 
-    // A valid but unusual address is accepted by the form; it must not become a header.
+    // An address PHP's own filter accepts but that is not an ordinary one (a quoted local part, which may hold control
+    // characters) is refused by the form: it could never be mailed to or from, and nothing is saved or sent for it.
     $_SESSION = ['form_started' => time() - 30];
     $before = count(sinkMessages($sink, 'plain'));
+    $enquiriesBefore = (int) Database::value('SELECT COUNT(*) FROM enquiries');
     $odd = $enquiry(['email' => '"odd\\ name"@example.org']);
-    $cleanup[] = (int) ($odd['id'] ?? 0);
+    $got = array_slice(sinkMessages($sink, 'plain'), $before);
+    ok('an unusual (quoted) address is refused by the form with the usual message; nothing is saved, nothing is mailed',
+        $odd === ['Please enter a valid email address.'] && $got === [] && (int) Database::value('SELECT COUNT(*) FROM enquiries') === $enquiriesBefore, json_encode($odd));
+    // ... and one that reached the mailer some other way (an older row, a script) is still never put in a header.
+    $before = count(sinkMessages($sink, 'plain'));
+    $sentOdd = Mailer::send($office, 'Odd reply-to', 'Body of the message', '"odd\\ name"@example.org');
     $got = array_slice(sinkMessages($sink, 'plain'), $before);
     $oddAlert = parseMessage((string) ($got[0]['data'] ?? ''));
-    ok('a valid but unusual (quoted) address still gets its enquiry alerted, but is never put in a header', !empty($odd['reference']) && count($got) === 1 && !isset($oddAlert['headers']['reply-to']) && !str_contains($oddAlert['head'], 'odd'), json_encode($odd));
+    ok('an unusual address handed to the mailer as Reply-To is dropped, and the message still goes',
+        $sentOdd && count($got) === 1 && !isset($oddAlert['headers']['reply-to']) && !str_contains($oddAlert['head'], 'odd'), json_encode($got[0]['data'] ?? null));
 
     // Mail failing must not lose or fail the enquiry, and must be findable afterwards.
     mailConfig(['mail_port' => $closedPort, 'mail_timeout' => 2]);
@@ -1347,6 +1653,150 @@ if ($sink === null) {
     Database::query('DELETE FROM password_resets WHERE user_id = ?', [$uid]);
     Database::query("DELETE FROM audit_logs WHERE entity_id = ? AND action IN ('user.reset_requested','user.reset_mail_failed')", [$uid]);
     Database::query('DELETE FROM users WHERE id = ?', [$uid]);
+
+    // ---------------------------------------------------------------- after the response; and a limit on alerts
+    echo "\n-- the visitor is answered first, and a flood of enquiries cannot become a flood of email --\n";
+    $afterIp = '198.51.100.' . random_int(20, 200);
+    $_SERVER['REMOTE_ADDR'] = $afterIp;
+    $trace = [];
+    $answeredAt = 0.0;
+    $answer = static function () use (&$trace, &$answeredAt): bool { $trace[] = 'answered'; $answeredAt = microtime(true); return true; };
+    $release = static function () use (&$trace): void { $trace[] = 'session released'; };
+    $clearAlertCounters = static function (): void { foreach (['enquiry-alert|all', 'enquiry-alert-noted|all'] as $k) RateLimiter::clear($k); };
+    $afterCleanup = [];
+    $newVisit = static function () use ($afterIp): void { $_SESSION = ['form_started' => time() - 30]; RateLimiter::clear('enquiry|' . $afterIp); };
+    $messagesNow = static fn(): int => count(sinkMessages($GLOBALS['sink'], 'plain'));
+    $clearAlertCounters();
+
+    mailConfig($base('plain'));
+    Mailer::answerFirstWith($answer, $release);
+    $newVisit();
+    $eventsBefore = count(sinkEvents($sink, 'plain'));
+    $messagesBefore = $messagesNow();
+    $r = $enquiry(['message' => 'An enquiry whose alert is sent after the visitor has been answered.']);
+    $afterCleanup[] = (int) ($r['id'] ?? 0);
+    ok('where the server can answer first, the enquiry is saved and its thank-you is ready before the mail server has been spoken to',
+        !empty($r['reference']) && (int) Database::value('SELECT COUNT(*) FROM enquiries WHERE reference = ?', [$r['reference'] ?? '']) === 1 && count(sinkEvents($sink, 'plain')) === $eventsBefore && $trace === [], json_encode([$r, $trace]));
+    Mailer::runLater();   // what PHP does when the request is over
+    $connects = array_values(array_filter(array_slice(sinkEvents($sink, 'plain'), $eventsBefore), static fn($e) => ($e['event'] ?? '') === 'connect'));
+    ok('...then the session is let go, the visitor is answered, and only then is the mail server connected to', $trace === ['session released', 'answered'] && count($connects) === 1 && ($connects[0]['t'] ?? 0) + 0.002 >= $answeredAt, json_encode([$trace, $answeredAt, $connects]));
+    $deliveredAlert = array_slice(sinkMessages($sink, 'plain'), $messagesBefore);
+    ok('...and the alert does reach the office, with the reference and a Reply-To, as it always did', count($deliveredAlert) === 1 && ($deliveredAlert[0]['rcpts'] ?? []) === [$office]
+        && decodeWords(parseMessage((string) $deliveredAlert[0]['data'])['headers']['subject'][0] ?? '') === 'New property enquiry · ' . $r['reference'] && (parseMessage((string) $deliveredAlert[0]['data'])['headers']['reply-to'][0] ?? '') === 'visitor@example.org');
+    Mailer::runLater();
+    ok('...once: running the finish again sends nothing more', $messagesNow() === $messagesBefore + 1);
+
+    mailConfig(['mail_port' => $closedPort, 'mail_timeout' => 2]);
+    Mailer::answerFirstWith($answer, $release);
+    $newVisit();
+    $r2 = $enquiry(['message' => 'An enquiry whose alert fails after the visitor was answered.']);
+    $afterCleanup[] = (int) ($r2['id'] ?? 0);
+    ok('an alert that cannot be sent is not known about yet when the visitor is answered...', !empty($r2['reference']) && $failedAlerts((int) $r2['id']) === []);
+    clearErrorLog();
+    Mailer::runLater();
+    $afterNotes = $failedAlerts((int) $r2['id']);
+    ok('...and is in the activity log, with the reason, once the work has been done', count($afterNotes) === 1 && str_contains($afterNotes[0], 'could not be sent') && str_contains(errorLogText(), 'Mail not sent (smtp):'), json_encode($afterNotes));
+
+    // The order is the point; so is each job getting its turn.
+    $trace = [];
+    $ran = [];
+    Mailer::afterResponse(static function () use (&$ran, &$trace): void { $ran[] = 'first'; $trace[] = 'job'; throw new RuntimeException('boom'); });
+    Mailer::afterResponse(static function () use (&$ran): void { $ran[] = 'second'; });
+    ok('nothing runs before the finish...', $ran === []);
+    clearErrorLog();
+    Mailer::runLater();
+    ok('...then the session is released, the answer goes, and the jobs run in order', $trace === ['session released', 'answered', 'job'] && array_slice($ran, 0, 1) === ['first']);
+    ok('a job that fails is logged by kind and does not stop the one after it', $ran === ['first', 'second'] && str_contains(errorLogText(), 'A job that waits for the mail server failed: RuntimeException: boom'), errorLogText());
+
+    // Switched off (MAIL_DEFER=false), or a server that cannot: the work is done at once, as before.
+    mailConfig($base('plain', ['mail_defer' => false]));
+    Mailer::answerFirstWith($answer, $release);
+    $ranNow = false;
+    ok('MAIL_DEFER=false: the work is done at once, whatever the server could do', Mailer::afterResponse(static function () use (&$ranNow): void { $ranNow = true; }) === false && $ranNow === true);
+    mailConfig($base('plain'));
+    Mailer::answerFirstWith(null);
+    $ranNow = false;
+    ok('a server with no way to answer first: the work is done at once', Mailer::afterResponse(static function () use (&$ranNow): void { $ranNow = true; }) === false && $ranNow === true);
+    $ranNow = false;
+    Mailer::answerFirstWith(false);
+    ok('(this machine is not one that can: PHP here has no fastcgi_finish_request)', function_exists('fastcgi_finish_request') || function_exists('litespeed_finish_request') || Mailer::afterResponse(static function () use (&$ranNow): void { $ranNow = true; }) === false && $ranNow);
+
+    // A password-reset request is answered the same, and just as quickly, for an address with an account and one without.
+    $deferredEmail = 'defer-' . bin2hex(random_bytes(4)) . '@example.test';
+    $deferredUid = Database::insert('users', [
+        'name' => 'Defer Test', 'email' => $deferredEmail, 'password_hash' => password_hash('CorrectHorse123', PASSWORD_DEFAULT),
+        'role' => 'content_editor', 'active' => 1, 'created_at' => Database::now(),
+    ]);
+    $unknownEmail = 'nobody-' . bin2hex(random_bytes(4)) . '@example.test';
+    $resetIps = ['198.51.100.' . random_int(201, 210), '198.51.100.' . random_int(211, 220)];
+    mailConfig($base('plain', ['app_url' => 'https://real.example']));
+    Mailer::answerFirstWith($answer, $release);
+    $trace = [];
+    $messagesBefore = $messagesNow();
+    $tokens = static fn(): int => (int) Database::value('SELECT COUNT(*) FROM password_resets WHERE user_id = ?', [$GLOBALS['deferredUid']]);
+    $requested = static fn(): int => (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'user.reset_requested' AND entity_id = ?", [$GLOBALS['deferredUid']]);
+    $answerKnown = PasswordReset::request($deferredEmail, $resetIps[0]);
+    $answerUnknown = PasswordReset::request($unknownEmail, $resetIps[1]);
+    ok('a reset request is answered the same for an address with an account and one without',
+        $answerKnown === $answerUnknown, json_encode([$answerKnown, $answerUnknown]));
+    ok('...and nothing that depends on which it is has happened yet: no lookup result, no token, no log entry, no email (so there is nothing to time)',
+        $tokens() === 0 && $requested() === 0 && $messagesNow() === $messagesBefore && $trace === []);
+    Mailer::runLater();
+    $resetGot = array_slice(sinkMessages($sink, 'plain'), $messagesBefore);
+    ok('...afterwards the account has its token and its email, and the other address has nothing', $tokens() === 1 && $requested() === 1 && count($resetGot) === 1 && ($resetGot[0]['rcpts'] ?? []) === [$deferredEmail], json_encode([$tokens(), count($resetGot)]));
+    ok('...and nothing is recorded for an address with no account', (int) Database::value("SELECT COUNT(*) FROM audit_logs WHERE action = 'user.reset_requested' AND details LIKE ?", ['%' . $unknownEmail . '%']) === 0);
+    // With email off there is no mail server to wait for: nothing is left for later, and the demo preview gets the real answer.
+    $offIp = '198.51.100.' . random_int(221, 230);
+    mailConfig(['mail_enabled' => false, 'app_url' => 'https://real.example']);
+    Mailer::answerFirstWith($answer, $release);
+    Database::query('DELETE FROM password_resets WHERE user_id = ?', [$deferredUid]);
+    $offKnown = PasswordReset::request($deferredEmail, $offIp);
+    $offUnknown = PasswordReset::request($unknownEmail, $offIp);
+    ok('with email off nothing is left for later: the token is made at once and the real answer is given (the demo preview needs it)', $offKnown === true && $offUnknown === false && $tokens() === 1, json_encode([$offKnown, $offUnknown, $tokens()]));
+    $resetIps[] = $offIp;
+    foreach ($resetIps as $resetIp) RateLimiter::clear('reset-ip|' . $resetIp);
+    foreach ([$deferredEmail, $unknownEmail] as $resetMail) RateLimiter::clear('reset-email|' . $resetMail);
+    Database::query('DELETE FROM password_resets WHERE user_id = ?', [$deferredUid]);
+    Database::query("DELETE FROM audit_logs WHERE entity_id = ? AND action IN ('user.reset_requested','user.reset_mail_failed')", [$deferredUid]);
+    Database::query('DELETE FROM users WHERE id = ?', [$deferredUid]);
+
+    // The limit on alerts, all visitors together.
+    Mailer::answerFirstWith(null);   // every alert is sent at once, so it can be counted
+    $clearAlertCounters();
+    mailConfig($base('plain', ['mail_alert_limit' => 3]));
+    $messagesBefore = $messagesNow();
+    $flood = [];
+    for ($i = 1; $i <= 5; $i++) {
+        $newVisit();
+        $one = $enquiry(['message' => "Enquiry number $i of a flood, as it would arrive from many different addresses."]);
+        $flood[] = (int) ($one['id'] ?? 0);
+        $afterCleanup[] = (int) ($one['id'] ?? 0);
+    }
+    $suppressed = Database::all("SELECT entity_id, details FROM audit_logs WHERE action = 'enquiry.alert_suppressed' AND entity_id IN (" . implode(',', array_map('intval', $flood)) . ')');
+    ok('five enquiries from a flood are all saved...', count(array_filter($flood)) === 5 && (int) Database::value('SELECT COUNT(*) FROM enquiries WHERE id IN (' . implode(',', array_map('intval', $flood)) . ')') === 5, json_encode($flood));
+    ok('...but only three alerts went to the office: the limit', $messagesNow() - $messagesBefore === 3, (string) ($messagesNow() - $messagesBefore));
+    ok('...and the activity log says so once, not once per enquiry, naming the setting', count($suppressed) === 1 && str_contains($suppressed[0]['details'], 'MAIL_ALERT_LIMIT') && (int) $suppressed[0]['entity_id'] === $flood[3], json_encode($suppressed));
+    $clearAlertCounters();
+    mailConfig($base('plain', ['mail_alert_limit' => 0]));
+    $messagesBefore = $messagesNow();
+    for ($i = 1; $i <= 5; $i++) {
+        $newVisit();
+        $one = $enquiry(['message' => "Enquiry number $i, with the limit switched off."]);
+        $afterCleanup[] = (int) ($one['id'] ?? 0);
+    }
+    ok('MAIL_ALERT_LIMIT=0 means no limit: all five are alerted', $messagesNow() - $messagesBefore === 5, (string) ($messagesNow() - $messagesBefore));
+    $clearAlertCounters();
+    mailConfig($base('plain'));
+    ok('unset, the limit is 60 an hour (the default)', (int) config('mail_alert_limit', -1) === 60 && (int) ($GLOBALS['baseConfig']['mail_alert_limit'] ?? -1) === 60, json_encode($GLOBALS['baseConfig']['mail_alert_limit'] ?? null));
+    $afterCleanup = array_values(array_filter($afterCleanup));
+    if ($afterCleanup) {
+        $afterList = implode(',', array_map('intval', $afterCleanup));
+        Database::query("DELETE FROM audit_logs WHERE action IN ('enquiry.alert_failed','enquiry.alert_suppressed') AND entity_id IN ($afterList)");
+        Database::query("DELETE FROM enquiries WHERE id IN ($afterList)");
+    }
+    RateLimiter::clear('enquiry|' . $afterIp);
+    unset($_SERVER['REMOTE_ADDR']);
+    Mailer::answerFirstWith(false);
 
     // "Send a test email" on the settings screen (the same check as bin/mail-test.php, for a host with no terminal).
     echo "\n== The test button on the settings screen ==\n";
@@ -1436,6 +1886,16 @@ if ($capturing) {
     $sent = Mailer::send('office@example.com', 'Odd sender', 'x');
     $args = trim((string) @file_get_contents($capturedArgs));
     ok('an unusual sender address (valid, but able to smuggle options) is never put on the command line', !str_contains($args, '-f') && !str_contains($args, 'pwned'), $args);
+    ok('...and since the audit that address is refused before it gets that far, which is why the next check exists', $sent === false && str_contains(Mailer::lastError(), 'sender'), Mailer::lastError());
+    // The guard on -f is for an address the general rule accepts but that is not made of the plainest characters: an apostrophe or
+    // an ampersand is fine in an address and is exactly what a shell treats specially. The message still goes; -f is left off.
+    foreach (["o'brien@example.com", 'a&b@example.com', 'a`b@example.com', 'a|b@example.com', 'a$b@example.com'] as $oddSender) {
+        mailConfig(['mail_driver' => 'mail', 'mail_host' => '', 'mail_from' => $oddSender]);
+        @unlink($captured); @unlink($capturedArgs);
+        $sent = Mailer::send('office@example.com', 'Odd sender', 'x');
+        $args = trim((string) @file_get_contents($capturedArgs));
+        ok('a sender like ' . $oddSender . ' is accepted and sends, but is never put on the command line as -f', $sent === true && $args !== '' && !str_contains($args, '-f'), $args . ' / ' . Mailer::lastError());
+    }
     mailConfig(['mail_driver' => 'mail', 'mail_host' => '']);
     foreach ($hostileReplyTos as $bad) {
         @unlink($captured); @unlink($capturedArgs);

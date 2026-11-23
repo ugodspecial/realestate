@@ -61,7 +61,10 @@ if ($command === 'status') {
 }
 
 if ($command === 'disconnect') {
-    MailOAuth::disconnect();
+    if (!MailOAuth::disconnect()) {
+        echo 'NOT DISCONNECTED: the file that holds the saved sign-in could not be changed (is it writable by this user?), so it is still there.' . PHP_EOL;
+        exit(1);
+    }
     echo 'Disconnected. The website cannot send email through ' . $o['label'] . ' until it is connected again.' . PHP_EOL;
     exit(0);
 }

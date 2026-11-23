@@ -38,6 +38,13 @@ $config = array_replace([
     // A CA bundle file, for a PHP that has none of its own (typically PHP on Windows).
     'mail_cafile' => getenv('MAIL_CAFILE') ?: '',
     'mail_timeout' => getenv('MAIL_TIMEOUT') ?: '8',
+    // Enquiry alert emails the website sends in an hour, all visitors together (a bot that fills the form in from
+    // many addresses must not be able to fill the office's inbox and use up the provider's daily allowance, after
+    // which reset emails stop too). Enquiries are saved either way. 0 = no limit. See app/Core/Enquiries.php.
+    'mail_alert_limit' => trim((string) getenv('MAIL_ALERT_LIMIT')) !== '' ? max(0, (int) getenv('MAIL_ALERT_LIMIT')) : 60,
+    // Where the server allows it (PHP-FPM, LiteSpeed) the visitor is answered BEFORE the mail server is talked to, so
+    // a slow or unreachable mail server does not hold up the thank-you page. false = talk to it first, as before.
+    'mail_defer' => !in_array(strtolower((string) getenv('MAIL_DEFER')), ['false', '0', 'no', 'off'], true),
     // Signing in to the mail server with OAuth instead of a password, for providers that no longer take
     // one (Microsoft 365). MAIL_OAUTH_PROVIDER=microsoft turns it on; the rest says how the website
     // proves itself to Microsoft. See app/Core/MailOAuth.php and "Microsoft 365" in docs/EMAIL.md. The

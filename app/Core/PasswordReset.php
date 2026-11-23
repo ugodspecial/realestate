@@ -45,6 +45,15 @@ final class PasswordReset {
      * Ask for a reset link. Always behaves the same from the caller's point
      * of view; the return value is only used to decide whether an e-mail was
      * actually queued, never to tell the visitor anything.
+     *
+     * The answer is also as FAST for an address nobody has as for one that has
+     * an account, where the server allows it (see Mailer::afterResponse): the
+     * lookup, the token and the mail server's few hundred milliseconds all come
+     * after the visitor has been answered, and then the return value is true
+     * whatever the address: whether a link will be issued is not known yet, and is
+     * never shown. Where the server does not allow it, the lookup and the mail come
+     * first, as they always did, and a patient stranger could tell the two cases
+     * apart by timing them (docs/SECURITY.md says so).
      */
     public static function request(string $email, string $ip): bool {
         $email = strtolower(trim($email));
@@ -57,6 +66,17 @@ final class PasswordReset {
         RateLimiter::hit($byEmail, self::REQUEST_WINDOW);
         RateLimiter::hit($byIp, self::REQUEST_WINDOW);
 
+        // With email off there is no mail server to wait for, so nothing is gained by leaving the work for later.
+        if (!Mailer::enabled()) return self::process($email, $ip);
+        $issued = false;
+        $later = Mailer::afterResponse(static function () use ($email, $ip, &$issued): void {
+            $issued = self::process($email, $ip);
+        });
+        return $later ? true : $issued;
+    }
+
+    /** Everything that depends on whether the address has an account: the lookup, the token, the mail, the log. */
+    private static function process(string $email, string $ip): bool {
         $user = Database::one('SELECT id, name, email, active FROM users WHERE email = ?', [$email]);
         // Inactive accounts are treated exactly like unknown ones: a disabled
         // member of staff must not be able to get back in this way.

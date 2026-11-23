@@ -443,7 +443,7 @@ final class AdminController {
     private static function userErrors(array $data, bool $edit = false, ?int $id = null): array {
         $errors = [];
         if (mb_strlen($data['name']) < 2) $errors[] = 'Enter the staff member’s full name.';
-        if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) $errors[] = 'Enter a valid email address.';
+        if (!Mailer::isAddress($data['email'])) $errors[] = 'Enter a valid email address.';
         $taken = Database::one('SELECT id FROM users WHERE email=?' . ($id ? ' AND id<>?' : ''), $id ? [$data['email'], $id] : [$data['email']]);
         if ($taken) $errors[] = 'That email address is already registered.';
         if (!$edit || $data['password'] !== '') {
@@ -477,7 +477,7 @@ final class AdminController {
                 }
                 if ($key === 'listings_per_page') $value = (string)min(48, max(3, (int)$value ?: 9));
                 if ($key === 'brand_name' && trim($value) === '') { flash('error', 'The website name cannot be empty.'); redirect('admin/settings'); }
-                if (in_array($key, ['email', 'notify_email'], true) && $value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) { flash('error', 'Enter a valid email address.'); redirect('admin/settings'); }
+                if (in_array($key, ['email', 'notify_email'], true) && $value !== '' && !Mailer::isAddress($value)) { flash('error', 'Enter a valid email address.'); redirect('admin/settings'); }
                 $save($key, $value);
             }
             // Legacy key kept in sync so older pages and templates stay consistent.
@@ -614,7 +614,11 @@ final class AdminController {
                 return ['ok' => true, 'message' => ''];
             case 'oauth-disconnect':
                 unset($_SESSION['mail_oauth_device']);
-                MailOAuth::disconnect();
+                // A Disconnect that did not happen must not look as if it had: the sign-in would go on sending mail.
+                if (!MailOAuth::disconnect()) {
+                    Audit::log('settings.mail_oauth', 'settings', null, $label . ' could not be disconnected: the file that holds the saved sign-in could not be changed');
+                    return ['ok' => false, 'message' => 'Could not disconnect: the file that holds the saved sign-in could not be changed, so it is still there. Make the storage folder writable and press Disconnect again.'];
+                }
                 Audit::log('settings.mail_oauth', 'settings', null, 'Disconnected ' . $label);
                 return ['ok' => true, 'message' => 'Disconnected. The website cannot send email through ' . $label . ' until it is connected again.'];
         }

@@ -14,6 +14,9 @@
  *   - send a password over a connection it was told to encrypt but could not (no silent
  *     downgrade: if STARTTLS is required and not offered, it stops);
  *   - skip certificate checks unless the operator turned them off (MAIL_VERIFY_PEER=false);
+ *   - speak TLS older than 1.2 (see tlsMethod()), however the server asks;
+ *   - let a line break reach the server from anywhere but the end of a line it wrote itself, whatever the
+ *     caller passed in (see send()), or an address that is not a plain run of visible characters;
  *   - queue, retry or send to more than one recipient - a failure is reported to the caller;
  *   - put the password, or an OAuth access token, in an error message or in the conversation it keeps;
  *   - fall back to a password when it was given a token (and the other way round): which one it signs in
@@ -108,8 +111,14 @@ final class SmtpClient {
         $this->capabilities = [];
         $this->deadline = microtime(true) + $this->timeout * 2;
         try {
+            // Whatever the caller built, the server gets CRLF and nothing else as a line break. A lone CR or LF is read
+            // as the end of a line by some servers and not by others, which is how a line of the message can be taken for
+            // a command ("SMTP smuggling"): after this there is no such thing to be confused about.
+            $message = (string) preg_replace('/\r\n|\r|\n/', "\r\n", $message);
             foreach ([$from, $recipient] as $address) {
-                if ($address === '' || preg_match('/[<>\r\n\0]/', $address)) $this->fail('An e-mail address in the envelope is not usable.');
+                // Visible characters only, no brackets: a space, a control character or a bracket in an address is a way
+                // to end the command early and start another one.
+                if ($address === '' || !preg_match('/^[\x21-\x7E]+$/D', $address) || preg_match('/[<>]/', $address)) $this->fail('An e-mail address in the envelope is not usable.');
             }
             if ($this->host === '') $this->fail('No SMTP host is configured (MAIL_HOST).');
             $unavailable = self::unavailable($this->encryption);
@@ -127,7 +136,7 @@ final class SmtpClient {
                     $this->fail('The server does not offer STARTTLS, so the connection cannot be encrypted. Use MAIL_ENCRYPTION=ssl (port 465) if the server expects TLS from the start, or none only for a local or trusted server.');
                 }
                 $this->command('STARTTLS', [220], 'STARTTLS', 'The server refused to start encryption');
-                $upgraded = $this->guard(fn() => stream_socket_enable_crypto($this->socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT));
+                $upgraded = $this->guard(fn() => stream_socket_enable_crypto($this->socket, true, self::tlsMethod()));
                 if ($upgraded !== true) $this->fail('Could not switch to an encrypted connection: ' . $this->why());
                 $this->conversation[] = '-- connection is now encrypted --';
                 $this->greet();
@@ -180,13 +189,36 @@ final class SmtpClient {
     }
 
     /**
+     * The oldest TLS this site speaks: 1.2, and 1.3 where PHP has it. PHP's own default still agrees to 1.0 and 1.1 with a
+     * server that offers nothing newer, and what crosses this connection is a password or an access token. Microsoft 365,
+     * Google and every current provider already require 1.2, so nothing that works today stops; a very old mail server of
+     * your own is refused with a message that says why (see explain()).
+     */
+    public static function tlsMethod(): int {
+        $method = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+        if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) $method |= STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+        return $method;
+    }
+
+    /**
+     * Is $host this machine: localhost, ::1, or an IPv4 address in 127.0.0.0/8? Only that is trusted with no encryption (a
+     * local mail catcher). It has to BE such an address: a name that merely starts with "127." (127.evil.example) is
+     * somebody else's machine.
+     */
+    public static function isLoopback(string $host): bool {
+        $host = strtolower(trim($host, '[] '));
+        if ($host === 'localhost' || $host === '::1') return true;
+        return preg_match('/^127(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/D', $host) === 1;
+    }
+
+    /**
      * The TLS settings for a connection to $host. One place, used by this client and by HttpClient (the
      * OAuth token request), so "check the certificate" and "use this CA bundle" mean the same thing for both.
      *
      * @return resource
      */
     public static function tlsContext(string $host, bool $verifyPeer, string $cafile = '') {
-        $ssl = ['peer_name' => trim($host, '[]'), 'SNI_enabled' => true];
+        $ssl = ['peer_name' => trim($host, '[]'), 'SNI_enabled' => true, 'crypto_method' => self::tlsMethod()];
         if ($verifyPeer) {
             $ssl += ['verify_peer' => true, 'verify_peer_name' => true, 'allow_self_signed' => false];
             if ($cafile !== '') $ssl['cafile'] = $cafile;
@@ -394,6 +426,7 @@ final class SmtpClient {
             (bool) preg_match('/refused/i', $raw) => 'nothing is listening there (connection refused)',
             (bool) preg_match('/timed out|timeout|did not properly respond/i', $raw) => 'the connection timed out (a firewall, or the hosting plan, may block this port)',
             (bool) preg_match('/certificate|self[- ]signed/i', $raw) => 'its TLS certificate could not be verified',
+            (bool) preg_match('/protocol version|unsupported protocol|wrong version number|no protocols available|version too low/i', $raw) => 'the server only offers an old version of TLS, and this site needs TLS 1.2 or newer',
             default => '',
         };
         $raw = $raw === '' ? 'no further detail from PHP' : $raw;
